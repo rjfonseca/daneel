@@ -1,0 +1,35 @@
+# Binários de compilação
+bin/
+tmp/
+build-errors.log
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Caches locais
+.daneel/
+.agents/cache/
+*.db
+*.db-wal
+*.db-shm
+
+# IDEs e editores
+.idea/
+.vscode/
+*.swp
+*~
+
+# Ferramentas locais e MCP
+.serena/
+.playwright-mcp/
+
+# Build, task e testes
+.task/
+test-results/
+__pycache__/
+
+# Vault de desenvolvimento local
+/inbox/
+/notes/

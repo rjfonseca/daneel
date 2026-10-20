@@ -1,0 +1,48 @@
+# lefthook.yml
+# Git hooks manager for Daneel (https://github.com/evilmartians/lefthook)
+
+pre-commit:
+  parallel: false
+  commands:
+    fmt:
+      glob: "*.go"
+      run: goimports -w -local github.com/rjfonseca/daneel {staged_files}
+      stage_fixed: true
+
+    lint:
+      glob: "*.go"
+      run: golangci-lint run
+
+    frontend-lint:
+      glob: "web/**/*.{js,ts,jsx,tsx}"
+      root: "web/"
+      run: npx eslint --fix {staged_files}
+      stage_fixed: true
+
+    frontend-test:
+      glob: "web/**/*.{js,ts,jsx,tsx}"
+      root: "web/"
+      run: npx vitest related --run --passWithNoTests {staged_files}
+
+pre-push:
+  parallel: false
+  commands:
+    test:
+      run: task test
+
+    vulncheck:
+      run: task vulncheck
+
+    frontend-test-full:
+      root: "web/"
+      run: npm run test
+
+    frontend-audit:
+      root: "web/"
+      run: npm run audit
+
+    webfs-sync:
+      run: task web-verify-sync
+
+    bench:
+      run: task bench

@@ -1,0 +1,308 @@
+syntax = "proto3";
+
+package graph.v1;
+
+option go_package = "github.com/rjfonseca/daneel/api/v1;graphv1";
+
+service GraphService {
+  // Returns the galaxy graph structure (nodes and links)
+  rpc GetGalaxy(GetGalaxyRequest) returns (GetGalaxyResponse);
+  
+  // Returns note markdown content
+  rpc GetNote(GetNoteRequest) returns (GetNoteResponse);
+
+  // Saves an explicitly submitted note in the local inbox.
+  rpc CaptureNote(CaptureNoteRequest) returns (CaptureNoteResponse);
+  
+  // Performs full-text search across vault notes (SQLite FTS5)
+  rpc SearchNotes(SearchNotesRequest) returns (SearchNotesResponse);
+
+  // Subscribes to real-time UI events dispatched by Daemon/MCP/CLI
+  rpc SubscribeUIEvents(SubscribeUIEventsRequest) returns (stream UIEvent);
+
+  // Active context telemetry reported by Web or TUI client to Daemon
+  rpc ReportActiveContext(ReportActiveContextRequest) returns (ReportActiveContextResponse);
+
+  // --- WEB ACTION DECK & OPS PARITY ---
+  // Executes a routine or skill headlessly with real-time streamed output
+  rpc ExecuteRoutine(ExecuteRoutineRequest) returns (stream RoutineOutputEvent);
+
+  // Returns routines overview, active schedules, and status
+  rpc GetRoutinesOverview(GetRoutinesOverviewRequest) returns (GetRoutinesOverviewResponse);
+
+  // Returns Staff engineering telemetry and [A]-[E] archetype time allocation
+  rpc GetStaffTelemetry(GetStaffTelemetryRequest) returns (GetStaffTelemetryResponse);
+
+  // Returns cognitive telemetry, metacognition profiling, and agent evals
+  rpc GetCognitiveTelemetry(GetCognitiveTelemetryRequest) returns (GetCognitiveTelemetryResponse);
+
+  // Upserts or edits a scheduled maintenance routine
+  rpc UpsertRoutine(UpsertRoutineRequest) returns (UpsertRoutineResponse);
+
+  // Removes a scheduled routine
+  rpc DeleteRoutine(DeleteRoutineRequest) returns (DeleteRoutineResponse);
+
+  // Returns routine execution history from persistent ledger
+  rpc GetRoutineHistory(GetRoutineHistoryRequest) returns (GetRoutineHistoryResponse);
+}
+
+enum UIActionType {
+  option allow_alias = true;
+  ACTION_UNSPECIFIED = 0;
+  ACTION_OPEN_NOTE = 1;
+  ACTION_FOCUS_DOMAIN = 2;
+  ACTION_FOCUS_SECTOR = 2; // Alias for backward compatibility
+  ACTION_FLASH_NOTIFICATION = 3;
+  ACTION_GALAXY_RELOAD = 4;
+  ACTION_PIN_NOTE = 5;
+  ACTION_UNPIN_NOTE = 6;
+}
+
+message UIEvent {
+  UIActionType action = 1;
+  string target_path = 2;
+  string payload_json = 3;
+  int64 timestamp = 4;
+}
+
+message SubscribeUIEventsRequest {}
+
+message ReportActiveContextRequest {
+  string surface = 1; // "web" | "tui"
+  string active_note_path = 2;
+  string focused_domain = 3;
+  string selected_text = 4;
+}
+
+message ReportActiveContextResponse {
+  bool success = 1;
+}
+
+message GetGalaxyRequest {}
+
+message GalaxyStats {
+  int32 total_notes = 1;
+  int32 total_links = 2;
+  int32 harvester_count = 3;
+  int32 routine_count = 4;
+  int32 skill_count = 5;
+  int32 root_category_count = 6;
+  float staff_tracked_hours = 7;
+}
+
+message PinnedAnchor {
+  string path = 1;
+  string label = 2;
+  string icon = 3;
+}
+
+message GetGalaxyResponse {
+  repeated Node nodes = 1;
+  repeated Link links = 2;
+  GalaxyStats stats = 3;
+  repeated PinnedAnchor pinned_anchors = 4;
+  string weekly_pattern = 5;
+}
+
+message Node {
+  string id = 1;           // Relative file path as unique identifier
+  string title = 2;        // Note title or display label
+  string category = 3;     // Category directory forming solar systems
+  string note_type = 4;    // OKF note archetype or "skill" / "harvest" / "routine"
+  int32 connections = 5;   // Node degree (defines visual mass in stellar shader)
+  int64 mod_time = 6;      // Unix modification timestamp
+  string ring = 7;         // "memory" | "skills" | "routines" | "harvesters"
+  string status = 8;       // "active" | "healthy" | "idle" | "ready"
+  string description = 9;  // ARMS component or note description
+  string icon = 10;        // Cosmic icon glyph identifier
+  string domain = 11;      // Macro knowledge domain (e.g. "sources/gitlab", "notes/architecture")
+  string group = 12;       // Organizational group or subgroup (e.g. "acme/saas/pocs")
+  string repository = 13;  // Repository or project name (e.g. "my-repo")
+}
+
+message Link {
+  string source = 1;       // Source relative path identifier
+  string target = 2;       // Target relative path identifier
+  string label = 3;        // Link display label
+}
+
+message GetNoteRequest {
+  string rel_path = 1;
+}
+
+message GetNoteResponse {
+  string content_markdown = 1;
+}
+
+message SearchNotesRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message SearchNotesResponse {
+  repeated SearchResult results = 1;
+}
+
+message SearchResult {
+  string rel_path = 1;
+  string title = 2;
+  string snippet = 3;      // Contextual snippet containing search match
+}
+
+message ExecuteRoutineRequest {
+  string routine_name = 1; // "dream", "tidy", "doctor", "guard", "ingest", "dossier", "session_mining"
+  bool verbose = 2;
+  map<string, string> params = 3;
+}
+
+message RoutineOutputEvent {
+  string line = 1;
+  bool is_error = 2;
+  bool is_completed = 3;
+  int32 exit_code = 4;
+}
+
+message GetRoutinesOverviewRequest {}
+
+message RoutineStatusItem {
+  string name = 1;
+  string title = 2;
+  string description = 3;
+  string category = 4; // "deterministic" | "ai_skill"
+  string status = 5;   // "ready" | "running" | "healthy"
+  int64 last_run_timestamp = 6;
+  string schedule = 7;
+  string command = 8;
+  repeated string args = 9;
+  bool enabled = 10;
+  bool active = 11;
+  int64 next_trigger_timestamp = 12;
+  string last_result = 13;
+}
+
+message GetRoutinesOverviewResponse {
+  repeated RoutineStatusItem routines = 1;
+}
+
+message RoutineRunItem {
+  string id = 1;
+  string routine_name = 2;
+  int64 started_at = 3;
+  int64 completed_at = 4;
+  int64 duration_ms = 5;
+  string trigger_source = 6;
+  int32 exit_code = 7;
+  string status = 8;
+  string summary = 9;
+  string error_message = 10;
+}
+
+message GetRoutineHistoryRequest {
+  string routine_name = 1;
+  int32 limit = 2;
+}
+
+message GetRoutineHistoryResponse {
+  repeated RoutineRunItem runs = 1;
+}
+
+message UpsertRoutineRequest {
+  string name = 1;
+  string command = 2;
+  repeated string args = 3;
+  string schedule = 4;
+  string description = 5;
+  bool enabled = 6;
+}
+
+message UpsertRoutineResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message DeleteRoutineRequest {
+  string name = 1;
+}
+
+message DeleteRoutineResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message GetStaffTelemetryRequest {
+  int32 days = 1;              // default 7 (backward compatibility)
+  int32 rolling_weeks = 2;     // rolling window of ISO weeks (e.g. 4)
+  int32 historical_months = 3; // historical months (e.g. 6)
+}
+
+message StaffPeriodSummary {
+  string period_key = 1;
+  string label = 2;
+  int32 days_count = 3;
+  float strategic_a_hours = 4;
+  float local_impact_b_hours = 5;
+  float glue_work_c_hours = 6;
+  float low_impact_d_hours = 7;
+  float overhead_e_hours = 8;
+  float total_hours = 9;
+  float leverage_rate = 10;
+  string diagnosis = 11;
+}
+
+message GetStaffTelemetryResponse {
+  float strategic_a_hours = 1;
+  float local_impact_b_hours = 2;
+  float glue_work_c_hours = 3;
+  float overhead_e_hours = 4;
+  float total_hours = 5;
+  repeated string top_initiatives = 6;
+
+  float low_impact_d_hours = 7;
+  float leverage_rate = 8;
+  repeated StaffPeriodSummary rolling_weeks = 9;
+  repeated StaffPeriodSummary monthly_history = 10;
+}
+
+message GetCognitiveTelemetryRequest {}
+
+message StageTimingItem {
+  string name = 1;
+  int64 duration_ms = 2;
+  int32 items_count = 3;
+  string description = 4;
+}
+
+message AgentEvalItem {
+  string agent = 1;
+  string topic = 2;
+  string classification = 3; // "missed_opportunity" | "knowledge_gap" | "user_correction"
+  string description = 4;
+  string suggested_action = 5;
+  int64 timestamp = 6;
+}
+
+message GetCognitiveTelemetryResponse {
+  int64 last_cycle_duration_ms = 1;
+  repeated StageTimingItem stage_timings = 2;
+  repeated string bottlenecks = 3;
+  repeated string induced_syntheses = 4;
+  string evolution_log_path = 5;
+  int32 scanned_turns = 6;
+  int32 missed_opportunities_count = 7;
+  int32 knowledge_gaps_count = 8;
+  repeated AgentEvalItem recent_evals = 9;
+  int32 total_files_scanned = 10;
+  int32 broken_links_count = 11;
+  int64 last_dream_timestamp = 12;
+}
+
+message CaptureNoteRequest {
+  string title = 1;
+  string content_markdown = 2;
+  string source_url = 3;
+}
+
+message CaptureNoteResponse {
+  string rel_path = 1;
+  string warning = 2;
+}

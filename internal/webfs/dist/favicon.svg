@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="70%" stop-color="#050508" />
+      <stop offset="100%" stop-color="#020204" />
+    </radialGradient>
+
+    <!-- Celestial Fusion Core Gradient -->
+    <radialGradient id="stellar-core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="25%" stop-color="#e0f2fe" />
+      <stop offset="55%" stop-color="#38bdf8" />
+      <stop offset="80%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.8" />
+    </radialGradient>
+
+    <!-- Starburst Corona Glow -->
+    <radialGradient id="corona-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9" />
+      <stop offset="40%" stop-color="#818cf8" stop-opacity="0.4" />
+      <stop offset="80%" stop-color="#c084fc" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Orbital Ring Linear Accents -->
+    <linearGradient id="ring-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#818cf8" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#2dd4bf" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Outer Glow Filter -->
+    <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Deep Space Backdrop Squircle -->
+  <rect width="64" height="64" rx="14" fill="url(#bg-glow)" />
+  <rect width="62" height="62" x="1" y="1" rx="13" stroke="#1e293b" stroke-width="0.8" opacity="0.6" />
+
+  <!-- Coronal Gas Diffusion Layer -->
+  <circle cx="32" cy="32" r="22" fill="url(#corona-glow)" />
+
+  <!-- Outer Foundation / Seldon Orbital Ring -->
+  <circle cx="32" cy="32" r="24.5" stroke="url(#ring-glow)" stroke-width="0.9" opacity="0.75" stroke-dasharray="3 1.5" filter="url(#neon-glow)" />
+  
+  <!-- Outer Cardinal Sector Beacons -->
+  <line x1="32" y1="6" x2="32" y2="9.5" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round" />
+  <line x1="32" y1="54.5" x2="32" y2="58" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round" />
+  <line x1="6" y1="32" x2="9.5" y2="32" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round" />
+  <line x1="54.5" y1="32" x2="58" y2="32" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round" />
+
+  <!-- Inner Memory Orbital Ring -->
+  <circle cx="32" cy="32" r="16.5" stroke="#818cf8" stroke-width="0.8" opacity="0.65" />
+
+  <!-- Outer Orbit Satellites (ARMS: Harvester, Routine, Skill) -->
+  <circle cx="49.3" cy="14.7" r="1.8" fill="#38bdf8" filter="url(#neon-glow)" />
+  <circle cx="49.3" cy="14.7" r="0.8" fill="#ffffff" />
+  <circle cx="14.7" cy="49.3" r="1.5" fill="#a855f7" filter="url(#neon-glow)" />
+  <circle cx="14.7" cy="49.3" r="0.6" fill="#ffffff" />
+  <circle cx="56.2" cy="34.5" r="1.3" fill="#2dd4bf" />
+  <circle cx="10.5" cy="24.5" r="1.3" fill="#818cf8" />
+  <circle cx="39.5" cy="55.8" r="1.3" fill="#facc15" />
+
+  <!-- Inner Orbit Satellites -->
+  <circle cx="43.7" cy="20.3" r="1.4" fill="#38bdf8" />
+  <circle cx="20.3" cy="26.5" r="1.2" fill="#c084fc" />
+
+  <!-- Diagonal Sub-Flares -->
+  <path d="M22 22 L42 42 M22 42 L42 22" stroke="#a5f3fc" stroke-width="0.6" opacity="0.4" />
+
+  <!-- Prime Radiant Central Flare Star (4-Pointed Laser Spikes) -->
+  <path d="M32 10 Q32 30 10 32 Q32 32 32 54 Q32 32 54 32 Q32 32 32 10 Z" fill="url(#stellar-core)" filter="url(#neon-glow)" opacity="0.95" />
+
+  <!-- Central Supermassive Fusion Core -->
+  <circle cx="32" cy="32" r="4.5" fill="url(#stellar-core)" filter="url(#neon-glow)" />
+  <!-- White-Hot Fusion Core Eye -->
+  <circle cx="32" cy="32" r="2.2" fill="#ffffff" />
+</svg>

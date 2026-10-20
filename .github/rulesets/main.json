@@ -1,0 +1,60 @@
+{
+  "name": "Protect main",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/main"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "required_signatures"
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          {
+            "context": "Golangci Lint"
+          },
+          {
+            "context": "Govulncheck"
+          },
+          {
+            "context": "Test (ubuntu-latest)"
+          },
+          {
+            "context": "Test (macos-latest)"
+          },
+          {
+            "context": "Test (windows-latest)"
+          },
+          {
+            "context": "Benchmarks"
+          },
+          {
+            "context": "Check GoReleaser Config"
+          },
+          {
+            "context": "Frontend & WebFS Drift Verification"
+          },
+          {
+            "context": "Browser invariants (isolated demonstration vault)"
+          }
+        ]
+      }
+    }
+  ]
+}
