@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "command": "daneel hook handoff"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "command": "daneel hook capture PostToolUse --agent claude-code"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "command": "daneel hook capture SessionEnd --agent claude-code"
+      }
+    ]
+  }
+}

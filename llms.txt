@@ -1,0 +1,25 @@
+# Daneel
+
+> The AI-First Engineering Second Brain CLI & Model Context Protocol (MCP) Server in Pure Go.
+
+## Documentation Index
+
+- [System Overview](docs/architecture/overview.md): Subsystem layout, data stores, and SQLite FTS5 engine.
+- [Security Guardrails](docs/architecture/security-guardrails.md): Isaac Asimov's Four Laws of Robotics audit rules and secret leak prevention.
+- [Search & Storage](docs/architecture/search-and-storage.md): Pure Go SQLite FTS5 engine, BM25 ranking, and relational schema.
+- [Coordinate Spaces](docs/architecture/coordinate-spaces.md): Coordinate math for camera zoom, lateral drawer compensation, and cluster framing.
+- [Daemon Lifecycle](docs/daemon/lifecycle.md): Unix domain socket IPC, PID management, and systemd --user service.
+- [Daemon Debugging](docs/daemon/debugging.md): Diagnostic workflows, socket troubleshooting, and log inspection.
+- [Spatial Context](docs/ambient-intelligence/spatial-context.md): ActiveContext protocol, ConnectRPC streaming, and viewport sync.
+- [MCP Tools](docs/ambient-intelligence/mcp-tools.md): Unified ui_* Model Context Protocol tools and offline fallbacks.
+- [Cognitive Dream Cycle](docs/cognitive/dream-cycle.md): Autonomous REM consolidation, Zettelkasten inbox triage, and feedback loop.
+- [Configuration Schema](docs/configuration/schema.md): Complete .daneel.yaml specification and multi-vault resolution.
+- [Operations Suite](docs/operations/telemetry-and-briefing.md): Executive performance dossiers, 1:1 briefings, meeting notes ingest, and workspace cloner.
+- [Terminal UI (TUI)](docs/tui/terminal-interface.md): Bubble Tea interactive terminal interface, keybindings, and views.
+- [CLI Reference](docs/cli/reference.md): Complete 25-command inventory, flags, and options.
+- [CLI Delegation](docs/cli/delegation.md): RunOrDelegate execution pattern, single-writer SQLite, and live reloads.
+- [Web Galaxy Visualizer](docs/web/galaxy-visualizer.md): Sigma.js WebGL rendering, ForceAtlas2, and camera rules.
+- [Astrophysics LOD](docs/web/lod-and-astrophysics.md): 8-class stellar taxonomy and dynamic LOD edge filtering.
+- [Harvesters](docs/harvester/pipeline.md): GitHub, GitLab, Google Drive, and Jira scraping engines.
+- [Quality & Testing](docs/development/quality-and-testing.md): Quality gates, Vitest, Playwright, and Go tests.
+- [Architectural Decisions](docs/adr/README.md): Architectural Decision Records (MADRs).
