@@ -82,7 +82,7 @@ daneel serve
 The Web interface is local-only. Open the URL printed by `serve`. For a
 reproducible example, follow the [demonstration vault guide](docs/development/demo-vault.md).
 See [compatibility guarantees](docs/releases/compatibility.md),
-[recovery](docs/operations/recovery.md), and the [release checklist](docs/releases/checklist.md).
+[recovery](docs/operations/recovery.md), and the [release checklist](docs/releases/checklist.md), and [automatic release process](docs/releases/automation.md).
 
 Search uses lexical matching and BM25 ranking, without embeddings. Query latency
 depends on the vault, hardware and cache state; run `task bench` to measure it.

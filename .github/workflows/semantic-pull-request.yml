@@ -1,0 +1,27 @@
+name: Semantic pull request
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    name: Conventional PR title
+    runs-on: ubuntu-latest
+    steps:
+      # Only trusted base code executes; never check out the contributor's head.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate the squash commit title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python scripts/release_version.py validate-title

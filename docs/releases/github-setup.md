@@ -1,71 +1,139 @@
-# GitHub release setup
+# GitHub setup for automatic releases
 
-Run these steps from the reviewed checkout with `gh` authenticated as a repository
-administrator. The JSON files describe the intended controls; committing them does
-not activate settings on GitHub.
+This setup is performed once per remote repository. Repository settings and
+rulesets are not restored merely by pushing the source. Repeat these steps if a
+private test repository is deleted and recreated. Do not delete or recreate an
+existing repository through these instructions without a separate decision.
 
-## Publish the reviewed history
+Use `gh` authenticated as a repository administrator. The release workflow itself
+uses only the automatically supplied `GITHUB_TOKEN`; do not add a PAT or private
+signing key as a repository secret.
 
-Confirm that the recreated repository has no old branches, tags or pull-request
-refs. Consolidate the initial public source into one reviewed, signed root commit.
-Push it to a `release/**` branch and inspect its hosted CI results before creating
-`main` at that same commit. Activate main's required checks after this bootstrap.
-Keep candidate and stable tags on the validated source commit; retain hosted
-evidence in the GitHub release notes and workflow runs.
+## Bootstrap main
 
-Set the repository explicitly:
+For a new empty remote, disable GitHub Actions before the initial source push so
+publication cannot start before setup is complete. Set the repository explicitly:
 
 ```bash
-release_repo=rjfonseca/daneel
-gh repo view "$release_repo" --json visibility,defaultBranchRef,url
+release_repo=example/daneel
+gh api --method PUT "repos/$release_repo/actions/permissions" -F enabled=false
+git push origin HEAD:refs/heads/main
 ```
 
-After reviewing the published tree, enable public access and security reporting:
+Push the reviewed, signed source containing the release policy. A recreated
+remote can retain the existing Git history. If consolidating source into a new
+root before the first public release, keep the root commit signed and give it a
+Conventional Commit subject. Never rewrite published release history.
+
+Apply the tracked settings after `main` exists:
 
 ```bash
-gh repo edit "$release_repo" --visibility public --accept-visibility-change-consequences
+gh api --method PATCH "repos/$release_repo" --input .github/repository-settings.json
+```
+
+These settings make `main` the default, allow squash merges only and preserve the
+PR title/body in the squash message. The title determines the version increment;
+`BREAKING CHANGE:` / `BREAKING-CHANGE:` footers in the body determine major bumps.
+
+## Activate branch and tag controls
+
+List existing rulesets before creating any:
+
+```bash
+gh api "repos/$release_repo/rulesets" --jq '.[] | {id, name, enforcement}'
+```
+
+For an empty ruleset list, apply the two tracked definitions:
+
+```bash
+gh api --method POST "repos/$release_repo/rulesets" --input .github/rulesets/main.json
+gh api --method POST "repos/$release_repo/rulesets" --input .github/rulesets/immutable-release-tags.json
+```
+
+For an existing matching ruleset, use `PUT repos/$release_repo/rulesets/<id>` with
+the same JSON file rather than adding a duplicate. The main rules require signed
+commits, pull requests, linear history, the shared CI checks and `Conventional PR
+title`. Main deletion and force pushes are blocked. These controls have no bypass.
+
+The immutable-tag rule forbids updates and deletion for everyone, including the
+release bot. Remove the old **Restrict release tag creation** ruleset, if present:
+
+```bash
+gh api --method DELETE "repos/$release_repo/rulesets/<legacy-creation-ruleset-id>"
+```
+
+Select that ID from the ruleset listing; never delete the immutable-tag or main
+ruleset. The built-in GitHub Actions integration cannot reliably be installed as
+a ruleset bypass actor. Keeping the old administrator-only creation restriction
+blocks automatic tags. The release job instead uses its explicit contents-write
+permission, verifies the signed main commit and refuses tag conflicts. Tag objects
+themselves are not separately signed. Normal source changes still require PRs and
+signed squash commits through protected main.
+
+Private repository plans may restrict branch/ruleset availability. Confirm the
+settings supported by the test plan, then reapply and verify every control before
+public publication. Do not claim a checked-in JSON file activates a GitHub rule.
+
+## Enable and test Actions
+
+Public repositories can block `pull_request_target` through Actions event policies.
+Before enabling Actions, list the policies (including inherited policies):
+
+```bash
+gh api "repos/$release_repo/actions/policies"
+```
+
+Apply `.github/release-events-policy.json` to allow the trusted merged-PR and
+title-validation workflows specifically. For a new policy:
+
+```bash
+gh api --method POST "repos/$release_repo/actions/policies" --input .github/release-events-policy.json
+```
+
+If that named policy already exists, use `PUT repos/$release_repo/actions/policies/<id>`
+instead. Inspect Actions policy Insights to confirm both workflows are allowed;
+an inherited restriction can still block them. The title workflow reads trusted
+base code with a read-only token. The release workflow runs only for a merged PR
+or an explicit dispatch and grants write permissions only to publication jobs.
+Do not enable `pull_request_target` globally for arbitrary workflows.
+See [GitHub event protections](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target)
+and the [Actions policies API](https://docs.github.com/en/rest/actions/policies).
+
+Enable Actions after setup. A restricted repository action policy must permit
+all actions used in `.github/workflows`; release jobs explicitly request
+`contents: write`, and the public provenance job also requires `id-token: write`
+and `attestations: write`. Read-only defaults can remain in place.
+
+```bash
+gh api --method PUT "repos/$release_repo/actions/permissions" -F enabled=true
+gh api "repos/$release_repo/rules/branches/main"
+gh api "repos/$release_repo/rulesets" --jq '.[] | {id, name, enforcement}'
+gh workflow run release.yml --repo "$release_repo" --ref main -f dry_run=true
+```
+
+A dry run plans the version and executes CI without creating a tag or release.
+To create the initial release after inspecting the dry run, use:
+
+```bash
+gh workflow run release.yml --repo "$release_repo" --ref main -f dry_run=false
+```
+
+After bootstrap, each semantic squash merge into `main` automatically releases;
+no version or tag command is required. Inspect the first real run for tag creation,
+six archives, SBOMs, checksums, all native archive smoke jobs and final publication.
+Private test runs explicitly skip GitHub attestations. Public runs require them.
+See [automatic releases](automation.md) for retries and version examples.
+
+## Public security settings
+
+Before switching the repository public, enable dependency alerts, private
+vulnerability reporting, secret scanning and push protection. For example:
+
+```bash
 gh api --method PUT "repos/$release_repo/vulnerability-alerts"
 gh api --method PUT "repos/$release_repo/private-vulnerability-reporting"
 ```
 
-Enable secret scanning and push protection through the repository's Security and
-analysis settings, and confirm the public Security tab offers private reporting.
-
-## Activate branch and tag controls
-
-The checked-in rulesets require signed commits and all shared CI jobs on `main`,
-prevent its deletion and force updates, allow only administrators to create
-`v*` tags, and prohibit updates or deletion of existing release tags for everyone.
-No actor bypasses the main or immutable-tag controls.
-
-List existing rulesets before applying changes:
-
-```bash
-gh api "repos/$release_repo/rulesets" --jq '.[] | {id, name, enforcement}'
-```
-
-For the initial setup, create the three rulesets:
-
-```bash
-gh api --method POST "repos/$release_repo/rulesets" --input .github/rulesets/main.json
-gh api --method POST "repos/$release_repo/rulesets" --input .github/rulesets/release-tag-creation.json
-gh api --method POST "repos/$release_repo/rulesets" --input .github/rulesets/immutable-release-tags.json
-```
-
-When a matching ruleset already exists, use `PUT` with its returned ID and the
-same input file rather than creating a duplicate. Check the actual CI job names
-before changing required contexts.
-
-Verify server-side state after applying the settings:
-
-```bash
-gh api "repos/$release_repo/rules/branches/main"
-gh api "repos/$release_repo/rulesets" --jq '.[] | {id, name, enforcement}'
-gh api "repos/$release_repo/private-vulnerability-reporting"
-gh api "repos/$release_repo/vulnerability-alerts" --include
-gh run list --repo "$release_repo" --branch main
-```
-
-Native macOS and Windows checks, artifact attestation issuance and the installed
-candidate still require observed hosted results. Follow the
-[release checklist](checklist.md) before creating candidate or stable tags.
+Verify secret scanning and push protection in GitHub's Security settings. Public
+visibility is a separate maintainer decision. Recheck protections and public
+provenance on the actual public release; private tests do not establish those gates.

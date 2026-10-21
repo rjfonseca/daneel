@@ -1,0 +1,7 @@
+paths:
+  .github/workflows/release.yml:
+    ignore:
+      # GitHub supports queued concurrency; actionlint 1.7.12 does not yet.
+      # https://github.com/rhysd/actionlint/issues/657
+      # test_release_workflow.py independently validates this concurrency object.
+      - '^unexpected key "queue" for "concurrency" section\.'

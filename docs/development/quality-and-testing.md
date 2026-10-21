@@ -93,3 +93,18 @@ cd web && DANEEL_E2E_EMBEDDED=1 npx playwright test
 
 This mode uses a temporary neutral vault and the generated WebFS assets. It does
 not reuse the development server or write to the user's vault.
+
+## Automatic release gates
+
+Semantic squash merges into `main` run the reusable CI through the release
+workflow against the planned source SHA. PR checks retain their existing names.
+`Conventional PR title` runs only trusted base code through `pull_request_target`;
+it never checks out the contributor's head. Python regressions cover deterministic
+versions, Git context isolation, unsigned sources, tag conflicts, retry behavior,
+latest-version selection and the native archive checksum gate.
+
+Run `python -m unittest discover -s scripts -p 'test_release_*.py'` and
+`go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12` when changing this flow.
+The one path-scoped concurrency-schema exception is documented in
+[automatic releases](../releases/automation.md); all remaining workflow errors
+are blocking. No public provenance or native verification failure is suppressed.

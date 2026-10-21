@@ -57,6 +57,10 @@ changelog:
 
 release:
   draft: true
+  use_existing_draft: true
+  replace_existing_artifacts: true
+  mode: replace
+  make_latest: false
   prerelease: auto
 
 sboms:

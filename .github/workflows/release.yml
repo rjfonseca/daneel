@@ -1,9 +1,19 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  pull_request_target:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Plan the version and run CI without creating a tag or release
+        type: boolean
+        default: true
+      source_ref:
+        description: Source ref to inspect or retry; real releases require a main commit
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -11,92 +21,139 @@ permissions:
 env:
   PYTHONUTF8: "1"
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+concurrency: {"group": "automatic-release-main", "cancel-in-progress": false, "queue": "max"}
 
 jobs:
+  plan:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    name: Plan semantic version
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.version.outputs.sha }}
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.event.pull_request.merge_commit_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - id: version
+        name: Derive the version from immutable source history
+        run: python scripts/release_version.py plan
+
   checks:
+    needs: plan
     uses: ./.github/workflows/ci.yml
+    with:
+      source_ref: ${{ needs.plan.outputs.sha }}
+
+  prepare:
+    name: Prepare immutable release tag
+    needs: [plan, checks]
+    if: github.event_name != 'workflow_dispatch' || !inputs.dry_run
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.tag.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - id: tag
+        name: Verify signed source and create or reuse its tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ needs.plan.outputs.sha }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: python scripts/release_github.py prepare
 
   goreleaser:
-    name: GoReleaser Release
-    needs: checks
+    name: Stage release artifacts
+    needs: [plan, prepare]
+    if: needs.prepare.outputs.release == 'true'
     permissions:
       contents: write
       id-token: write
       attestations: write
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.plan.outputs.tag }}
           fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+          persist-credentials: false
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.27.3"
           cache: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "26.11.1"
-          cache: "npm"
-          cache-dependency-path: "web/package-lock.json"
-
-      - name: Install Web Dependencies
-        run: cd web && npm ci
-
-      - name: Build Canonical Web Assets from Source
-        run: cd web && npm run build
-
-      - name: Verify WebFS Dist Integrity (Release Anti-Tampering Check)
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Web dependencies
+        run: npm ci
+        working-directory: web
+      - name: Verify canonical embedded assets
         run: |
+          cd web && npm run build
+          cd ..
           rm -rf internal/webfs/dist && cp -r web/dist internal/webfs/dist
-          if ! git diff --exit-code internal/webfs/dist; then
-            echo "::error::Tagged commit contains out-of-sync or directly modified internal/webfs/dist assets!"
-            echo "::error::Release aborted. Binary releases must only contain assets built directly from verified source."
-            exit 1
-          fi
-          echo "✅ Release WebFS assets verified against source"
-
+          git diff --exit-code internal/webfs/dist
+      - name: Generate release notes for the exact squash merge
+        run: python scripts/release_version.py plan --notes-file "$RUNNER_TEMP/release-notes.md"
       - name: Install pinned SBOM generator
         uses: anchore/sbom-action/download-syft@v0.24.3
         with:
           syft-version: v1.54.1
-
-      - name: Stage release artifacts as a draft
+      - name: Stage or repair the unpublished draft
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: v2.17.1
-          args: release --clean
+          args: release --clean --release-notes ${{ runner.temp }}/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
+          GORELEASER_CURRENT_TAG: ${{ needs.plan.outputs.tag }}
       - name: Smoke test the native release archive
         run: python scripts/smoke.py --archive dist/daneel_*_linux_amd64.tar.gz
-
-      - name: Attest release archives and SBOMs
-        uses: actions/attest-build-provenance@v4.2.2
+      - name: Describe the actual build source and executing workflow
+        if: ${{ !github.event.repository.private }}
+        env:
+          RELEASE_SHA: ${{ needs.plan.outputs.sha }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: python scripts/release_provenance.py --output "$RUNNER_TEMP/release-provenance.json"
+      - name: Attest public release archives and SBOMs
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest@v4.2.2
         with:
+          predicate-type: https://slsa.dev/provenance/v1
+          predicate-path: ${{ runner.temp }}/release-provenance.json
           subject-path: |
             dist/*.tar.gz
             dist/*.zip
             dist/*.sbom.json
             dist/checksums.txt
+      - name: Explain private test provenance limits
+        if: github.event.repository.private
+        run: echo "Private test build skips GitHub attestations; public releases require them."
 
   native-archive-smoke:
     name: Native archive smoke (${{ matrix.os }})
-    needs: goreleaser
-    # Authenticated draft downloads require repository write access.
+    needs: [plan, goreleaser]
     permissions:
       contents: write
     runs-on: ${{ matrix.os }}
@@ -105,29 +162,36 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - name: Checkout validated source
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-
       - name: Verify and exercise the matching draft archive
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
         run: python scripts/release_archive_smoke.py
 
   publish:
     name: Publish validated release
-    needs: native-archive-smoke
+    needs: [plan, native-archive-smoke]
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - name: Publish the validated draft
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Publish without downgrading the latest version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          RELEASE_SHA: ${{ needs.plan.outputs.sha }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: python scripts/release_github.py publish

@@ -52,8 +52,24 @@
           },
           {
             "context": "Browser invariants (isolated demonstration vault)"
+          },
+          {
+            "context": "Conventional PR title"
           }
         ]
+      }
+    },
+    {
+      "type": "required_linear_history"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_approving_review_count": 0,
+        "required_review_thread_resolution": true
       }
     }
   ]

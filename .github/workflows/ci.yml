@@ -2,8 +2,14 @@ name: CI
 
 on:
   workflow_call:
+    inputs:
+      source_ref:
+        description: Exact source commit selected by the release planner
+        type: string
+        required: false
+        default: ""
   push:
-    branches: [main, 'release/**']
+    branches: ['release/**']
   pull_request:
     branches: [main]
 
@@ -20,6 +26,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -38,6 +47,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -60,6 +72,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -85,8 +100,8 @@ jobs:
         if: runner.os == 'Linux'
         run: python -m unittest discover -s scripts -p test_check_codex_hooks.py
 
-      - name: Verify release archive checksum gate
-        run: python -m unittest discover -s scripts -p test_release_archive_smoke.py
+      - name: Verify semantic release and archive safety gates
+        run: python -m unittest discover -s scripts -p 'test_release_*.py'
 
       - name: Test clean installation
         run: python scripts/smoke.py
@@ -98,6 +113,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -114,6 +132,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -122,7 +143,7 @@ jobs:
           cache: true
 
       - name: Validate GitHub Actions workflows
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
       - name: Check GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -136,6 +157,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -179,6 +203,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version: "1.27.3"

@@ -16,41 +16,35 @@ Latest local results: [verification report](verification.md).
 - [ ] Extract the matching snapshot archive and run `python scripts/smoke.py --binary <extracted-binary>`.
 - [ ] Review the compatibility policy, recovery guide and release notes.
 
-## Recreated GitHub repository
+## One-time repository setup
 
-Apply and verify the [GitHub setup](github-setup.md), including the checked-in
-branch and tag rulesets.
+Apply [GitHub setup](github-setup.md) after creating or recreating the remote.
 
-- [ ] Enable private vulnerability reporting, dependency alerts and branch protection requiring CI.
-- [ ] Configure tag rulesets to restrict creation and updates of `v*` release tags.
-- [ ] Confirm the repository supports GitHub artifact attestations and workflow token permissions.
-- [ ] Verify actual Linux, macOS and Windows jobs; local cross-compilation alone is insufficient.
-- [ ] Review the first candidate's installed binaries on supported systems and verify artifact provenance.
+- [ ] Create reviewed, signed source on `main` and make it the default branch.
+- [ ] Apply `.github/repository-settings.json`: squash-only merges, PR title/body as commit message.
+- [ ] Apply main protection and require all CI checks plus `Conventional PR title`.
+- [ ] Remove legacy tag-creation restrictions; prohibit tag updates/deletion with no bypass.
+- [ ] Apply the workflow-specific event policy and confirm Actions policies allow the required events, job permissions and actions.
+- [ ] Verify native Linux, macOS and Windows checks; cross-compilation alone is insufficient.
+- [ ] Enable security reporting, dependency alerts and secret scanning before public publication.
 
-## Candidate and stable release
+## Automatic releases
 
-Create a signed `v1.0.0-rc.1` tag only after reviewing the candidate commit. The
-release workflow reruns reusable CI on the tagged commit before publication.
-GoReleaser marks prerelease tags as prereleases. Artifacts are staged as a draft,
-the build runner smoke-tests its native archive, and GitHub attests archive, SBOM
-and checksum provenance. A separate Linux/macOS/Windows matrix downloads each
-runner's matching draft archive, verifies its checksum and exercises a clean
-installation. The draft is published only after all three jobs succeed.
-Failures leave a draft for maintainers to inspect. See
-[GoReleaser SBOMs](https://goreleaser.com/customization/sbom/) and
-[GitHub's provenance action](https://github.com/actions/attest-build-provenance).
+- [ ] Run the initial workflow dry run and inspect the planned initial `1.0.0`.
+- [ ] For the first real run, verify the tag identifies the intended signed source.
+- [ ] Verify all six archives, SBOMs and checksums are staged in a draft.
+- [ ] Verify native draft-archive download/checksum/installation jobs on Linux, macOS and Windows.
+- [ ] Verify public provenance attestations; private test runs explicitly skip this plan-dependent feature.
+- [ ] Confirm publication occurs only after all required gates succeed.
+- [ ] Exercise a repeat run: the version stays fixed and a published release is not rebuilt.
+- [ ] Verify a candidate installation and an upgrade of a backed-up neutral vault before public announcement.
 
-Verify a candidate installation and an upgrade of a backed-up vault before
-creating the signed `v1.0.0` tag. Never move or replace a published release tag.
-Creating or pushing release tags and activating repository settings are separate
-maintainer actions; implementing the workflow does not perform them.
+Every subsequent semantic squash merge into `main` chooses its own version and
+runs the pipeline automatically. Features increment minor; all other supported
+maintenance types increment patch; breaking markers increment major. Do not edit
+version counters, manually push release tags or move an existing tag. See
+[automatic releases](automation.md) and [ADR 0034](../adr/0034-automatic-semantic-releases.md).
 
-For the first public release, consolidate the reviewed source into one signed
-root commit. Validate it on a `release/**` branch before creating `main`, then
-place the candidate and stable tags on that same commit if all gates pass. CI
-runs on both release branches and `main`. Never rewrite a published release tag.
-
-The changelog describes the intended 1.0 content. Record publication status and
-hosted verification in the GitHub release notes and linked workflow runs. This
-keeps the initial public source history at one commit without adding documentation
-commits between candidate and stable validation.
+Local tests and branch CI do not establish real tag-write permissions, draft
+publication or artifact attestation issuance. Inspect those results on a real
+release run. Repository deletion or recreation is never a release workflow step.

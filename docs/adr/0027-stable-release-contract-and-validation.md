@@ -2,6 +2,7 @@
 
 * Status: accepted
 * Date: 2026-10-14
+* Partially superseded by [ADR 0034](0034-automatic-semantic-releases.md): automatic versioning, tag creation and repository bootstrap.
 
 ## Context and Problem Statement
 

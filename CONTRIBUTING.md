@@ -98,7 +98,11 @@ Always propagate `context.Context` from Cobra commands down to I/O and DB-bound 
 ### 3. Structured Logging
 Use Go's standard `log/slog` for internal debugging, always outputting to `os.Stderr`. **Never write unformatted debug text to `os.Stdout`**, as it corrupts the JSON-RPC stream used by AI agent MCP connections.
 
-### 4. Conventional Commits
+### 4. Conventional Commits and automatic releases
+
+Use squash merges into `main`. The PR title becomes the commit title and the PR body preserves breaking-change footers. Each merge automatically receives a version and a release after CI and native archive checks pass: `feat` increments minor; `fix` and other supported types increment patch; `!` or a `BREAKING CHANGE:` footer increments major. The initial release is `1.0.0`. Do not edit version counters or push release tags manually.
+
+See [automatic releases](docs/releases/automation.md) for the full type table, retries, private testing and repository setup.
 Please follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
 
 * `feat: add new MCP tool for graph visualization`
@@ -113,7 +117,7 @@ Please follow the [Conventional Commits](https://www.conventionalcommits.org/) s
 
 1. Create a feature branch (`git checkout -b feat/my-awesome-feature`).
 2. Ensure all tests and linters pass (`task fmt && task lint && task test`).
-3. Commit your changes with descriptive commit messages.
+3. Commit your changes with descriptive Conventional Commit messages and use a semantic PR title.
 4. Push to your fork and submit a Pull Request targeting `main`.
 5. Provide a clear summary of changes and test results in the PR description.
 
