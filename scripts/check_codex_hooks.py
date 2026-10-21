@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify bounded Daneel hook capture and inspect Codex hook parsing.
+"""Verify Daneel handoff output, bounded capture, and Codex hook parsing.
 
 The default mode runs only the supplied Daneel executable with synthetic input,
 temporary vault/XDG directories, and transient app-server parser overrides. The
@@ -481,6 +481,31 @@ def _check_captures(binary: str, root: Path) -> list[str]:
     cache_home = root / "x" / "c"
     env = _make_temp_environment(root, vault)
     reports: list[str] = []
+    # A populated handoff used to start with '[Daneel ...]', which Codex
+    # classifies as invalid JSON. hooks/list alone cannot catch output errors.
+    sessions = vault / "inbox" / "sessions"
+    sessions.mkdir(parents=True)
+    (sessions / "2026-01-01-00-00-codex.md").write_text(
+        f"---\nagent: codex\ndirectory: {json.dumps(str(project))}\n---\n"
+        "- Executed `go test ./...`\n",
+        encoding="utf-8",
+    )
+    try:
+        handoff = subprocess.run(
+            [binary, "hook", "handoff", "--cwd", str(project)],
+            cwd=project, env=env, input=b"{}", capture_output=True,
+            timeout=PROCESS_CEILING_SECONDS, check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckError("SessionStart handoff exceeded the three-second ceiling") from exc
+    output = handoff.stdout.strip()
+    if handoff.returncode != 0 or not output:
+        raise CheckError("SessionStart handoff did not return the synthetic context")
+    if output.startswith((b"[", b"{")):
+        raise CheckError("SessionStart plain-text handoff looks like JSON to Codex")
+    if b"go test ./..." not in output:
+        raise CheckError("SessionStart handoff lost the synthetic session context")
+    reports.append("PASS populated SessionStart handoff is unambiguous plain text")
     for label in ("offline", "silent-daemon"):
         session_id = f"daneel-check-{label}"
         socket_path: Path | None = None

@@ -124,6 +124,12 @@ Add to `~/.gemini/antigravity-cli/hooks.json` or your project hooks configuratio
 #### 3. OpenAI Codex CLI
 Add to `~/.codex/hooks.json` (or install via `daneel hook install --agent codex`):
 
+`hook handoff` emits plain text prefixed with `Daneel session continuity:` and
+stays silent when no context is available. Codex treats output beginning with
+`[` or `{` as JSON; a bare `[Daneel Continuity Context: ...]` therefore produces
+`hook returned invalid session start JSON output`. Update the Daneel executable
+to apply this fix; reinstalling the same hook configuration alone is insufficient.
+
 ```json
 {
   "hooks": {

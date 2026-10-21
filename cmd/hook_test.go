@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -15,6 +16,68 @@ import (
 	"github.com/rjfonseca/daneel/internal/daemon"
 	"github.com/rjfonseca/daneel/internal/spooler"
 )
+
+func TestHookHandoff_StdoutIsUnambiguousPlainText(t *testing.T) {
+	for _, source := range []string{"empty", "spool", "compiled"} {
+		t.Run(source, func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", hookSocketStateDir(t))
+			t.Setenv("XDG_CACHE_HOME", t.TempDir())
+			oldVault, oldCWD := vaultPath, hookCWD
+			vaultPath, hookCWD = t.TempDir(), t.TempDir()
+			t.Cleanup(func() { vaultPath, hookCWD = oldVault, oldCWD })
+			if source != "empty" {
+				sp := spooler.New("")
+				_, err := sp.AppendEvent(spooler.Event{
+					SessionID: "handoff-output", Event: "PostToolUse", Agent: "codex",
+					CWD: hookCWD, Raw: []byte(`{"command":"go test ./..."}`), Timestamp: time.Now(),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if source == "compiled" {
+					if _, err := spooler.NewCompiler(vaultPath, sp).CompileSession("handoff-output"); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+
+			reader, writer, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = reader.Close() }()
+			defer func() { _ = writer.Close() }()
+			oldStdout := os.Stdout
+			os.Stdout = writer
+			defer func() { os.Stdout = oldStdout }()
+			err = hookHandoffCmd.RunE(hookHandoffCmd, nil)
+			_ = writer.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			output, err := io.ReadAll(reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := strings.TrimSpace(string(output))
+			if source == "empty" {
+				if text != "" {
+					t.Fatalf("empty handoff printed %q", text)
+				}
+				return
+			}
+			// Codex treats a leading '[' or '{' as JSON, never as plain context.
+			if strings.HasPrefix(text, "[") || strings.HasPrefix(text, "{") {
+				t.Errorf("plain handoff looks like JSON to Codex: %q", text)
+			}
+			for _, want := range []string{"codex", hookCWD, "go test ./..."} {
+				if !strings.Contains(text, want) {
+					t.Errorf("handoff lost context %q: %q", want, text)
+				}
+			}
+		})
+	}
+}
 
 func TestHookCapture_DaemonOnline(t *testing.T) {
 	tempStateDir := hookSocketStateDir(t)

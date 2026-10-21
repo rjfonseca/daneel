@@ -68,7 +68,10 @@ var hookHandoffCmd = &cobra.Command{
 			return err
 		}
 		if handoff != "" {
-			fmt.Print(handoff)
+			// Codex parses stdout starting with '[' or '{' as JSON. Keep the
+			// bracketed continuity text unambiguously in the plain-text branch,
+			// including context returned by an older running daemon.
+			fmt.Printf("Daneel session continuity:\n%s\n", handoff)
 		}
 		return nil
 	},
