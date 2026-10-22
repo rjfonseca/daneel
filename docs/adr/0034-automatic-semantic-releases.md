@@ -40,8 +40,14 @@ on a tag push to trigger packaging. Preserve reusable CI, draft staging, SBOMs,
 checksums and native archive verification before publication. Attestations are
 mandatory for public releases; private test repositories explicitly skip this
 plan-dependent feature. The SLSA predicate distinguishes built source from the
-workflow revision and verifies the checkout before signing. Apply a targeted
-Actions event policy for the two trusted `pull_request_target` workflows before
+workflow revision and verifies the checkout before signing.
+
+The predicate includes GitHub's internal execution identity and identifies the
+executing workflow as its builder, matching the GitHub Actions build type.
+Load the provenance generator from the pinned executing workflow commit, while
+keeping the artifact checkout on the immutable source tag. This permits schema
+repairs when retrying older unpublished drafts without changing their source.
+Apply a targeted Actions event policy for the two trusted `pull_request_target` workflows before
 public operation. Queue release runs rather than canceling pending merges.
 
 ### Consequences

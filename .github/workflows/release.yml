@@ -135,7 +135,9 @@ jobs:
         env:
           RELEASE_SHA: ${{ needs.plan.outputs.sha }}
           RELEASE_TAG: ${{ needs.plan.outputs.tag }}
-        run: python scripts/release_provenance.py --output "$RUNNER_TEMP/release-provenance.json"
+        run: |
+          git show "$GITHUB_WORKFLOW_SHA:scripts/release_provenance.py" > "$RUNNER_TEMP/release-provenance.py"
+          PYTHONPATH="$GITHUB_WORKSPACE/scripts" python "$RUNNER_TEMP/release-provenance.py" --output "$RUNNER_TEMP/release-provenance.json"
       - name: Attest public release archives and SBOMs
         if: ${{ !github.event.repository.private }}
         uses: actions/attest@v4.2.2
