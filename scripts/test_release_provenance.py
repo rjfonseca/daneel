@@ -54,7 +54,7 @@ class ProvenanceTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, "execution identity"):
                 predicate(env, env["RELEASE_SHA"])
 
-    @unittest.skipUnless(shutil.which("bash"), "The provenance job runs on Ubuntu")
+    @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "The provenance shell job runs on Ubuntu")
     def test_historical_retry_executes_pinned_workflow_generator(self):
         project = Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory(prefix="dnl-provenance-") as directory:
