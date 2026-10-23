@@ -44,6 +44,9 @@ workflow revision and verifies the checkout before signing.
 
 The predicate includes GitHub's internal execution identity and identifies the
 executing workflow as its builder, matching the GitHub Actions build type.
+The first resolved dependency identifies that workflow ref and commit, as
+required by GitHub's attestation validation. The immutable release tag and
+source commit follow as a separate dependency, including for historical retries.
 Load the provenance generator from the pinned executing workflow commit, while
 keeping the artifact checkout on the immutable source tag. This permits schema
 repairs when retrying older unpublished drafts without changing their source.

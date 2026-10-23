@@ -37,9 +37,17 @@ class ProvenanceTests(unittest.TestCase):
     def test_historical_retry_distinguishes_source_and_workflow(self):
         data = predicate(self.environment(), "a" * 40)
         deps = data["buildDefinition"]["resolvedDependencies"]
-        self.assertEqual(deps[0]["digest"]["gitCommit"], "a" * 40)
-        self.assertEqual(deps[1]["digest"]["gitCommit"], "b" * 40)
-        self.assertTrue(deps[0]["uri"].endswith("@refs/tags/v1.2.3"))
+        definition = data["buildDefinition"]
+        workflow = definition["externalParameters"]["workflow"]
+        # GitHub validates the first dependency against the signing workflow.
+        self.assertEqual(deps[0], {
+            "uri": "git+" + workflow["repository"] + "@" + workflow["ref"],
+            "digest": {"gitCommit": "b" * 40},
+        })
+        self.assertEqual(deps[1], {
+            "uri": "git+https://github.com/example/daneel@refs/tags/v1.2.3",
+            "digest": {"gitCommit": "a" * 40},
+        })
         self.assertTrue(data["runDetails"]["metadata"]["invocationId"].endswith("/123/attempts/2"))
 
     def test_checkout_mismatch_fails(self):
@@ -93,8 +101,10 @@ class ProvenanceTests(unittest.TestCase):
                            cwd=root, env=env, check=True, capture_output=True, text=True)
             data = json.loads((Path(directory) / "release-provenance.json").read_text(encoding="utf-8"))
             deps = data["buildDefinition"]["resolvedDependencies"]
-            self.assertEqual(deps[0]["digest"]["gitCommit"], source)
-            self.assertEqual(deps[1]["digest"]["gitCommit"], workflow)
+            self.assertEqual(deps[0]["digest"]["gitCommit"], workflow)
+            self.assertTrue(deps[0]["uri"].endswith("@refs/heads/main"))
+            self.assertEqual(deps[1]["digest"]["gitCommit"], source)
+            self.assertTrue(deps[1]["uri"].endswith("@refs/tags/v1.2.3"))
             self.assertEqual(data["buildDefinition"]["internalParameters"]["github"]["repository_id"], "456")
             self.assertEqual(git("status", "--porcelain"), "")
 

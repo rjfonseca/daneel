@@ -55,9 +55,10 @@ def predicate(env, observed_sha):
             },
             "internalParameters": {"github": execution},
             "resolvedDependencies": [
-                {"uri": "git+" + url + "@refs/tags/" + tag, "digest": {"gitCommit": source}},
+                # GitHub validates the first dependency against the signing workflow.
                 {"uri": "git+" + url + "@" + workflow_ref[len(prefix):],
                  "digest": {"gitCommit": workflow_sha}},
+                {"uri": "git+" + url + "@refs/tags/" + tag, "digest": {"gitCommit": source}},
             ],
         },
         "runDetails": {

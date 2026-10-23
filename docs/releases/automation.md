@@ -48,7 +48,9 @@ skip is explicit in the workflow log. Public releases require successful
 attestations; switching public automatically enables that gate. The SLSA predicate
 records the actual checked-out release source separately from the executing
 workflow revision, including historical retries. A checkout mismatch blocks
-attestation. Apply the workflow-specific event policy in
+attestation. The first resolved dependency identifies the executing workflow;
+the immutable artifact source tag follows as a separate dependency. GitHub
+validates that first entry against the signing identity. Apply the workflow-specific event policy in
 [GitHub setup](github-setup.md) before public operation.
 
 ## Failures, retries and dry runs
