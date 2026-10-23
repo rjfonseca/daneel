@@ -223,14 +223,18 @@ jobs:
       - run: npm run build
         working-directory: web
       - name: Verify camera and application invariants
-        run: npx playwright test
+        shell: bash
+        run: npx playwright test 2>&1 | tee "$RUNNER_TEMP/browser-test.log"
         env:
           DANEEL_E2E_PREVIEW: "1"
+          DEBUG: pw:webserver
         working-directory: web
       - name: Preserve failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: browser-failure-evidence
-          path: web/test-results/
+          path: |
+            web/test-results/
+            ${{ runner.temp }}/browser-test.log
           retention-days: 7

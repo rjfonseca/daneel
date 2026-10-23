@@ -150,3 +150,24 @@ test('resizing a reloaded reader takes precedence over deferred camera restorati
   });
   expect(offset).toBeLessThanOrEqual(25);
 });
+
+test('event stream failures keep retries bounded while navigating notes', async ({ page }) => {
+  test.setTimeout(90000);
+  let subscriptions = 0;
+  await page.route('**/graph.v1.GraphService/SubscribeUIEvents', async route => {
+    subscriptions += 1;
+    await route.fulfill({
+      status: 503, contentType: 'application/json',
+      body: JSON.stringify({ code: 'unavailable', message: 'Event stream temporarily unavailable' }),
+    });
+  });
+  await page.goto('/');
+  await expect(page.getByTestId('cosmic-loading-overlay')).toBeHidden({ timeout: 30000 });
+  await page.getByTestId('quick-search-btn').click();
+  await page.locator('[data-slot="command-input"]').fill('architecture example 0');
+  await page.locator('[data-slot="command-item"]').filter({ hasText: 'architecture example 0' }).first().click();
+  await expect(page.getByTestId('note-markdown')).toContainText('Cache and system design notes.');
+  expect(subscriptions).toBeGreaterThanOrEqual(1);
+  // Exponential backoff allows at most eight attempts within this test's lifetime.
+  expect(subscriptions).toBeLessThanOrEqual(8);
+});
