@@ -1,4 +1,4 @@
-"""Create immutable release tags and promote validated GitHub drafts."""
+"""Dispatch releases, create immutable tags and promote validated GitHub drafts."""
 import argparse
 import json
 import os
@@ -33,6 +33,8 @@ class GitHub:
         })
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
+                if response.status == 204:
+                    return None
                 return json.load(response)
         except urllib.error.HTTPError as error:
             if missing and error.code == 404:
@@ -40,6 +42,12 @@ class GitHub:
             raise APIError(error.code) from None
         except urllib.error.URLError:
             raise ValueError("GitHub API unavailable; retry the release workflow") from None
+
+
+def dispatch(api, sha):
+    api.request("POST", "/actions/workflows/release.yml/dispatches", {
+        "ref": "main", "inputs": {"dry_run": "false", "source_ref": sha},
+    })
 
 
 def tag_commit(api, tag):
@@ -127,7 +135,7 @@ def publish(api, sha, tag):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("prepare", "publish"))
+    parser.add_argument("command", choices=("dispatch", "prepare", "publish"))
     parser.add_argument("--sha", default=os.environ.get("RELEASE_SHA"))
     parser.add_argument("--tag", default=os.environ.get("RELEASE_TAG"))
     parser.add_argument("--repo-path", type=Path, default=Path.cwd())
@@ -135,6 +143,10 @@ def main():
     try:
         if not args.sha or not re.fullmatch(r"[a-f0-9]{40}", args.sha):
             raise ValueError("RELEASE_SHA must identify a complete source commit")
+        if args.command == "dispatch":
+            dispatch(GitHub(), args.sha)
+            print("Release workflow dispatched for the merged source")
+            return
         if not args.tag or not args.tag.startswith("v"):
             raise ValueError("RELEASE_TAG must be a stable v-prefixed semantic version")
         Version.parse(args.tag[1:])

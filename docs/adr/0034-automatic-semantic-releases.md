@@ -3,6 +3,7 @@
 * Status: accepted
 * Date: 2026-10-21
 * Supersedes: the manual tag creation and initial single-commit release procedure in ADR 0027
+* Amended by: [ADR 0035](0035-supported-release-provenance-event.md), which separates merged-PR dispatch from release execution
 
 ## Context and Problem Statement
 

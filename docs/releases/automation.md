@@ -29,7 +29,12 @@ not a release counter, and the bot does not push version-bump commits.
 ## Publication gates
 
 The release workflow listens for merged-PR events, including those whose commit
-messages contain CI skip directives; closed but unmerged PRs do nothing. It pins
+messages contain CI skip directives; closed but unmerged PRs do nothing. A small
+job dispatches a new execution of `release.yml` on `main`, passing the exact
+squash SHA as `source_ref` and disabling `dry_run`. Only that job receives
+`actions: write`. It returns when GitHub accepts the dispatch, without waiting
+for the new run. Only `workflow_dispatch` executions can plan, build or publish
+a release, matching the provenance build type's supported events. It pins
 every source checkout to the planned merge commit. Tag preparation executes
 trusted main code before it inspects the selected source. It requires the
 shared CI to pass, verifies that the source is a GitHub-verified signed commit
@@ -50,7 +55,9 @@ records the actual checked-out release source separately from the executing
 workflow revision, including historical retries. A checkout mismatch blocks
 attestation. The first resolved dependency identifies the executing workflow;
 the immutable artifact source tag follows as a separate dependency. GitHub
-validates that first entry against the signing identity. Apply the workflow-specific event policy in
+validates that first entry against the signing identity. Only `workflow` is
+emitted as an external parameter; release source identity stays in resolved
+dependencies. Apply the workflow-specific event policy in
 [GitHub setup](github-setup.md) before public operation.
 
 ## Failures, retries and dry runs
@@ -93,5 +100,6 @@ path-scoped exception ignores only that unknown-key diagnostic. Release queue
 settings are JSON embedded in YAML and are independently validated by the Python
 regressions; all other actionlint diagnostics remain blocking.
 
-See [ADR 0034](../adr/0034-automatic-semantic-releases.md) and the
+See [ADR 0034](../adr/0034-automatic-semantic-releases.md),
+[ADR 0035](../adr/0035-supported-release-provenance-event.md) and the
 [release checklist](checklist.md) for the contract and validation boundaries.

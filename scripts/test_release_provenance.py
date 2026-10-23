@@ -54,6 +54,16 @@ class ProvenanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "checkout"):
             predicate(self.environment(), "c" * 40)
 
+    def test_merged_pr_cannot_claim_the_workflow_build_type(self):
+        env = self.environment()
+        env["GITHUB_EVENT_NAME"] = "pull_request_target"
+        with self.assertRaisesRegex(ValueError, "execution identity"):
+            predicate(env, env["RELEASE_SHA"])
+
+    def test_workflow_build_type_uses_only_defined_external_parameters(self):
+        data = predicate(self.environment(), "a" * 40)
+        self.assertEqual(set(data["buildDefinition"]["externalParameters"]), {"workflow"})
+
     def test_missing_execution_identity_fails_before_signing(self):
         for key in ("GITHUB_EVENT_NAME", "GITHUB_REPOSITORY_ID",
                     "GITHUB_REPOSITORY_OWNER_ID", "RUNNER_ENVIRONMENT"):

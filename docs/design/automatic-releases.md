@@ -38,9 +38,13 @@ history; keeping the Git history preserves the same version assignments.
 
 ## Pipeline
 
-1. A merged-PR event targeting `main` queues an automatic release, pinned to its
-   squash commit. Closed but unmerged PRs do nothing. This event is not suppressed
-   by commit-message skip directives. A manual dry run may plan and
+1. A merged-PR event targeting `main` dispatches `release.yml` on `main` with
+   `dry_run=false` and `source_ref` pinned to its squash commit. Closed but
+   unmerged PRs do nothing. This event is not suppressed by commit-message skip
+   directives. Only the dispatch job has `actions: write`; it uses trusted pinned
+   workflow code and returns without waiting for the new run. Only the resulting
+   `workflow_dispatch` event enters release planning and publication, as required
+   by the provenance build type. A manual dry run may plan and
    validate a selected commit without writing tags or releases.
 2. Compute the source SHA, version, tag and release notes from the pinned commit.
 3. Run the reusable CI against that exact SHA: Go, all npm dependencies, types,
