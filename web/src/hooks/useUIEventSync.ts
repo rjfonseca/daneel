@@ -25,6 +25,12 @@ export function useUIEventSync({
   const [toastNotification, setToastNotification] = useState<{ title: string; message: string; id: number } | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const handlersRef = useRef({
+    setSelectedNodeId, setIsDrawerOpen, setIsConstellationIsolated, setFocusedSector, reloadGalaxy,
+  });
+  handlersRef.current = {
+    setSelectedNodeId, setIsDrawerOpen, setIsConstellationIsolated, setFocusedSector, reloadGalaxy,
+  };
 
   const clearToast = useCallback(() => {
     setToastNotification(null);
@@ -44,22 +50,23 @@ export function useUIEventSync({
         const responseStream = client.subscribeUIEvents(request, { signal: controller.signal });
         
         setIsConnected(true);
-        attempt = 0;
 
         for await (const event of responseStream) {
           if (!isMounted) break;
+          attempt = 0;
+          const handlers = handlersRef.current;
 
           switch (event.action) {
             case UIActionType.ACTION_OPEN_NOTE:
               if (event.targetPath) {
-                setSelectedNodeId(event.targetPath);
-                setIsDrawerOpen(true);
-                setIsConstellationIsolated(true);
+                handlers.setSelectedNodeId(event.targetPath);
+                handlers.setIsDrawerOpen(true);
+                handlers.setIsConstellationIsolated(true);
               }
               break;
             case UIActionType.ACTION_FOCUS_DOMAIN:
             case UIActionType.ACTION_FOCUS_SECTOR:
-              setFocusedSector(event.targetPath || null);
+              handlers.setFocusedSector(event.targetPath || null);
               break;
             case UIActionType.ACTION_FLASH_NOTIFICATION: {
               let title = 'System Notification';
@@ -81,7 +88,7 @@ export function useUIEventSync({
               break;
             }
             case UIActionType.ACTION_GALAXY_RELOAD:
-              reloadGalaxy();
+              handlers.reloadGalaxy();
               break;
             case UIActionType.ACTION_PIN_NOTE: {
               if (event.targetPath) {
@@ -123,7 +130,8 @@ export function useUIEventSync({
           }
         }
       } catch (err: unknown) {
-        if (!(err instanceof Error && err.name === 'AbortError')) {
+        if (isMounted && !abortControllerRef.current?.signal.aborted &&
+            !(err instanceof Error && err.name === 'AbortError')) {
           setIsConnected(false);
           if (isMounted) {
             const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
@@ -147,7 +155,7 @@ export function useUIEventSync({
       }
       clearTimeout(reconnectTimeout);
     };
-  }, [setSelectedNodeId, setIsDrawerOpen, setIsConstellationIsolated, setFocusedSector, reloadGalaxy]);
+  }, []);
 
   useEffect(() => {
     const reportContext = async () => {

@@ -94,13 +94,16 @@ If that named policy already exists, use `PUT repos/$release_repo/actions/polici
 instead. Inspect Actions policy Insights to confirm both workflows are allowed;
 an inherited restriction can still block them. The title workflow reads trusted
 base code with a read-only token. The release workflow runs only for a merged PR
-or an explicit dispatch and grants write permissions only to publication jobs.
+or an explicit dispatch. The merged-PR job receives `actions: write` only to
+dispatch the full release run, using pinned trusted workflow code. It does not
+build or publish. Only dispatch executions enter the publication gates.
 Do not enable `pull_request_target` globally for arbitrary workflows.
 See [GitHub event protections](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target)
 and the [Actions policies API](https://docs.github.com/en/rest/actions/policies).
 
 Enable Actions after setup. A restricted repository action policy must permit
-all actions used in `.github/workflows`; release jobs explicitly request
+all actions used in `.github/workflows`; the merge dispatcher explicitly requests
+`actions: write` and `contents: read`. Release jobs explicitly request
 `contents: write`, and the public provenance job also requires `id-token: write`
 and `attestations: write`. Read-only defaults can remain in place.
 

@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 
 import release_github
 
@@ -23,6 +24,8 @@ class FakeGitHub:
 
     def request(self, method, path, body=None, *, missing=False):
         self.calls.append((method, path, body))
+        if method == "POST" and path == "/actions/workflows/release.yml/dispatches":
+            return None
         if method == "POST" and path == "/git/refs":
             self.ref = {"object": {"type": "commit", "sha": body["sha"]}}
             if self.race:
@@ -88,6 +91,37 @@ class GitHubReleaseTests(unittest.TestCase):
         self.assertEqual(self.api.mutations(), [("POST", "/git/refs", {"ref": "refs/tags/v1.0.0", "sha": self.sha})])
         self.assertTrue(self.prepare())
         self.assertEqual(len(self.api.mutations()), 1)
+
+    def test_merge_dispatch_pins_source_without_creating_release_or_tag(self):
+        release_github.dispatch(self.api, self.sha)
+        self.assertEqual(self.api.mutations(), [(
+            "POST", "/actions/workflows/release.yml/dispatches",
+            {"ref": "main", "inputs": {"dry_run": "false", "source_ref": self.sha}},
+        )])
+        self.assertIsNone(self.api.ref)
+        self.assertIsNone(self.api.release)
+
+    def test_dispatch_accepts_github_no_content_response(self):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.status = 204
+        response.read.return_value = b""
+        with patch.dict(os.environ, GITHUB_REPOSITORY="example/daneel", GH_TOKEN="test-token"), \
+                patch.object(release_github.urllib.request, "urlopen", return_value=response) as request:
+            self.assertIsNone(release_github.GitHub().request(
+                "POST", "/actions/workflows/release.yml/dispatches", {"ref": "main"}))
+        self.assertEqual(request.call_args.args[0].method, "POST")
+
+    def test_dispatch_command_needs_no_release_tag(self):
+        with patch("sys.argv", ["release_github.py", "dispatch", "--sha", self.sha]), \
+                patch.object(release_github, "GitHub", return_value=self.api), patch("builtins.print"):
+            release_github.main()
+        self.assertEqual(self.api.mutations()[0][2]["inputs"]["source_ref"], self.sha)
+
+    def test_dispatch_api_failure_is_not_reported_as_success(self):
+        with patch.object(self.api, "request", side_effect=release_github.APIError(403)):
+            with self.assertRaises(release_github.APIError):
+                release_github.dispatch(self.api, self.sha)
 
     def test_unsigned_source_is_rejected_before_mutation(self):
         self.api.signed = False

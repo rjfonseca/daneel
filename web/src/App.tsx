@@ -140,6 +140,12 @@ export default function App() {
   const navigation = useNavigationHistory(INITIAL_NAVIGATION, snapshot => restoreNavigationRef.current(snapshot));
 
   // 5. Actions & Handlers
+  const handleDrawerWidthChange = useCallback((width: number) => {
+    if (pendingCameraRestore.current !== null) window.clearTimeout(pendingCameraRestore.current);
+    pendingCameraRestore.current = null;
+    setDrawerWidth(width);
+  }, []);
+
   const handleResetCamera = useCallback(() => {
     if (pendingCameraRestore.current !== null) window.clearTimeout(pendingCameraRestore.current);
     pendingCameraRestore.current = null;
@@ -1056,7 +1062,7 @@ export default function App() {
               initialScrollTop={readerInitialScrollTop}
               onScrollPositionChange={handleReaderScroll}
               drawerWidth={drawerWidth}
-              onDrawerWidthChange={setDrawerWidth}
+              onDrawerWidthChange={handleDrawerWidthChange}
               isPinned={isCurrentNotePinned}
               onTogglePin={handleTogglePinCurrentNote}
             />

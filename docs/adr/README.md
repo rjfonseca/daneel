@@ -42,6 +42,7 @@ This directory contains the **Architectural Decision Records (ADRs)** for the Da
 | [ADR 0033](0033-audited-frontend-toolchain.md) | Audited Frontend Toolchain | Accepted | 2026-10-19 |
 
 | [ADR 0034](0034-automatic-semantic-releases.md) | Automatic Semantic Releases | Accepted | 2026-10-21 |
+| [ADR 0035](0035-supported-release-provenance-event.md) | Supported Release Provenance Event | Accepted | 2026-10-23 |
 
 ## Mandatory ADR Invariant
 

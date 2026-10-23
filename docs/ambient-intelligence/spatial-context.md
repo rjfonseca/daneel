@@ -44,4 +44,5 @@ sequenceDiagram
 ## 3. Client Debounce & Auto-Reconnect
 
 - **Debouncing**: Viewport updates are debounced by 500ms in `useUIEventSync.ts` to prevent hammering the server during rapid panning or selection scrubbing.
-- **Reconnection Backoff**: If the HTTP stream drops (server restart, network blip), the client automatically reconnects using exponential backoff intervals: `1s -> 2s -> 5s -> 10s`.
+- **Reconnection Backoff**: If the HTTP stream fails (server restart, network blip), the client reconnects after `1s -> 2s -> 4s -> 8s -> 16s -> 30s`, capped at 30 seconds. A received event resets the failure count; merely creating the stream does not.
+- **Subscription Lifetime**: Rendering new callback functions does not restart the stream or discard its retry delay. Events use the latest handlers. Unmounting aborts the stream and cancels any pending retry.

@@ -1,5 +1,5 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useUIEventSync } from '../src/hooks/useUIEventSync';
 import { client } from '../src/lib/apiClient';
 import { UIActionType, UIEvent, ReportActiveContextResponse } from '../src/gen/api/v1/graph_pb';
@@ -14,6 +14,63 @@ vi.mock('../src/lib/apiClient', () => ({
 describe('useUIEventSync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('keeps its active subscription across callback changes and uses the latest callback', async () => {
+    let pushEvent!: (result: IteratorResult<UIEvent>) => void;
+    vi.mocked(client.subscribeUIEvents).mockReturnValue({
+      [Symbol.asyncIterator]: () => ({
+        next: () => new Promise<IteratorResult<UIEvent>>(resolve => { pushEvent = resolve; }),
+      }),
+    });
+    const handlers = {
+      setSelectedNodeId: vi.fn(), setIsDrawerOpen: vi.fn(),
+      setIsConstellationIsolated: vi.fn(), setFocusedSector: vi.fn(), reloadGalaxy: vi.fn(),
+    };
+    const { rerender, unmount } = renderHook(props => useUIEventSync({
+      ...props, selectedNodeId: null, focusedSector: null,
+    }), { initialProps: handlers });
+    const latestReload = vi.fn();
+    rerender({ ...handlers, reloadGalaxy: latestReload });
+    expect(client.subscribeUIEvents).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      pushEvent({ value: new UIEvent({ action: UIActionType.ACTION_GALAXY_RELOAD }), done: false });
+    });
+    expect(latestReload).toHaveBeenCalledOnce();
+    expect(handlers.reloadGalaxy).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('backs off repeated stream failures without resetting retries on renders', async () => {
+    vi.useFakeTimers();
+    vi.mocked(client.subscribeUIEvents).mockReturnValue({
+      [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new Error('Backend unavailable')) }),
+    });
+    vi.mocked(client.reportActiveContext).mockResolvedValue(new ReportActiveContextResponse());
+    const handlers = {
+      setSelectedNodeId: vi.fn(), setIsDrawerOpen: vi.fn(),
+      setIsConstellationIsolated: vi.fn(), setFocusedSector: vi.fn(), reloadGalaxy: vi.fn(),
+    };
+    const { rerender, unmount } = renderHook(props => useUIEventSync({
+      ...props, selectedNodeId: null, focusedSector: null,
+    }), { initialProps: handlers });
+    await act(async () => {});
+    expect(client.subscribeUIEvents).toHaveBeenCalledTimes(1);
+    rerender({ ...handlers, reloadGalaxy: vi.fn() });
+    expect(client.subscribeUIEvents).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(999); });
+    expect(client.subscribeUIEvents).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(client.subscribeUIEvents).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1999); });
+    expect(client.subscribeUIEvents).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(client.subscribeUIEvents).toHaveBeenCalledTimes(3);
+    unmount();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(client.subscribeUIEvents).toHaveBeenCalledTimes(3);
   });
 
   it('handles ACTION_OPEN_NOTE correctly', async () => {

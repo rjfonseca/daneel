@@ -39,7 +39,7 @@ def predicate(env, observed_sha):
         "repository_owner_id": env.get("GITHUB_REPOSITORY_OWNER_ID", ""),
         "runner_environment": env.get("RUNNER_ENVIRONMENT", ""),
     }
-    if (execution["event_name"] not in ("workflow_dispatch", "pull_request_target")
+    if (execution["event_name"] != "workflow_dispatch"
             or not execution["repository_id"].isdecimal()
             or not execution["repository_owner_id"].isdecimal()
             or execution["runner_environment"] != "github-hosted"):
@@ -51,13 +51,13 @@ def predicate(env, observed_sha):
             "externalParameters": {
                 "workflow": {"repository": url, "path": ".github/workflows/release.yml",
                              "ref": workflow_ref[len(prefix):]},
-                "release": {"tag": tag, "source": source},
             },
             "internalParameters": {"github": execution},
             "resolvedDependencies": [
-                {"uri": "git+" + url + "@refs/tags/" + tag, "digest": {"gitCommit": source}},
+                # GitHub validates the first dependency against the signing workflow.
                 {"uri": "git+" + url + "@" + workflow_ref[len(prefix):],
                  "digest": {"gitCommit": workflow_sha}},
+                {"uri": "git+" + url + "@refs/tags/" + tag, "digest": {"gitCommit": source}},
             ],
         },
         "runDetails": {

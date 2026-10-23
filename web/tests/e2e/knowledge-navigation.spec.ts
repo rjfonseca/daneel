@@ -114,3 +114,60 @@ test('a fresh note fragment replaces its browser entry without duplicating histo
   await page.goBack();
   await expect(page).toHaveURL('about:blank');
 });
+
+test('resizing a reloaded reader takes precedence over deferred camera restoration', async ({ page }) => {
+  test.setTimeout(90000);
+  // Make deferred history restoration overlap an explicit reader resize.
+  await page.addInitScript(() => {
+    const schedule = window.setTimeout.bind(window);
+    window.setTimeout = ((callback: TimerHandler, delay?: number, ...args: unknown[]) =>
+      schedule(callback, delay === 900 ? 3000 : delay, ...args)) as typeof window.setTimeout;
+  });
+  await page.goto('/#note=notes%2Farchitecture%2Fnote-0.md');
+  await expect(page.getByTestId('cosmic-loading-overlay')).toBeHidden({ timeout: 30000 });
+  await expect(page.getByTestId('floating-note-hud')).toContainText('architecture example 0');
+  await expect.poll(() => page.evaluate(() => window.__sigmaInstance!.getCamera().isAnimated())).toBe(false);
+  const savedX = await page.evaluate(() => {
+    const camera = window.__sigmaInstance!.getCamera();
+    const x = camera.x + 0.05;
+    camera.setState({ x });
+    return x;
+  });
+  await expect.poll(() => page.evaluate(() => history.state?.snapshot?.camera?.x)).toBe(savedX);
+
+  await page.reload();
+  await expect(page.getByTestId('cosmic-loading-overlay')).toBeHidden({ timeout: 30000 });
+  const resize = page.getByRole('separator', { name: 'Resize note panel' });
+  await resize.press('ArrowRight');
+  await resize.press('ArrowRight');
+  await expect(resize).toHaveAttribute('aria-valuenow', '472');
+  // Observe the frame after the deferred callback would have run, not just the immediate resize.
+  await page.waitForTimeout(3200);
+  const offset = await page.evaluate(() => {
+    const sigma = window.__sigmaInstance!;
+    const attrs = sigma.getGraph().getNodeAttributes('notes/architecture/note-0.md');
+    return Math.abs(sigma.graphToViewport(attrs).x - (sigma.getDimensions().width - 472) / 2);
+  });
+  expect(offset).toBeLessThanOrEqual(25);
+});
+
+test('event stream failures keep retries bounded while navigating notes', async ({ page }) => {
+  test.setTimeout(90000);
+  let subscriptions = 0;
+  await page.route('**/graph.v1.GraphService/SubscribeUIEvents', async route => {
+    subscriptions += 1;
+    await route.fulfill({
+      status: 503, contentType: 'application/json',
+      body: JSON.stringify({ code: 'unavailable', message: 'Event stream temporarily unavailable' }),
+    });
+  });
+  await page.goto('/');
+  await expect(page.getByTestId('cosmic-loading-overlay')).toBeHidden({ timeout: 30000 });
+  await page.getByTestId('quick-search-btn').click();
+  await page.locator('[data-slot="command-input"]').fill('architecture example 0');
+  await page.locator('[data-slot="command-item"]').filter({ hasText: 'architecture example 0' }).first().click();
+  await expect(page.getByTestId('note-markdown')).toContainText('Cache and system design notes.');
+  expect(subscriptions).toBeGreaterThanOrEqual(1);
+  // Exponential backoff allows at most eight attempts within this test's lifetime.
+  expect(subscriptions).toBeLessThanOrEqual(8);
+});
