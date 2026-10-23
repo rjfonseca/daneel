@@ -71,6 +71,11 @@ the commit must already belong to `main`. These operations are also available
 through `gh workflow run release.yml --ref main -f dry_run=true` and
 `-f dry_run=false -f source_ref=<commit>`.
 
+For a provenance-generator repair, start a new dispatch from the corrected
+workflow revision and set `source_ref` to the original release commit. Rerunning
+an older run keeps its older workflow. The generator comes from the pinned
+executing workflow commit; artifacts still come from the original immutable tag.
+
 Local regression tests need no GitHub credentials:
 
 ```bash

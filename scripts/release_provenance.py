@@ -33,6 +33,17 @@ def predicate(env, observed_sha):
     run, attempt = env.get("GITHUB_RUN_ID", ""), env.get("GITHUB_RUN_ATTEMPT", "")
     if not run.isdecimal() or not attempt.isdecimal():
         raise ValueError("Workflow run and attempt identifiers are required")
+    execution = {
+        "event_name": env.get("GITHUB_EVENT_NAME", ""),
+        "repository_id": env.get("GITHUB_REPOSITORY_ID", ""),
+        "repository_owner_id": env.get("GITHUB_REPOSITORY_OWNER_ID", ""),
+        "runner_environment": env.get("RUNNER_ENVIRONMENT", ""),
+    }
+    if (execution["event_name"] not in ("workflow_dispatch", "pull_request_target")
+            or not execution["repository_id"].isdecimal()
+            or not execution["repository_owner_id"].isdecimal()
+            or execution["runner_environment"] != "github-hosted"):
+        raise ValueError("The GitHub release execution identity is required")
     url = server + "/" + repo
     return {
         "buildDefinition": {
@@ -42,6 +53,7 @@ def predicate(env, observed_sha):
                              "ref": workflow_ref[len(prefix):]},
                 "release": {"tag": tag, "source": source},
             },
+            "internalParameters": {"github": execution},
             "resolvedDependencies": [
                 {"uri": "git+" + url + "@refs/tags/" + tag, "digest": {"gitCommit": source}},
                 {"uri": "git+" + url + "@" + workflow_ref[len(prefix):],
@@ -49,7 +61,7 @@ def predicate(env, observed_sha):
             ],
         },
         "runDetails": {
-            "builder": {"id": server + "/actions/runner/github-hosted"},
+            "builder": {"id": server + "/" + workflow_ref},
             "metadata": {"invocationId": url + "/actions/runs/" + run + "/attempts/" + attempt},
         },
     }
