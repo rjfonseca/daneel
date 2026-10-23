@@ -114,3 +114,39 @@ test('a fresh note fragment replaces its browser entry without duplicating histo
   await page.goBack();
   await expect(page).toHaveURL('about:blank');
 });
+
+test('resizing a reloaded reader takes precedence over deferred camera restoration', async ({ page }) => {
+  test.setTimeout(90000);
+  // Make deferred history restoration overlap an explicit reader resize.
+  await page.addInitScript(() => {
+    const schedule = window.setTimeout.bind(window);
+    window.setTimeout = ((callback: TimerHandler, delay?: number, ...args: unknown[]) =>
+      schedule(callback, delay === 900 ? 3000 : delay, ...args)) as typeof window.setTimeout;
+  });
+  await page.goto('/#note=notes%2Farchitecture%2Fnote-0.md');
+  await expect(page.getByTestId('cosmic-loading-overlay')).toBeHidden({ timeout: 30000 });
+  await expect(page.getByTestId('floating-note-hud')).toContainText('architecture example 0');
+  await expect.poll(() => page.evaluate(() => window.__sigmaInstance!.getCamera().isAnimated())).toBe(false);
+  const savedX = await page.evaluate(() => {
+    const camera = window.__sigmaInstance!.getCamera();
+    const x = camera.x + 0.05;
+    camera.setState({ x });
+    return x;
+  });
+  await expect.poll(() => page.evaluate(() => history.state?.snapshot?.camera?.x)).toBe(savedX);
+
+  await page.reload();
+  await expect(page.getByTestId('cosmic-loading-overlay')).toBeHidden({ timeout: 30000 });
+  const resize = page.getByRole('separator', { name: 'Resize note panel' });
+  await resize.press('ArrowRight');
+  await resize.press('ArrowRight');
+  await expect(resize).toHaveAttribute('aria-valuenow', '472');
+  // Observe the frame after the deferred callback would have run, not just the immediate resize.
+  await page.waitForTimeout(3200);
+  const offset = await page.evaluate(() => {
+    const sigma = window.__sigmaInstance!;
+    const attrs = sigma.getGraph().getNodeAttributes('notes/architecture/note-0.md');
+    return Math.abs(sigma.graphToViewport(attrs).x - (sigma.getDimensions().width - 472) / 2);
+  });
+  expect(offset).toBeLessThanOrEqual(25);
+});
