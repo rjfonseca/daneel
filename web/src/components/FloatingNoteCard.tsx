@@ -191,6 +191,7 @@ export const FloatingNoteCard: React.FC<FloatingNoteCardProps> = ({
           aria-valuemin={MIN_DRAWER_WIDTH}
           aria-valuemax={MAX_DRAWER_WIDTH}
           aria-valuenow={clampDrawerWidth(drawerWidth)}
+          title="Resize note panel (Left/Right arrow keys, Home/End)"
           tabIndex={0}
           onKeyDown={(event) => {
             if (event.key === 'ArrowLeft') {
@@ -199,6 +200,12 @@ export const FloatingNoteCard: React.FC<FloatingNoteCardProps> = ({
             } else if (event.key === 'ArrowRight') {
               event.preventDefault();
               changeDrawerWidth(drawerWidth + DRAWER_WIDTH_STEP);
+            } else if (event.key === 'Home') {
+              event.preventDefault();
+              changeDrawerWidth(MIN_DRAWER_WIDTH);
+            } else if (event.key === 'End') {
+              event.preventDefault();
+              changeDrawerWidth(MAX_DRAWER_WIDTH);
             }
           }}
           onPointerDown={(event) => {
