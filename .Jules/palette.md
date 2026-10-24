@@ -1,0 +1,3 @@
+## 2025-05-18 - Toast Notification Accessibility & Keyboard Focus
+**Learning:** Toast notifications rendered without `role="status"`, `aria-live="polite"`, and `aria-atomic="true"` are invisible to screen readers, preventing users from receiving critical feedback on actions like opening daily notes or saving searches. Close buttons on toast overlays also require explicit `type="button"` and focus indicators (`cosmic-focus-visible`) for keyboard navigation.
+**Action:** Always include ARIA live region attributes (`role="status"`, `aria-live="polite"`, `aria-atomic="true"`) on toast overlays, set `aria-hidden="true"` on decorative icons, and apply `cosmic-focus-visible` styling to dismiss buttons.
