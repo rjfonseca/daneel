@@ -124,7 +124,12 @@ export const CommandSearchDialog: React.FC<CommandSearchDialogProps> = ({
                   </CommandGroup>
                 ))}
                 {filteredResults.length > visibleCount && (
-                  <button type="button" className="w-full rounded-lg px-3 py-2 text-xs text-indigo-300 hover:bg-gray-800/70" onClick={() => setVisibleCount(count => count + 8)}>
+                  <button
+                    type="button"
+                    aria-label="Show more search results"
+                    className="w-full rounded-lg px-3 py-2 text-xs text-indigo-300 hover:bg-gray-800/70 cosmic-focus-visible"
+                    onClick={() => setVisibleCount(count => count + 8)}
+                  >
                     Show more results
                   </button>
                 )}
