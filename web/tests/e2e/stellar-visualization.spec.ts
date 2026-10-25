@@ -109,7 +109,7 @@ test.describe('Visualização Astrofísica e Filtragem de Arestas', () => {
     await expect(page.getByRole('option').first()).toBeVisible();
     const nebulaItem = page.getByRole('option').filter({ hasText: 'Cluster with 16 note(s).' });
     for (let batch = 0; batch < 6 && !await nebulaItem.isVisible(); batch++) {
-      await page.getByRole('button', { name: 'Show more results' }).click();
+      await page.getByRole('button', { name: /Show more/i }).click();
     }
     await expect(nebulaItem).toBeVisible({ timeout: 5000 });
     const itemText = await nebulaItem.textContent();
