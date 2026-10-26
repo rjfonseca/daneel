@@ -131,4 +131,47 @@ describe('FloatingNoteCard Component', () => {
     fireEvent.click(constellationBadge);
     expect(onResetConstellation).toHaveBeenCalledTimes(1);
   });
+
+  it('renders resize separator with full ARIA attributes and handles keyboard resize including Home/End', async () => {
+    const onDrawerWidthChange = vi.fn();
+
+    await renderAsync(
+      <FloatingNoteCard
+        activeNote={mockNote}
+        noteContent="# Content"
+        processedMarkdown="# Content"
+        isMaximized={false}
+        onToggleMaximize={() => {}}
+        onClose={() => {}}
+        onCopy={() => {}}
+        copied={false}
+        onNavigateInternalLink={() => {}}
+        isConstellationActive={false}
+        onResetConstellation={() => {}}
+        drawerWidth={440}
+        onDrawerWidthChange={onDrawerWidthChange}
+      />
+    );
+
+    const resizeHandle = screen.getByTestId('resize-note-panel');
+    expect(resizeHandle).toBeDefined();
+    expect(resizeHandle.getAttribute('role')).toBe('separator');
+    expect(resizeHandle.getAttribute('aria-label')).toBe('Resize note panel');
+    expect(resizeHandle.getAttribute('aria-orientation')).toBe('vertical');
+    expect(resizeHandle.getAttribute('aria-valuemin')).toBe('320');
+    expect(resizeHandle.getAttribute('aria-valuemax')).toBe('800');
+    expect(resizeHandle.getAttribute('aria-valuenow')).toBe('440');
+
+    fireEvent.keyDown(resizeHandle, { key: 'ArrowLeft' });
+    expect(onDrawerWidthChange).toHaveBeenLastCalledWith(424);
+
+    fireEvent.keyDown(resizeHandle, { key: 'ArrowRight' });
+    expect(onDrawerWidthChange).toHaveBeenLastCalledWith(456);
+
+    fireEvent.keyDown(resizeHandle, { key: 'Home' });
+    expect(onDrawerWidthChange).toHaveBeenLastCalledWith(320);
+
+    fireEvent.keyDown(resizeHandle, { key: 'End' });
+    expect(onDrawerWidthChange).toHaveBeenLastCalledWith(800);
+  });
 });

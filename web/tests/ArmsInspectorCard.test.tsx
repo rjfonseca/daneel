@@ -218,6 +218,8 @@ describe('ArmsInspectorCard Component', () => {
 
     const resetBtn = screen.getByTestId('constellation-reset-btn');
     expect(resetBtn).toBeDefined();
+    expect(resetBtn).toHaveAttribute('aria-label', 'Restore full galaxy view from isolated constellation');
+    expect(resetBtn).toHaveClass('cosmic-focus-visible');
 
     fireEvent.click(resetBtn);
     expect(onResetConstellation).toHaveBeenCalled();

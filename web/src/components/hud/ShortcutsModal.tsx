@@ -54,11 +54,14 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="shortcuts-modal-title"
     >
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcuts-modal-title"
+      >
         <HudCard
           ref={modalRef}
           variant="indigo"

@@ -112,7 +112,15 @@ def main():
         if args.command == "validate-title":
             if "\n" in args.title or "\r" in args.title:
                 raise ValueError("PR titles must contain exactly one line")
-            print("Valid Conventional Commit title; increment=" + bump_for_message(args.title))
+            try:
+                increment = bump_for_message(args.title)
+            except ValueError as error:
+                raise ValueError(
+                    f"{error} (received GitHub PR title: {args.title!r}; "
+                    "remove leading emojis or persona prefixes like 'Palette:' on the GitHub Pull Request title itself, "
+                    "as pushing empty git commits will not change the PR title)"
+                ) from error
+            print("Valid Conventional Commit title; increment=" + increment)
         else:
             result = plan(args.repo, args.ref)
             write_outputs(args.github_output, result)
