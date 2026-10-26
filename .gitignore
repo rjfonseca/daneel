@@ -21,9 +21,15 @@ build-errors.log
 *.swp
 *~
 
-# Ferramentas locais e MCP
+# Ferramentas locais, agentes e MCP
 .serena/
 .playwright-mcp/
+.Jules/
+
+# Lockfiles de gerenciadores não suportados (usar exclusivamente npm)
+pnpm-lock.yaml
+yarn.lock
+bun.lockb
 
 # Build, task e testes
 .task/

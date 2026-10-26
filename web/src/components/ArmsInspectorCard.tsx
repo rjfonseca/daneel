@@ -171,7 +171,8 @@ export const ArmsInspectorCard: React.FC<ArmsInspectorCardProps> = ({
           <button
             onClick={onResetConstellation}
             data-testid="constellation-reset-btn"
-            className="group flex items-center justify-between px-3 py-1.5 text-xs font-mono rounded-lg bg-indigo-950/50 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-900/40 transition-all cursor-pointer"
+            aria-label="Restore full galaxy view from isolated constellation"
+            className="group flex items-center justify-between px-3 py-1.5 text-xs font-mono rounded-lg bg-indigo-950/50 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-900/40 transition-all cursor-pointer cosmic-focus-visible"
             title="Click to restore full galaxy view"
           >
             <span className="flex items-center gap-1.5">

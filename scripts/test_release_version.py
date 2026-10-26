@@ -29,6 +29,7 @@ class SemanticMessageTests(unittest.TestCase):
 
     def test_invalid_titles_fail_instead_of_skipping_a_merge(self):
         for message in ("", "fix: ", "Merge pull request #1", "feature: add search",
+                        "🎨 Palette: fix dialog role", "Palette: fix dialog role",
                         "fix(scope: broken", "fix: first\nsecond", " feat: hidden", "fix\n: text"):
             with self.subTest(message=message):
                 with self.assertRaises(ValueError):

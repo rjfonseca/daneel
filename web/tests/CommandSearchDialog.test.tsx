@@ -149,7 +149,7 @@ describe('CommandSearchDialog Component', () => {
     expect(screen.getByText('No results found.')).toBeDefined();
   });
 
-  it('reveals more than eight results on demand', () => {
+  it('reveals more than eight results on demand and has focus-visible accessibility styling', () => {
     const results = Array.from({ length: 10 }, (_, idx) => ({ relPath: `notes/${idx}.md`, title: `Note ${idx}`, snippet: 'Result' }));
     render(
       <CommandSearchDialog isOpen onClose={vi.fn()} searchQuery="note" onSearchChange={vi.fn()} activeFilter="All" onSelectFilter={vi.fn()} filteredResults={results} onSelectResult={vi.fn()} />
@@ -157,7 +157,9 @@ describe('CommandSearchDialog Component', () => {
 
     expect(screen.getByText('Note 7')).toBeDefined();
     expect(screen.queryByText('Note 8')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Show more results' }));
+    const showMoreBtn = screen.getByRole('button', { name: 'Show more search results' });
+    expect(showMoreBtn).toHaveClass('cosmic-focus-visible');
+    fireEvent.click(showMoreBtn);
     expect(screen.getByText('Note 8')).toBeDefined();
     expect(screen.getByText('Note 9')).toBeDefined();
   });
