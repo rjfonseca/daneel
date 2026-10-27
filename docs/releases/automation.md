@@ -15,6 +15,8 @@ required. Repository administrators perform the [one-time setup](github-setup.md
 | `feat!: replace a stable contract` or `fix(cli)!: remove a flag` | Major | `2.0.0` |
 | A `BREAKING CHANGE:` or `BREAKING-CHANGE:` footer in the PR body | Major | `2.0.0` |
 
+> **Choosing `feat` vs `fix` / `refactor`**: Reserve `feat` strictly for net-new user-facing commands, flags, MCP tools, UI panels, or configuration capabilities. When improving, hardening, or fixing edge cases in an existing workflow or routine without adding a new user-facing contract, use `fix`, `refactor`, or `perf` so the release increments the patch version rather than the minor version.
+
 The initial policy commit releases `1.0.0`. Each later commit on `main`'s
 first-parent history receives its own increment. The initial version in
 `.github/release-policy.json` is immutable after introduction. Keeping this

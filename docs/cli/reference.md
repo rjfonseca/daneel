@@ -57,7 +57,7 @@ Available across all commands:
 | `daneel log` | Displays activity logs, time tracking, rolling weekly matrix, and monthly trends | `--date <today\|YYYY-MM-DD>`, `--recent <days>`, `--weeks [N]`, `--monthly`, `--json` |
 | `daneel inbox` | Lists and inspects pending items in `inbox/` | None |
 | `daneel ingest` | Batch ingests Google Meet / Gemini meeting transcripts | `--zip <path>`, `--dry-run` |
-| `daneel workspace` | Scans local development directory (`~/Work`) and updates MOC | `--sync-clean`, `--inactivity-threshold <48h>`, `--write`, `-o` |
+| `daneel workspace` | Scans local development directory (`~/Work`), prunes merged/pushed branches and worktrees, resets stale feature branches, and updates MOC | `--sync-clean`, `--inactivity-threshold <48h>`, `--write`, `-o` |
 | `daneel clone` | Clones a repository, inspects stack, and creates a system note | `--dream`, `--fetch` |
 | `daneel chat` | Silent pre-indexing (<5ms) and exec passthrough to AI agents | `-p, --profile` (`agy`, `claude`), prompt string |
 

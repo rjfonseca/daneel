@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rjfonseca/daneel/internal/dream"
+	"github.com/rjfonseca/daneel/internal/git"
 	"github.com/rjfonseca/daneel/internal/search"
 )
 
@@ -140,11 +141,8 @@ func (c *Cloner) Clone(ctx context.Context, rawInput string, opts CloneOptions) 
 
 func (c *Cloner) inspectRepo(repoPath string) (stack string, desc string, branch string, commands []string, techTags []string) {
 	// Extract branch
-	cmd := exec.Command("git", "-C", repoPath, "rev-parse", "--abbrev-ref", "HEAD") //nolint:gosec // intentional
-	if out, err := cmd.Output(); err == nil {
-		branch = strings.TrimSpace(string(out))
-	}
-	if branch == "" {
+	branch = git.CurrentBranch(repoPath)
+	if branch == "" || branch == "unknown" {
 		branch = "main"
 	}
 

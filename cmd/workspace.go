@@ -98,7 +98,10 @@ var workspaceCmd = &cobra.Command{
 			fmt.Printf("   • %s: %d clean repositories pulled\n", passStyle.Render("🔄 Synced"), rep.SyncedCount)
 		}
 		if rep.PrunedBranchesCount > 0 {
-			fmt.Printf("   • %s: %d merged local branches removed\n", passStyle.Render("🌿 Pruned Branches"), rep.PrunedBranchesCount)
+			fmt.Printf("   • %s: %d merged/pushed local branches removed\n", passStyle.Render("🌿 Pruned Branches"), rep.PrunedBranchesCount)
+		}
+		if rep.PrunedWorktreesCount > 0 {
+			fmt.Printf("   • %s: %d merged/pushed worktrees removed\n", passStyle.Render("🪵 Pruned Worktrees"), rep.PrunedWorktreesCount)
 		}
 		fmt.Println()
 
