@@ -55,13 +55,14 @@ type Note struct {
 }
 
 var (
-	frontmatterRegex = regexp.MustCompile(`(?s)^---\s*\n(.*?)\n---\s*\n`)
-	headingRegex     = regexp.MustCompile(`(?m)^#+\s+(.*)$`)
-	h1Regex          = regexp.MustCompile(`(?m)^#\s+(.*)$`)
-	mdLinkRegex      = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	wikiLinkRegex    = regexp.MustCompile(`\[\[([^\]|]+)(?:\|([^\]]+))?\]\]`)
-	fencedCodeRegex  = regexp.MustCompile("(?s)```.*?```|~~~.*?~~~")
-	inlineCodeRegex  = regexp.MustCompile("`[^`\n]+`")
+	frontmatterRegex     = regexp.MustCompile(`(?s)^---\s*\n(.*?)\n---\s*\n`)
+	headingRegex         = regexp.MustCompile(`(?m)^#+\s+(.*)$`)
+	h1Regex              = regexp.MustCompile(`(?m)^#\s+(.*)$`)
+	mdLinkRegex          = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	wikiLinkRegex        = regexp.MustCompile(`\[\[([^\]|]+)(?:\|([^\]]+))?\]\]`)
+	fencedCodeRegex      = regexp.MustCompile("(?s)```.*?```|~~~.*?~~~")
+	inlineCodeRegex      = regexp.MustCompile("`[^`\n]+`")
+	nonAlphanumericRegex = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
 // NormalizeText strips accents, converts to lowercase ascii.
@@ -74,8 +75,7 @@ func NormalizeText(s string) string {
 // ToKebabCase converts a string to a clean kebab-case ascii identifier.
 func ToKebabCase(s string) string {
 	normStr := NormalizeText(s)
-	reg := regexp.MustCompile(`[^a-z0-9]+`)
-	clean := reg.ReplaceAllString(normStr, "-")
+	clean := nonAlphanumericRegex.ReplaceAllString(normStr, "-")
 	return strings.Trim(clean, "-")
 }
 
