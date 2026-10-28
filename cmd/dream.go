@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,7 +16,10 @@ import (
 
 	"github.com/rjfonseca/daneel/internal/dream"
 	"github.com/rjfonseca/daneel/internal/lore"
+	"github.com/rjfonseca/daneel/internal/routine"
+	"github.com/rjfonseca/daneel/internal/safefile"
 	"github.com/rjfonseca/daneel/internal/search"
+	"github.com/rjfonseca/daneel/internal/telemetry"
 )
 
 var (
@@ -68,6 +72,7 @@ Orchestrates the complete overnight consolidation:
 		if dreamDate == "" {
 			dreamDate = time.Now().Format("2006-01-02")
 		}
+		dreamStartTime := time.Now()
 
 		partnerName := "Partner"
 		if cfg != nil && cfg.Vault.Owner != "" {
@@ -103,6 +108,9 @@ Orchestrates the complete overnight consolidation:
 			sEngine.Close() //nolint:errcheck,gosec // fully read or safe to ignore
 		}
 		cancel()
+
+		// Finalize Phase 1 FinOps and update metrics dashboard
+		finalizeDreamFinOps(cmdCtx, cfg.VaultPath, dreamStartTime, report, 0, "")
 
 		if jsonOut {
 			data, err := json.MarshalIndent(report, "", "  ")
@@ -219,6 +227,14 @@ Orchestrates the complete overnight consolidation:
 		agentCmd.Stderr = os.Stderr
 
 		runErr := agentCmd.Run()
+		exitCode := 0
+		var errorMsg string
+		if runErr != nil {
+			exitCode = 1
+			errorMsg = runErr.Error()
+		}
+		finalizeDreamFinOps(cmdCtx, cfg.VaultPath, dreamStartTime, report, exitCode, errorMsg)
+
 		if runErr != nil {
 			return fmt.Errorf("agent dream cycle failed: %w", runErr)
 		}
@@ -290,9 +306,109 @@ func renderMetacognitiveStats(report *dream.FullDreamReport) {
 		}
 	}
 
+	if meta.InputTokens > 0 || meta.EstimatedCostUSD > 0 {
+		sb.WriteString("\n" + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")).Render("💰 FinOps & Token Usage:\n"))
+		if meta.Model != "" {
+			fmt.Fprintf(&sb, "  • %-20s %s\n", "Model:", meta.Model)
+		}
+		fmt.Fprintf(&sb, "  • %-20s %d in / %d cache read / %d out\n", "Tokens:", meta.InputTokens, meta.CacheReadTokens, meta.OutputTokens)
+		if meta.SubagentsCount > 0 {
+			fmt.Fprintf(&sb, "  • %-20s %d\n", "Subagents Spawned:", meta.SubagentsCount)
+		}
+		fmt.Fprintf(&sb, "  • %-20s $%.4f USD\n", "Estimated Cost:", meta.EstimatedCostUSD)
+	}
+
 	fmt.Fprintf(&sb, "\n📜 Evolution Log: %s\n", meta.EvolutionLogPath)
 
 	fmt.Println(borderBox.Render(sb.String()))
+}
+
+func finalizeDreamFinOps(ctx context.Context, vPath string, dreamStartTime time.Time, report *dream.FullDreamReport, exitCode int, errorMsg string) {
+	if cfg == nil || report == nil {
+		return
+	}
+	if vPath == "" {
+		vPath = cfg.VaultPath
+	}
+	store, err := routine.OpenDefaultStore(vPath)
+	if err != nil || store == nil {
+		return
+	}
+	defer func() { _ = store.Close() }()
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	completedAt := time.Now()
+	durationMs := completedAt.Sub(dreamStartTime).Milliseconds()
+
+	parserOpts := telemetry.ParserOptions{
+		Since:  7 * 24 * time.Hour,
+		Config: cfg,
+	}
+	if vPath != "" {
+		brainDir := filepath.Join(vPath, "brain")
+		if fi, err := os.Stat(brainDir); err == nil && fi.IsDir() {
+			parserOpts.BrainDir = brainDir
+		}
+	}
+
+	summaries, _ := telemetry.SyncSessionsToStore(ctx, store, parserOpts)
+	matched := telemetry.FindSessionInWindow(summaries, dreamStartTime, completedAt, "dream")
+	if matched == nil {
+		for i := range summaries {
+			if summaries[i].Record.RoutineName == "dream" || strings.Contains(summaries[i].Record.SkillsUsed, "vault-dream-cycle") {
+				matched = &summaries[i]
+				break
+			}
+		}
+	}
+
+	if report.Metacognition != nil && matched != nil {
+		report.Metacognition.InputTokens = matched.TotalInputTokens
+		report.Metacognition.CacheReadTokens = matched.TotalCacheTokens
+		report.Metacognition.OutputTokens = matched.TotalOutputTokens
+		report.Metacognition.EstimatedCostUSD = matched.TotalCostUSD
+		report.Metacognition.SubagentsCount = matched.Record.SubagentsCount
+		report.Metacognition.Model = matched.Record.Model
+
+		handoffPath := filepath.Join(vPath, ".daneel", "dream_handoff.json")
+		if data, err := json.MarshalIndent(report, "", "  "); err == nil {
+			_ = safefile.WriteFile(vPath, handoffPath, data, 0600)
+		}
+	}
+
+	_ = dream.UpdateDashboardMetricas(vPath, report, report.TotalFilesScanned)
+
+	status := "success"
+	if exitCode != 0 || errorMsg != "" {
+		status = "failed"
+	}
+
+	run := routine.RoutineRun{
+		RoutineName:    "dream",
+		StartedAt:      dreamStartTime.Unix(),
+		CompletedAt:    completedAt.Unix(),
+		DurationMs:     durationMs,
+		TriggerSource:  "cli",
+		ExitCode:       exitCode,
+		Status:         status,
+		Summary:        fmt.Sprintf("Dream cycle finished with %d files scanned in %dms", report.TotalFilesScanned, durationMs),
+		ErrorMessage:   errorMsg,
+		ItemsProcessed: report.TotalFilesScanned,
+	}
+	if report.Metacognition != nil {
+		run.InputTokens = report.Metacognition.InputTokens
+		run.CacheReadTokens = report.Metacognition.CacheReadTokens
+		run.OutputTokens = report.Metacognition.OutputTokens
+		run.EstimatedCostUSD = report.Metacognition.EstimatedCostUSD
+		run.Model = report.Metacognition.Model
+		if matched != nil {
+			run.SessionID = matched.Record.SessionID
+		}
+	}
+	_ = store.RecordRun(ctx, run)
 }
 
 func buildDreamPrompt(report *dream.FullDreamReport, targetDate, customPrompt string) string {

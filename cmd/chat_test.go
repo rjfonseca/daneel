@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -58,4 +59,80 @@ func TestExpandHomeInToken(t *testing.T) {
 		// ~ should be expanded
 		t.Logf("expanded token: %s", res)
 	}
+}
+
+func TestPrepareGitHubSandboxAuth(t *testing.T) {
+	t.Run("fetches host gh token and injects ai-jail mask and env flag", func(t *testing.T) {
+		envMap := map[string]string{
+			"TERM": "xterm-256color",
+		}
+		cmdTokens := []string{
+			"ai-jail",
+			"--rw-map=/home/user/.gemini-personal:/home/user/.gemini",
+			"--mask=/home/user/.config/gcloud",
+			"--exec",
+			"agy",
+		}
+
+		gotTokens := prepareGitHubSandboxAuth(envMap, cmdTokens, "/home/user", func() string {
+			return "gho_test_token_123"
+		})
+
+		if envMap["GH_TOKEN"] != "gho_test_token_123" {
+			t.Fatalf("expected GH_TOKEN to be set in envMap, got %q", envMap["GH_TOKEN"])
+		}
+
+		wantMask := "--mask=" + filepath.Join("/home/user", ".config", "gh")
+		hasMask := false
+		hasEnvFlag := false
+		for _, tok := range gotTokens {
+			if tok == wantMask {
+				hasMask = true
+			}
+			if tok == "--env=GH_TOKEN" {
+				hasEnvFlag = true
+			}
+		}
+		if !hasMask {
+			t.Errorf("expected %s in command tokens, got %v", wantMask, gotTokens)
+		}
+		if !hasEnvFlag {
+			t.Errorf("expected --env=GH_TOKEN in command tokens, got %v", gotTokens)
+		}
+	})
+
+	t.Run("handles systemd-run wrapper around ai-jail and respects --no-github", func(t *testing.T) {
+		envMap := map[string]string{}
+		cmdTokens := []string{
+			"systemd-run", "--user", "--scope", "--slice=agents.slice",
+			"ai-jail", "--no-github", "--exec", "agy",
+		}
+
+		gotTokens := prepareGitHubSandboxAuth(envMap, cmdTokens, "/home/user", func() string {
+			return "gho_should_not_be_used"
+		})
+
+		if _, exists := envMap["GH_TOKEN"]; exists {
+			t.Errorf("expected GH_TOKEN not to be set when --no-github is present")
+		}
+		if len(gotTokens) != len(cmdTokens) {
+			t.Errorf("expected tokens unchanged when --no-github is present, got %v", gotTokens)
+		}
+	})
+
+	t.Run("gracefully skips when gh auth token returns empty", func(t *testing.T) {
+		envMap := map[string]string{}
+		cmdTokens := []string{"ai-jail", "--exec", "agy"}
+
+		gotTokens := prepareGitHubSandboxAuth(envMap, cmdTokens, "/home/user", func() string {
+			return ""
+		})
+
+		if _, exists := envMap["GH_TOKEN"]; exists {
+			t.Errorf("expected GH_TOKEN not to be set when host gh is unauthenticated")
+		}
+		if len(gotTokens) != len(cmdTokens) {
+			t.Errorf("expected tokens unchanged when no token available, got %v", gotTokens)
+		}
+	})
 }

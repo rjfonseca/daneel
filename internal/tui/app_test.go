@@ -3,6 +3,7 @@ package tui
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rjfonseca/daneel/internal/config"
@@ -103,5 +104,78 @@ func TestAppModelLifecycle(t *testing.T) {
 	app = newModel.(*AppModel)
 	if !app.quitting {
 		t.Errorf("expected app.quitting to be true after pressing 'q' in normal mode")
+	}
+}
+
+func TestAppModelTelemetryTab(t *testing.T) {
+	tempDir := t.TempDir()
+
+	app := NewAppModel(tempDir, nil, config.TuiConfig{})
+	if app == nil {
+		t.Fatal("NewAppModel returned nil")
+	}
+
+	// Verify Telemetry tab exists in tabs
+	foundTelemetry := false
+	for _, tab := range app.tabs {
+		if strings.Contains(tab, "Telemetry") {
+			foundTelemetry = true
+			break
+		}
+	}
+	if !foundTelemetry {
+		t.Errorf("expected Telemetry tab in app.tabs, got: %v", app.tabs)
+	}
+
+	// Test pressing '8' switches to ViewTelemetry
+	newModel, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("8")})
+	app = newModel.(*AppModel)
+	if app.activeTab != ViewTelemetry {
+		t.Errorf("expected activeTab to be ViewTelemetry after pressing '8', got %v", app.activeTab)
+	}
+
+	// Test rendering ViewTelemetry
+	rendered := app.View()
+	if !strings.Contains(rendered, "AI FinOps") && !strings.Contains(rendered, "Telemetry") {
+		t.Errorf("expected rendered app view to contain Telemetry headers, got:\n%s", rendered)
+	}
+
+	// Switch back to search
+	newModel, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	app = newModel.(*AppModel)
+	if app.activeTab != ViewSearch {
+		t.Fatalf("expected ViewSearch, got %v", app.activeTab)
+	}
+
+	// Test pressing 'T' switches directly to ViewTelemetry
+	newModel, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("T")})
+	app = newModel.(*AppModel)
+	if app.activeTab != ViewTelemetry {
+		t.Errorf("expected activeTab to be ViewTelemetry after pressing 'T', got %v", app.activeTab)
+	}
+
+	// Test TUICommandMsg switch view to telemetry and finops
+	newModel, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	app = newModel.(*AppModel)
+
+	newModel, _ = app.Update(TUICommandMsg{
+		Command: "tui_switch_view",
+		Args:    map[string]interface{}{"view_name": "telemetry"},
+	})
+	app = newModel.(*AppModel)
+	if app.activeTab != ViewTelemetry {
+		t.Errorf("expected activeTab to be ViewTelemetry after tui_switch_view 'telemetry', got %v", app.activeTab)
+	}
+
+	newModel, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	app = newModel.(*AppModel)
+
+	newModel, _ = app.Update(TUICommandMsg{
+		Command: "tui_switch_view",
+		Args:    map[string]interface{}{"view_name": "finops"},
+	})
+	app = newModel.(*AppModel)
+	if app.activeTab != ViewTelemetry {
+		t.Errorf("expected activeTab to be ViewTelemetry after tui_switch_view 'finops', got %v", app.activeTab)
 	}
 }

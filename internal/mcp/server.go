@@ -26,6 +26,7 @@ import (
 	"github.com/rjfonseca/daneel/internal/ops/dossier"
 	"github.com/rjfonseca/daneel/internal/ops/meetings"
 	"github.com/rjfonseca/daneel/internal/ops/workspace"
+	"github.com/rjfonseca/daneel/internal/routine"
 	"github.com/rjfonseca/daneel/internal/safefile"
 	"github.com/rjfonseca/daneel/internal/search"
 )
@@ -637,7 +638,23 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 			return
 		}
 
+		start := time.Now()
 		resultText, isErr := s.executeTool(callParams.Name, callParams.Arguments)
+		durationMs := time.Since(start).Milliseconds()
+
+		if s.vaultRoot != "" {
+			if store, err := routine.OpenDefaultStore(s.vaultRoot); err == nil && store != nil {
+				_ = store.RecordCommandEvent(context.Background(), routine.CommandTelemetryEvent{
+					Surface:    "mcp",
+					Command:    callParams.Name,
+					StartedAt:  start.Unix(),
+					DurationMs: durationMs,
+					IsError:    isErr,
+				})
+				_ = store.Close()
+			}
+		}
+
 		s.sendResult(req.ID, ToolCallResult{
 			Content: []ToolCallContent{
 				{

@@ -1,7 +1,17 @@
-import { GetRoutinesOverviewResponse, GetStaffTelemetryResponse, GetCognitiveTelemetryResponse, GetRoutineHistoryResponse, RoutineOutputEvent, DeleteRoutineResponse } from '../src/gen/api/v1/graph_pb';
+import { 
+  GetRoutinesOverviewResponse, 
+  GetStaffTelemetryResponse, 
+  GetCognitiveTelemetryResponse, 
+  GetRoutineHistoryResponse, 
+  GetOperationalTelemetryResponse,
+  RoutineRunItem,
+  RoutineOutputEvent, 
+  DeleteRoutineResponse 
+} from '../src/gen/api/v1/graph_pb';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor, act } from '@testing-library/react';
 import { CockpitModal } from '../src/components/hud/CockpitModal';
+import { RoutineHistoryDeck } from '../src/components/hud/RoutineHistoryDeck';
 import { client } from '../src/lib/apiClient';
 
 vi.mock('../src/lib/apiClient', () => ({
@@ -13,6 +23,7 @@ vi.mock('../src/lib/apiClient', () => ({
     upsertRoutine: vi.fn(),
     deleteRoutine: vi.fn(),
     getRoutineHistory: vi.fn(),
+    getOperationalTelemetry: vi.fn(),
   },
 }));
 
@@ -125,12 +136,94 @@ describe('CockpitModal Component', () => {
     lastDreamTimestamp: BigInt(1726000000),
   };
 
+  const mockOperationalTelemetry = {
+    windowDays: 7,
+    totalCostUsd: 14.82,
+    dailyBudgetUsd: 5.0,
+    monthlyBudgetUsd: 150.0,
+    totalInputTokens: BigInt(250000),
+    totalCacheReadTokens: BigInt(650000),
+    totalOutputTokens: BigInt(45000),
+    cacheEfficiencyPct: 72.2,
+    totalSessions: 18,
+    totalSubagents: 42,
+    modelUsage: [
+      {
+        model: 'gemini-2.5-pro',
+        agent: 'antigravity',
+        sessionsCount: 12,
+        subagentsCount: 28,
+        inputTokens: BigInt(180000),
+        cacheReadTokens: BigInt(500000),
+        outputTokens: BigInt(30000),
+        estimatedCostUsd: 8.50,
+      },
+      {
+        model: 'claude-3-7-sonnet',
+        agent: 'claude-code',
+        sessionsCount: 6,
+        subagentsCount: 14,
+        inputTokens: BigInt(70000),
+        cacheReadTokens: BigInt(150000),
+        outputTokens: BigInt(15000),
+        estimatedCostUsd: 6.32,
+      },
+    ],
+    routineWeights: [
+      {
+        routineName: 'dream',
+        totalRuns: 7,
+        successRuns: 7,
+        failedRuns: 0,
+        avgDurationMs: 42000,
+        maxDurationMs: BigInt(55000),
+        totalItems: BigInt(350),
+        totalInputTokens: BigInt(120000),
+        totalCacheTokens: BigInt(300000),
+        totalOutputTokens: BigInt(20000),
+        totalCostUsd: 4.20,
+        lastRunAt: BigInt(1726000000),
+      },
+    ],
+    recentSessions: [
+      {
+        sessionId: 'sess-001',
+        parentSessionId: '',
+        agent: 'antigravity',
+        model: 'gemini-2.5-pro',
+        role: 'planner',
+        startedAt: BigInt(1726000000),
+        turnsCount: 15,
+        subagentsCount: 4,
+        inputTokens: BigInt(25000),
+        cacheReadTokens: BigInt(80000),
+        outputTokens: BigInt(5000),
+        estimatedCostUsd: 1.25,
+        skillsUsed: 'vault-assistant',
+        isRoutine: false,
+        routineName: '',
+      },
+    ],
+    commandMetrics: [
+      {
+        surface: 'mcp',
+        command: 'search_vault',
+        totalCalls: 142,
+        errorCalls: 0,
+        avgDurationMs: 4.8,
+        maxDurationMs: BigInt(22),
+        lastCalledAt: BigInt(1726000000),
+      },
+    ],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(client.getRoutinesOverview).mockResolvedValue(new GetRoutinesOverviewResponse({ routines: mockRoutines }));
     vi.mocked(client.getStaffTelemetry).mockResolvedValue(new GetStaffTelemetryResponse(mockTelemetry));
     vi.mocked(client.getCognitiveTelemetry).mockResolvedValue(new GetCognitiveTelemetryResponse(mockCognitiveTelemetry));
     vi.mocked(client.getRoutineHistory).mockResolvedValue(new GetRoutineHistoryResponse({ runs: [] }));
+    vi.mocked(client.getOperationalTelemetry).mockResolvedValue(new GetOperationalTelemetryResponse(mockOperationalTelemetry));
   });
 
   afterEach(() => {
@@ -749,5 +842,94 @@ describe('CockpitModal Component', () => {
     });
 
     expect(client.getRoutineHistory).toHaveBeenCalled();
+  });
+
+  it('renders FinOps & Ops tab and displays AI spend KPIs, model breakdown, and routine weights', async () => {
+    render(<CockpitModal isOpen={true} onClose={vi.fn()} />);
+
+    // Click FinOps tab
+    const finopsTab = screen.getByTestId('cockpit-tab-finops');
+    expect(finopsTab).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(finopsTab);
+    });
+
+    await waitFor(() => {
+      expect(client.getOperationalTelemetry).toHaveBeenCalled();
+    });
+
+    // Check KPIs
+    expect(screen.getByText('$14.82')).toBeDefined();
+    expect(screen.getByText(/72\.2%/)).toBeDefined();
+    expect(screen.getByText(/18 sessions/i)).toBeDefined();
+    expect(screen.getByText(/42 subagents/i)).toBeDefined();
+
+    // Check Model Breakdown
+    expect(screen.getByText('gemini-2.5-pro')).toBeDefined();
+    expect(screen.getByText('claude-3-7-sonnet')).toBeDefined();
+
+    // Check Routine Weights Leaderboard
+    expect(screen.getByText('dream')).toBeDefined();
+
+    // Check Command Metrics
+    expect(screen.getByText('search_vault')).toBeDefined();
+  });
+
+  it('renders token, items, and cost badges in RoutineHistoryDeck when run has FinOps metrics', () => {
+    const mockRuns = [
+      new RoutineRunItem({
+        id: 'run-finops-badge',
+        routineName: 'dream',
+        startedAt: BigInt(1726000000),
+        completedAt: BigInt(1726000060),
+        durationMs: BigInt(60000),
+        triggerSource: 'web_cockpit',
+        exitCode: 0,
+        status: 'success',
+        summary: 'Memory consolidation pass',
+        errorMessage: '',
+        itemsProcessed: 285,
+        inputTokens: BigInt(18400),
+        cacheReadTokens: BigInt(45000),
+        outputTokens: BigInt(2100),
+        estimatedCostUsd: 0.042,
+        model: 'gemini-2.5-pro',
+        sessionId: 'sess-abc',
+      }),
+    ];
+
+    render(<RoutineHistoryDeck runs={mockRuns} isLoading={false} onRefresh={vi.fn()} />);
+
+    expect(screen.getByText('$0.042')).toBeDefined();
+    expect(screen.getByText(/18\.4k tok/i)).toBeDefined();
+    expect(screen.getByText(/285 items/i)).toBeDefined();
+  });
+
+  it('displays Dream Cycle Token Usage & Cost in Metacognition tab when dreamInputTokens is present', async () => {
+    const enrichedCognitive = {
+      ...mockCognitiveTelemetry,
+      dreamInputTokens: BigInt(5000),
+      dreamCacheReadTokens: BigInt(10000),
+      dreamOutputTokens: BigInt(1200),
+      dreamEstimatedCostUsd: 0.045,
+      dreamSubagentsCount: 3,
+      dreamModel: 'gemini-2.5-pro',
+    };
+    vi.mocked(client.getCognitiveTelemetry).mockResolvedValue(new GetCognitiveTelemetryResponse(enrichedCognitive));
+
+    render(<CockpitModal isOpen={true} onClose={vi.fn()} />);
+
+    const metacognitionTab = screen.getByTestId('cockpit-tab-metacognition');
+    await act(async () => {
+      fireEvent.click(metacognitionTab);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dream-cycle-finops-card')).toBeDefined();
+    });
+
+    expect(screen.getByText(/\$0\.045/)).toBeDefined();
+    expect(screen.getByText('gemini-2.5-pro')).toBeDefined();
   });
 });

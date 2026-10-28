@@ -333,6 +333,7 @@ func TestGraphServer_GetCognitiveTelemetry(t *testing.T) {
 	server := &GraphServer{
 		vaultDir: tempVault,
 	}
+	cleanupGraphServerRoutineStore(t, server)
 
 	ctx := context.Background()
 	req := connect.NewRequest(&graphv1.GetCognitiveTelemetryRequest{})
@@ -390,6 +391,7 @@ func TestGraphServer_GetCognitiveTelemetry_FromRealEngineHandoff(t *testing.T) {
 	server := &GraphServer{
 		vaultDir: tempVault,
 	}
+	cleanupGraphServerRoutineStore(t, server)
 
 	ctx := context.Background()
 	req := connect.NewRequest(&graphv1.GetCognitiveTelemetryRequest{})
@@ -632,5 +634,272 @@ func TestGraphServer_GetNote_AutoIndexesFileInBackground(t *testing.T) {
 
 	if !indexed {
 		t.Fatalf("expected notes/unread.md to be indexed in SQLite notes_meta after GetNote call")
+	}
+}
+
+func TestGraphServer_GetRoutineHistory_EnrichedFinOps(t *testing.T) {
+	tempVault := t.TempDir()
+	dbPath := filepath.Join(tempVault, "routine_runs.db")
+	st, err := routine.OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open routine store: %v", err)
+	}
+
+	ctx := context.Background()
+	run := routine.RoutineRun{
+		ID:               "run-finops-1",
+		RoutineName:      "dream",
+		StartedAt:        time.Now().Unix() - 60,
+		CompletedAt:      time.Now().Unix(),
+		DurationMs:       60000,
+		TriggerSource:    "web_cockpit",
+		ExitCode:         0,
+		Status:           "success",
+		Summary:          "Consolidation pass",
+		ItemsProcessed:   42,
+		InputTokens:      1200,
+		CacheReadTokens:  800,
+		OutputTokens:     350,
+		EstimatedCostUSD: 0.015,
+		Model:            "gemini-2.5-pro",
+		SessionID:        "sess-123",
+	}
+	if err := st.RecordRun(ctx, run); err != nil {
+		t.Fatalf("failed to record run: %v", err)
+	}
+
+	server := &GraphServer{
+		vaultDir:     tempVault,
+		routineStore: st,
+	}
+	cleanupGraphServerRoutineStore(t, server)
+
+	req := connect.NewRequest(&graphv1.GetRoutineHistoryRequest{
+		RoutineName: "dream",
+		Limit:       10,
+	})
+	res, err := server.GetRoutineHistory(ctx, req)
+	if err != nil {
+		t.Fatalf("GetRoutineHistory returned error: %v", err)
+	}
+
+	if len(res.Msg.Runs) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(res.Msg.Runs))
+	}
+
+	r := res.Msg.Runs[0]
+	if r.ItemsProcessed != 42 {
+		t.Errorf("expected ItemsProcessed 42, got %d", r.ItemsProcessed)
+	}
+	if r.InputTokens != 1200 {
+		t.Errorf("expected InputTokens 1200, got %d", r.InputTokens)
+	}
+	if r.CacheReadTokens != 800 {
+		t.Errorf("expected CacheReadTokens 800, got %d", r.CacheReadTokens)
+	}
+	if r.OutputTokens != 350 {
+		t.Errorf("expected OutputTokens 350, got %d", r.OutputTokens)
+	}
+	if r.EstimatedCostUsd != 0.015 {
+		t.Errorf("expected EstimatedCostUsd 0.015, got %f", r.EstimatedCostUsd)
+	}
+	if r.Model != "gemini-2.5-pro" {
+		t.Errorf("expected Model 'gemini-2.5-pro', got %q", r.Model)
+	}
+	if r.SessionId != "sess-123" {
+		t.Errorf("expected SessionId 'sess-123', got %q", r.SessionId)
+	}
+}
+
+func TestGraphServer_GetCognitiveTelemetry_EnrichedFinOps(t *testing.T) {
+	tempVault := t.TempDir()
+	cacheDir := config.ResolveVaultCacheDir(tempVault)
+	if err := os.MkdirAll(cacheDir, 0750); err != nil {
+		t.Fatalf("failed to create cache dir: %v", err)
+	}
+
+	fileData := []byte(`{
+		"generated_at": "` + time.Now().Format(time.RFC3339) + `",
+		"total_files_scanned": 100,
+		"broken_links_count": 0,
+		"metacognition": {
+			"total_duration_ms": 3400,
+			"input_tokens": 5000,
+			"cache_read_tokens": 10000,
+			"output_tokens": 1200,
+			"estimated_cost_usd": 0.045,
+			"subagents_count": 3,
+			"model": "gemini-2.5-pro"
+		}
+	}`)
+	if err := os.WriteFile(filepath.Join(cacheDir, "dream_handoff.json"), fileData, 0600); err != nil {
+		t.Fatalf("failed to write dream handoff: %v", err)
+	}
+
+	server := &GraphServer{
+		vaultDir: tempVault,
+	}
+	cleanupGraphServerRoutineStore(t, server)
+
+	req := connect.NewRequest(&graphv1.GetCognitiveTelemetryRequest{})
+	res, err := server.GetCognitiveTelemetry(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetCognitiveTelemetry returned error: %v", err)
+	}
+
+	if res.Msg.DreamInputTokens != 5000 {
+		t.Errorf("expected DreamInputTokens 5000, got %d", res.Msg.DreamInputTokens)
+	}
+	if res.Msg.DreamCacheReadTokens != 10000 {
+		t.Errorf("expected DreamCacheReadTokens 10000, got %d", res.Msg.DreamCacheReadTokens)
+	}
+	if res.Msg.DreamOutputTokens != 1200 {
+		t.Errorf("expected DreamOutputTokens 1200, got %d", res.Msg.DreamOutputTokens)
+	}
+	if res.Msg.DreamEstimatedCostUsd != 0.045 {
+		t.Errorf("expected DreamEstimatedCostUsd 0.045, got %f", res.Msg.DreamEstimatedCostUsd)
+	}
+	if res.Msg.DreamSubagentsCount != 3 {
+		t.Errorf("expected DreamSubagentsCount 3, got %d", res.Msg.DreamSubagentsCount)
+	}
+	if res.Msg.DreamModel != "gemini-2.5-pro" {
+		t.Errorf("expected DreamModel 'gemini-2.5-pro', got %q", res.Msg.DreamModel)
+	}
+}
+
+func TestGraphServer_GetOperationalTelemetry(t *testing.T) {
+	tempVault := t.TempDir()
+	dbPath := filepath.Join(tempVault, "routine_runs.db")
+	st, err := routine.OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open routine store: %v", err)
+	}
+
+	ctx := context.Background()
+	now := time.Now().Unix()
+
+	// Insert session telemetry records
+	_ = st.UpsertSessionTelemetry(ctx, routine.SessionTelemetryRecord{
+		SessionID:        "sess-1",
+		Agent:            "antigravity",
+		Model:            "gemini-2.5-pro",
+		StartedAt:        now - 3600,
+		UpdatedAt:        now,
+		TurnsCount:       10,
+		SubagentsCount:   2,
+		InputTokens:      1000,
+		CacheReadTokens:  3000,
+		OutputTokens:     500,
+		EstimatedCostUSD: 0.02,
+		SkillsUsed:       "vault-assistant",
+		IsRoutine:        false,
+	})
+
+	_ = st.UpsertSessionTelemetry(ctx, routine.SessionTelemetryRecord{
+		SessionID:        "sess-2",
+		Agent:            "claude-code",
+		Model:            "claude-3-7-sonnet",
+		StartedAt:        now - 1800,
+		UpdatedAt:        now,
+		TurnsCount:       5,
+		SubagentsCount:   1,
+		InputTokens:      2000,
+		CacheReadTokens:  1000,
+		OutputTokens:     1000,
+		EstimatedCostUSD: 0.05,
+		SkillsUsed:       "agent-evals",
+		IsRoutine:        true,
+		RoutineName:      "session_mining",
+	})
+
+	// Insert routine run
+	_ = st.RecordRun(ctx, routine.RoutineRun{
+		ID:               "run-1",
+		RoutineName:      "dream",
+		StartedAt:        now - 600,
+		CompletedAt:      now - 500,
+		DurationMs:       100000,
+		TriggerSource:    "cron",
+		ExitCode:         0,
+		Status:           "success",
+		ItemsProcessed:   50,
+		InputTokens:      3000,
+		CacheReadTokens:  4000,
+		OutputTokens:     500,
+		EstimatedCostUSD: 0.03,
+	})
+
+	// Insert command event
+	_ = st.RecordCommandEvent(ctx, routine.CommandTelemetryEvent{
+		Surface:    "mcp",
+		Command:    "search_vault",
+		StartedAt:  now - 300,
+		DurationMs: 12,
+		IsError:    false,
+	})
+
+	cfg := &config.Config{}
+	cfg.Telemetry.FinOps.DailyBudgetUSD = 10.0
+	cfg.Telemetry.FinOps.MonthlyBudgetUSD = 250.0
+
+	server := &GraphServer{
+		vaultDir:     tempVault,
+		routineStore: st,
+		cfg:          cfg,
+	}
+	cleanupGraphServerRoutineStore(t, server)
+
+	req := connect.NewRequest(&graphv1.GetOperationalTelemetryRequest{
+		Days: 7,
+	})
+	res, err := server.GetOperationalTelemetry(ctx, req)
+	if err != nil {
+		t.Fatalf("GetOperationalTelemetry returned error: %v", err)
+	}
+
+	msg := res.Msg
+	if msg.WindowDays != 7 {
+		t.Errorf("expected WindowDays 7, got %d", msg.WindowDays)
+	}
+	if msg.DailyBudgetUsd != 10.0 {
+		t.Errorf("expected DailyBudgetUsd 10.0, got %f", msg.DailyBudgetUsd)
+	}
+	if msg.MonthlyBudgetUsd != 250.0 {
+		t.Errorf("expected MonthlyBudgetUsd 250.0, got %f", msg.MonthlyBudgetUsd)
+	}
+	if msg.TotalSessions != 2 {
+		t.Errorf("expected TotalSessions 2, got %d", msg.TotalSessions)
+	}
+	if msg.TotalSubagents != 3 {
+		t.Errorf("expected TotalSubagents 3, got %d", msg.TotalSubagents)
+	}
+	if msg.TotalInputTokens != 3000 {
+		t.Errorf("expected TotalInputTokens 3000, got %d", msg.TotalInputTokens)
+	}
+	if msg.TotalCacheReadTokens != 4000 {
+		t.Errorf("expected TotalCacheReadTokens 4000, got %d", msg.TotalCacheReadTokens)
+	}
+	if msg.TotalOutputTokens != 1500 {
+		t.Errorf("expected TotalOutputTokens 1500, got %d", msg.TotalOutputTokens)
+	}
+	if msg.TotalCostUsd < 0.069 || msg.TotalCostUsd > 0.071 {
+		t.Errorf("expected TotalCostUsd ~0.07, got %f", msg.TotalCostUsd)
+	}
+	// Cache efficiency: 4000 / (3000 + 4000) = ~57.14%
+	if msg.CacheEfficiencyPct < 57.0 || msg.CacheEfficiencyPct > 58.0 {
+		t.Errorf("expected CacheEfficiencyPct ~57.14, got %f", msg.CacheEfficiencyPct)
+	}
+
+	if len(msg.ModelUsage) == 0 {
+		t.Errorf("expected ModelUsage items, got 0")
+	}
+	if len(msg.RoutineWeights) == 0 {
+		t.Errorf("expected RoutineWeights items, got 0")
+	}
+	if len(msg.RecentSessions) != 2 {
+		t.Errorf("expected RecentSessions 2, got %d", len(msg.RecentSessions))
+	}
+	if len(msg.CommandMetrics) == 0 {
+		t.Errorf("expected CommandMetrics items, got 0")
 	}
 }

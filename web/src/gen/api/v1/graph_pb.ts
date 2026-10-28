@@ -1194,6 +1194,41 @@ export class RoutineRunItem extends Message<RoutineRunItem> {
    */
   errorMessage = "";
 
+  /**
+   * @generated from field: int32 items_processed = 11;
+   */
+  itemsProcessed = 0;
+
+  /**
+   * @generated from field: int64 input_tokens = 12;
+   */
+  inputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 cache_read_tokens = 13;
+   */
+  cacheReadTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 output_tokens = 14;
+   */
+  outputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: double estimated_cost_usd = 15;
+   */
+  estimatedCostUsd = 0;
+
+  /**
+   * @generated from field: string model = 16;
+   */
+  model = "";
+
+  /**
+   * @generated from field: string session_id = 17;
+   */
+  sessionId = "";
+
   constructor(data?: PartialMessage<RoutineRunItem>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1212,6 +1247,13 @@ export class RoutineRunItem extends Message<RoutineRunItem> {
     { no: 8, name: "status", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 9, name: "summary", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 10, name: "error_message", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "items_processed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 12, name: "input_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 13, name: "cache_read_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 14, name: "output_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 15, name: "estimated_cost_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 16, name: "model", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 17, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RoutineRunItem {
@@ -1963,6 +2005,36 @@ export class GetCognitiveTelemetryResponse extends Message<GetCognitiveTelemetry
    */
   lastDreamTimestamp = protoInt64.zero;
 
+  /**
+   * @generated from field: int64 dream_input_tokens = 13;
+   */
+  dreamInputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 dream_cache_read_tokens = 14;
+   */
+  dreamCacheReadTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 dream_output_tokens = 15;
+   */
+  dreamOutputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: double dream_estimated_cost_usd = 16;
+   */
+  dreamEstimatedCostUsd = 0;
+
+  /**
+   * @generated from field: int32 dream_subagents_count = 17;
+   */
+  dreamSubagentsCount = 0;
+
+  /**
+   * @generated from field: string dream_model = 18;
+   */
+  dreamModel = "";
+
   constructor(data?: PartialMessage<GetCognitiveTelemetryResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1983,6 +2055,12 @@ export class GetCognitiveTelemetryResponse extends Message<GetCognitiveTelemetry
     { no: 10, name: "total_files_scanned", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 11, name: "broken_links_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 12, name: "last_dream_timestamp", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 13, name: "dream_input_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 14, name: "dream_cache_read_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 15, name: "dream_output_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 16, name: "dream_estimated_cost_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 17, name: "dream_subagents_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 18, name: "dream_model", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCognitiveTelemetryResponse {
@@ -1999,6 +2077,536 @@ export class GetCognitiveTelemetryResponse extends Message<GetCognitiveTelemetry
 
   static equals(a: GetCognitiveTelemetryResponse | PlainMessage<GetCognitiveTelemetryResponse> | undefined, b: GetCognitiveTelemetryResponse | PlainMessage<GetCognitiveTelemetryResponse> | undefined): boolean {
     return proto3.util.equals(GetCognitiveTelemetryResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetOperationalTelemetryRequest
+ */
+export class GetOperationalTelemetryRequest extends Message<GetOperationalTelemetryRequest> {
+  /**
+   * default 7
+   *
+   * @generated from field: int32 days = 1;
+   */
+  days = 0;
+
+  constructor(data?: PartialMessage<GetOperationalTelemetryRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetOperationalTelemetryRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "days", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetOperationalTelemetryRequest {
+    return new GetOperationalTelemetryRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetOperationalTelemetryRequest {
+    return new GetOperationalTelemetryRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetOperationalTelemetryRequest {
+    return new GetOperationalTelemetryRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetOperationalTelemetryRequest | PlainMessage<GetOperationalTelemetryRequest> | undefined, b: GetOperationalTelemetryRequest | PlainMessage<GetOperationalTelemetryRequest> | undefined): boolean {
+    return proto3.util.equals(GetOperationalTelemetryRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.ModelUsageItem
+ */
+export class ModelUsageItem extends Message<ModelUsageItem> {
+  /**
+   * @generated from field: string model = 1;
+   */
+  model = "";
+
+  /**
+   * @generated from field: string agent = 2;
+   */
+  agent = "";
+
+  /**
+   * @generated from field: int32 sessions_count = 3;
+   */
+  sessionsCount = 0;
+
+  /**
+   * @generated from field: int32 subagents_count = 4;
+   */
+  subagentsCount = 0;
+
+  /**
+   * @generated from field: int64 input_tokens = 5;
+   */
+  inputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 cache_read_tokens = 6;
+   */
+  cacheReadTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 output_tokens = 7;
+   */
+  outputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: double estimated_cost_usd = 8;
+   */
+  estimatedCostUsd = 0;
+
+  constructor(data?: PartialMessage<ModelUsageItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.ModelUsageItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "model", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "agent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "sessions_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "subagents_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "input_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 6, name: "cache_read_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 7, name: "output_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 8, name: "estimated_cost_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ModelUsageItem {
+    return new ModelUsageItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ModelUsageItem {
+    return new ModelUsageItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ModelUsageItem {
+    return new ModelUsageItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ModelUsageItem | PlainMessage<ModelUsageItem> | undefined, b: ModelUsageItem | PlainMessage<ModelUsageItem> | undefined): boolean {
+    return proto3.util.equals(ModelUsageItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.RoutineWeightItem
+ */
+export class RoutineWeightItem extends Message<RoutineWeightItem> {
+  /**
+   * @generated from field: string routine_name = 1;
+   */
+  routineName = "";
+
+  /**
+   * @generated from field: int32 total_runs = 2;
+   */
+  totalRuns = 0;
+
+  /**
+   * @generated from field: int32 success_runs = 3;
+   */
+  successRuns = 0;
+
+  /**
+   * @generated from field: int32 failed_runs = 4;
+   */
+  failedRuns = 0;
+
+  /**
+   * @generated from field: double avg_duration_ms = 5;
+   */
+  avgDurationMs = 0;
+
+  /**
+   * @generated from field: int64 max_duration_ms = 6;
+   */
+  maxDurationMs = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 total_items = 7;
+   */
+  totalItems = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 total_input_tokens = 8;
+   */
+  totalInputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 total_cache_tokens = 9;
+   */
+  totalCacheTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 total_output_tokens = 10;
+   */
+  totalOutputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: double total_cost_usd = 11;
+   */
+  totalCostUsd = 0;
+
+  /**
+   * @generated from field: int64 last_run_at = 12;
+   */
+  lastRunAt = protoInt64.zero;
+
+  constructor(data?: PartialMessage<RoutineWeightItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.RoutineWeightItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "routine_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "total_runs", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "success_runs", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "failed_runs", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "avg_duration_ms", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 6, name: "max_duration_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 7, name: "total_items", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 8, name: "total_input_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 9, name: "total_cache_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 10, name: "total_output_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 11, name: "total_cost_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 12, name: "last_run_at", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RoutineWeightItem {
+    return new RoutineWeightItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RoutineWeightItem {
+    return new RoutineWeightItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RoutineWeightItem {
+    return new RoutineWeightItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RoutineWeightItem | PlainMessage<RoutineWeightItem> | undefined, b: RoutineWeightItem | PlainMessage<RoutineWeightItem> | undefined): boolean {
+    return proto3.util.equals(RoutineWeightItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.SessionTelemetryItem
+ */
+export class SessionTelemetryItem extends Message<SessionTelemetryItem> {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId = "";
+
+  /**
+   * @generated from field: string parent_session_id = 2;
+   */
+  parentSessionId = "";
+
+  /**
+   * @generated from field: string agent = 3;
+   */
+  agent = "";
+
+  /**
+   * @generated from field: string model = 4;
+   */
+  model = "";
+
+  /**
+   * @generated from field: string role = 5;
+   */
+  role = "";
+
+  /**
+   * @generated from field: int64 started_at = 6;
+   */
+  startedAt = protoInt64.zero;
+
+  /**
+   * @generated from field: int32 turns_count = 7;
+   */
+  turnsCount = 0;
+
+  /**
+   * @generated from field: int32 subagents_count = 8;
+   */
+  subagentsCount = 0;
+
+  /**
+   * @generated from field: int64 input_tokens = 9;
+   */
+  inputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 cache_read_tokens = 10;
+   */
+  cacheReadTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 output_tokens = 11;
+   */
+  outputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: double estimated_cost_usd = 12;
+   */
+  estimatedCostUsd = 0;
+
+  /**
+   * @generated from field: string skills_used = 13;
+   */
+  skillsUsed = "";
+
+  /**
+   * @generated from field: bool is_routine = 14;
+   */
+  isRoutine = false;
+
+  /**
+   * @generated from field: string routine_name = 15;
+   */
+  routineName = "";
+
+  constructor(data?: PartialMessage<SessionTelemetryItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.SessionTelemetryItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "parent_session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "agent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "model", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "role", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "started_at", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 7, name: "turns_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 8, name: "subagents_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 9, name: "input_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 10, name: "cache_read_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 11, name: "output_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 12, name: "estimated_cost_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 13, name: "skills_used", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 14, name: "is_routine", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 15, name: "routine_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SessionTelemetryItem {
+    return new SessionTelemetryItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SessionTelemetryItem {
+    return new SessionTelemetryItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SessionTelemetryItem {
+    return new SessionTelemetryItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SessionTelemetryItem | PlainMessage<SessionTelemetryItem> | undefined, b: SessionTelemetryItem | PlainMessage<SessionTelemetryItem> | undefined): boolean {
+    return proto3.util.equals(SessionTelemetryItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.CommandMetricItem
+ */
+export class CommandMetricItem extends Message<CommandMetricItem> {
+  /**
+   * @generated from field: string surface = 1;
+   */
+  surface = "";
+
+  /**
+   * @generated from field: string command = 2;
+   */
+  command = "";
+
+  /**
+   * @generated from field: int32 total_calls = 3;
+   */
+  totalCalls = 0;
+
+  /**
+   * @generated from field: int32 error_calls = 4;
+   */
+  errorCalls = 0;
+
+  /**
+   * @generated from field: double avg_duration_ms = 5;
+   */
+  avgDurationMs = 0;
+
+  /**
+   * @generated from field: int64 max_duration_ms = 6;
+   */
+  maxDurationMs = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 last_called_at = 7;
+   */
+  lastCalledAt = protoInt64.zero;
+
+  constructor(data?: PartialMessage<CommandMetricItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.CommandMetricItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "surface", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "command", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "total_calls", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "error_calls", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "avg_duration_ms", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 6, name: "max_duration_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 7, name: "last_called_at", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CommandMetricItem {
+    return new CommandMetricItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CommandMetricItem {
+    return new CommandMetricItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CommandMetricItem {
+    return new CommandMetricItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: CommandMetricItem | PlainMessage<CommandMetricItem> | undefined, b: CommandMetricItem | PlainMessage<CommandMetricItem> | undefined): boolean {
+    return proto3.util.equals(CommandMetricItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetOperationalTelemetryResponse
+ */
+export class GetOperationalTelemetryResponse extends Message<GetOperationalTelemetryResponse> {
+  /**
+   * @generated from field: int32 window_days = 1;
+   */
+  windowDays = 0;
+
+  /**
+   * @generated from field: double total_cost_usd = 2;
+   */
+  totalCostUsd = 0;
+
+  /**
+   * @generated from field: double daily_budget_usd = 3;
+   */
+  dailyBudgetUsd = 0;
+
+  /**
+   * @generated from field: double monthly_budget_usd = 4;
+   */
+  monthlyBudgetUsd = 0;
+
+  /**
+   * @generated from field: int64 total_input_tokens = 5;
+   */
+  totalInputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 total_cache_read_tokens = 6;
+   */
+  totalCacheReadTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 total_output_tokens = 7;
+   */
+  totalOutputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: double cache_efficiency_pct = 8;
+   */
+  cacheEfficiencyPct = 0;
+
+  /**
+   * @generated from field: int32 total_sessions = 9;
+   */
+  totalSessions = 0;
+
+  /**
+   * @generated from field: int32 total_subagents = 10;
+   */
+  totalSubagents = 0;
+
+  /**
+   * @generated from field: repeated graph.v1.ModelUsageItem model_usage = 11;
+   */
+  modelUsage: ModelUsageItem[] = [];
+
+  /**
+   * @generated from field: repeated graph.v1.RoutineWeightItem routine_weights = 12;
+   */
+  routineWeights: RoutineWeightItem[] = [];
+
+  /**
+   * @generated from field: repeated graph.v1.SessionTelemetryItem recent_sessions = 13;
+   */
+  recentSessions: SessionTelemetryItem[] = [];
+
+  /**
+   * @generated from field: repeated graph.v1.CommandMetricItem command_metrics = 14;
+   */
+  commandMetrics: CommandMetricItem[] = [];
+
+  constructor(data?: PartialMessage<GetOperationalTelemetryResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetOperationalTelemetryResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "window_days", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "total_cost_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 3, name: "daily_budget_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 4, name: "monthly_budget_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 5, name: "total_input_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 6, name: "total_cache_read_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 7, name: "total_output_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 8, name: "cache_efficiency_pct", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 9, name: "total_sessions", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 10, name: "total_subagents", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 11, name: "model_usage", kind: "message", T: ModelUsageItem, repeated: true },
+    { no: 12, name: "routine_weights", kind: "message", T: RoutineWeightItem, repeated: true },
+    { no: 13, name: "recent_sessions", kind: "message", T: SessionTelemetryItem, repeated: true },
+    { no: 14, name: "command_metrics", kind: "message", T: CommandMetricItem, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetOperationalTelemetryResponse {
+    return new GetOperationalTelemetryResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetOperationalTelemetryResponse {
+    return new GetOperationalTelemetryResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetOperationalTelemetryResponse {
+    return new GetOperationalTelemetryResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetOperationalTelemetryResponse | PlainMessage<GetOperationalTelemetryResponse> | undefined, b: GetOperationalTelemetryResponse | PlainMessage<GetOperationalTelemetryResponse> | undefined): boolean {
+    return proto3.util.equals(GetOperationalTelemetryResponse, a, b);
   }
 }
 

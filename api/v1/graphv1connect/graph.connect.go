@@ -72,6 +72,9 @@ const (
 	// GraphServiceGetRoutineHistoryProcedure is the fully-qualified name of the GraphService's
 	// GetRoutineHistory RPC.
 	GraphServiceGetRoutineHistoryProcedure = "/graph.v1.GraphService/GetRoutineHistory"
+	// GraphServiceGetOperationalTelemetryProcedure is the fully-qualified name of the GraphService's
+	// GetOperationalTelemetry RPC.
+	GraphServiceGetOperationalTelemetryProcedure = "/graph.v1.GraphService/GetOperationalTelemetry"
 )
 
 // GraphServiceClient is a client for the graph.v1.GraphService service.
@@ -103,6 +106,8 @@ type GraphServiceClient interface {
 	DeleteRoutine(context.Context, *connect.Request[v1.DeleteRoutineRequest]) (*connect.Response[v1.DeleteRoutineResponse], error)
 	// Returns routine execution history from persistent ledger
 	GetRoutineHistory(context.Context, *connect.Request[v1.GetRoutineHistoryRequest]) (*connect.Response[v1.GetRoutineHistoryResponse], error)
+	// Returns operational FinOps telemetry, routine weights, and command latency metrics
+	GetOperationalTelemetry(context.Context, *connect.Request[v1.GetOperationalTelemetryRequest]) (*connect.Response[v1.GetOperationalTelemetryResponse], error)
 }
 
 // NewGraphServiceClient constructs a client for the graph.v1.GraphService service. By default, it
@@ -194,24 +199,31 @@ func NewGraphServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(graphServiceMethods.ByName("GetRoutineHistory")),
 			connect.WithClientOptions(opts...),
 		),
+		getOperationalTelemetry: connect.NewClient[v1.GetOperationalTelemetryRequest, v1.GetOperationalTelemetryResponse](
+			httpClient,
+			baseURL+GraphServiceGetOperationalTelemetryProcedure,
+			connect.WithSchema(graphServiceMethods.ByName("GetOperationalTelemetry")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // graphServiceClient implements GraphServiceClient.
 type graphServiceClient struct {
-	getGalaxy             *connect.Client[v1.GetGalaxyRequest, v1.GetGalaxyResponse]
-	getNote               *connect.Client[v1.GetNoteRequest, v1.GetNoteResponse]
-	captureNote           *connect.Client[v1.CaptureNoteRequest, v1.CaptureNoteResponse]
-	searchNotes           *connect.Client[v1.SearchNotesRequest, v1.SearchNotesResponse]
-	subscribeUIEvents     *connect.Client[v1.SubscribeUIEventsRequest, v1.UIEvent]
-	reportActiveContext   *connect.Client[v1.ReportActiveContextRequest, v1.ReportActiveContextResponse]
-	executeRoutine        *connect.Client[v1.ExecuteRoutineRequest, v1.RoutineOutputEvent]
-	getRoutinesOverview   *connect.Client[v1.GetRoutinesOverviewRequest, v1.GetRoutinesOverviewResponse]
-	getStaffTelemetry     *connect.Client[v1.GetStaffTelemetryRequest, v1.GetStaffTelemetryResponse]
-	getCognitiveTelemetry *connect.Client[v1.GetCognitiveTelemetryRequest, v1.GetCognitiveTelemetryResponse]
-	upsertRoutine         *connect.Client[v1.UpsertRoutineRequest, v1.UpsertRoutineResponse]
-	deleteRoutine         *connect.Client[v1.DeleteRoutineRequest, v1.DeleteRoutineResponse]
-	getRoutineHistory     *connect.Client[v1.GetRoutineHistoryRequest, v1.GetRoutineHistoryResponse]
+	getGalaxy               *connect.Client[v1.GetGalaxyRequest, v1.GetGalaxyResponse]
+	getNote                 *connect.Client[v1.GetNoteRequest, v1.GetNoteResponse]
+	captureNote             *connect.Client[v1.CaptureNoteRequest, v1.CaptureNoteResponse]
+	searchNotes             *connect.Client[v1.SearchNotesRequest, v1.SearchNotesResponse]
+	subscribeUIEvents       *connect.Client[v1.SubscribeUIEventsRequest, v1.UIEvent]
+	reportActiveContext     *connect.Client[v1.ReportActiveContextRequest, v1.ReportActiveContextResponse]
+	executeRoutine          *connect.Client[v1.ExecuteRoutineRequest, v1.RoutineOutputEvent]
+	getRoutinesOverview     *connect.Client[v1.GetRoutinesOverviewRequest, v1.GetRoutinesOverviewResponse]
+	getStaffTelemetry       *connect.Client[v1.GetStaffTelemetryRequest, v1.GetStaffTelemetryResponse]
+	getCognitiveTelemetry   *connect.Client[v1.GetCognitiveTelemetryRequest, v1.GetCognitiveTelemetryResponse]
+	upsertRoutine           *connect.Client[v1.UpsertRoutineRequest, v1.UpsertRoutineResponse]
+	deleteRoutine           *connect.Client[v1.DeleteRoutineRequest, v1.DeleteRoutineResponse]
+	getRoutineHistory       *connect.Client[v1.GetRoutineHistoryRequest, v1.GetRoutineHistoryResponse]
+	getOperationalTelemetry *connect.Client[v1.GetOperationalTelemetryRequest, v1.GetOperationalTelemetryResponse]
 }
 
 // GetGalaxy calls graph.v1.GraphService.GetGalaxy.
@@ -279,6 +291,11 @@ func (c *graphServiceClient) GetRoutineHistory(ctx context.Context, req *connect
 	return c.getRoutineHistory.CallUnary(ctx, req)
 }
 
+// GetOperationalTelemetry calls graph.v1.GraphService.GetOperationalTelemetry.
+func (c *graphServiceClient) GetOperationalTelemetry(ctx context.Context, req *connect.Request[v1.GetOperationalTelemetryRequest]) (*connect.Response[v1.GetOperationalTelemetryResponse], error) {
+	return c.getOperationalTelemetry.CallUnary(ctx, req)
+}
+
 // GraphServiceHandler is an implementation of the graph.v1.GraphService service.
 type GraphServiceHandler interface {
 	// Returns the galaxy graph structure (nodes and links)
@@ -308,6 +325,8 @@ type GraphServiceHandler interface {
 	DeleteRoutine(context.Context, *connect.Request[v1.DeleteRoutineRequest]) (*connect.Response[v1.DeleteRoutineResponse], error)
 	// Returns routine execution history from persistent ledger
 	GetRoutineHistory(context.Context, *connect.Request[v1.GetRoutineHistoryRequest]) (*connect.Response[v1.GetRoutineHistoryResponse], error)
+	// Returns operational FinOps telemetry, routine weights, and command latency metrics
+	GetOperationalTelemetry(context.Context, *connect.Request[v1.GetOperationalTelemetryRequest]) (*connect.Response[v1.GetOperationalTelemetryResponse], error)
 }
 
 // NewGraphServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -395,6 +414,12 @@ func NewGraphServiceHandler(svc GraphServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(graphServiceMethods.ByName("GetRoutineHistory")),
 		connect.WithHandlerOptions(opts...),
 	)
+	graphServiceGetOperationalTelemetryHandler := connect.NewUnaryHandler(
+		GraphServiceGetOperationalTelemetryProcedure,
+		svc.GetOperationalTelemetry,
+		connect.WithSchema(graphServiceMethods.ByName("GetOperationalTelemetry")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/graph.v1.GraphService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GraphServiceGetGalaxyProcedure:
@@ -423,6 +448,8 @@ func NewGraphServiceHandler(svc GraphServiceHandler, opts ...connect.HandlerOpti
 			graphServiceDeleteRoutineHandler.ServeHTTP(w, r)
 		case GraphServiceGetRoutineHistoryProcedure:
 			graphServiceGetRoutineHistoryHandler.ServeHTTP(w, r)
+		case GraphServiceGetOperationalTelemetryProcedure:
+			graphServiceGetOperationalTelemetryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -482,4 +509,8 @@ func (UnimplementedGraphServiceHandler) DeleteRoutine(context.Context, *connect.
 
 func (UnimplementedGraphServiceHandler) GetRoutineHistory(context.Context, *connect.Request[v1.GetRoutineHistoryRequest]) (*connect.Response[v1.GetRoutineHistoryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.GetRoutineHistory is not implemented"))
+}
+
+func (UnimplementedGraphServiceHandler) GetOperationalTelemetry(context.Context, *connect.Request[v1.GetOperationalTelemetryRequest]) (*connect.Response[v1.GetOperationalTelemetryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.GetOperationalTelemetry is not implemented"))
 }

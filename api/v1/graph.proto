@@ -44,6 +44,9 @@ service GraphService {
 
   // Returns routine execution history from persistent ledger
   rpc GetRoutineHistory(GetRoutineHistoryRequest) returns (GetRoutineHistoryResponse);
+
+  // Returns operational FinOps telemetry, routine weights, and command latency metrics
+  rpc GetOperationalTelemetry(GetOperationalTelemetryRequest) returns (GetOperationalTelemetryResponse);
 }
 
 enum UIActionType {
@@ -195,6 +198,13 @@ message RoutineRunItem {
   string status = 8;
   string summary = 9;
   string error_message = 10;
+  int32 items_processed = 11;
+  int64 input_tokens = 12;
+  int64 cache_read_tokens = 13;
+  int64 output_tokens = 14;
+  double estimated_cost_usd = 15;
+  string model = 16;
+  string session_id = 17;
 }
 
 message GetRoutineHistoryRequest {
@@ -294,6 +304,87 @@ message GetCognitiveTelemetryResponse {
   int32 total_files_scanned = 10;
   int32 broken_links_count = 11;
   int64 last_dream_timestamp = 12;
+  int64 dream_input_tokens = 13;
+  int64 dream_cache_read_tokens = 14;
+  int64 dream_output_tokens = 15;
+  double dream_estimated_cost_usd = 16;
+  int32 dream_subagents_count = 17;
+  string dream_model = 18;
+}
+
+message GetOperationalTelemetryRequest {
+  int32 days = 1; // default 7
+}
+
+message ModelUsageItem {
+  string model = 1;
+  string agent = 2;
+  int32 sessions_count = 3;
+  int32 subagents_count = 4;
+  int64 input_tokens = 5;
+  int64 cache_read_tokens = 6;
+  int64 output_tokens = 7;
+  double estimated_cost_usd = 8;
+}
+
+message RoutineWeightItem {
+  string routine_name = 1;
+  int32 total_runs = 2;
+  int32 success_runs = 3;
+  int32 failed_runs = 4;
+  double avg_duration_ms = 5;
+  int64 max_duration_ms = 6;
+  int64 total_items = 7;
+  int64 total_input_tokens = 8;
+  int64 total_cache_tokens = 9;
+  int64 total_output_tokens = 10;
+  double total_cost_usd = 11;
+  int64 last_run_at = 12;
+}
+
+message SessionTelemetryItem {
+  string session_id = 1;
+  string parent_session_id = 2;
+  string agent = 3;
+  string model = 4;
+  string role = 5;
+  int64 started_at = 6;
+  int32 turns_count = 7;
+  int32 subagents_count = 8;
+  int64 input_tokens = 9;
+  int64 cache_read_tokens = 10;
+  int64 output_tokens = 11;
+  double estimated_cost_usd = 12;
+  string skills_used = 13;
+  bool is_routine = 14;
+  string routine_name = 15;
+}
+
+message CommandMetricItem {
+  string surface = 1;
+  string command = 2;
+  int32 total_calls = 3;
+  int32 error_calls = 4;
+  double avg_duration_ms = 5;
+  int64 max_duration_ms = 6;
+  int64 last_called_at = 7;
+}
+
+message GetOperationalTelemetryResponse {
+  int32 window_days = 1;
+  double total_cost_usd = 2;
+  double daily_budget_usd = 3;
+  double monthly_budget_usd = 4;
+  int64 total_input_tokens = 5;
+  int64 total_cache_read_tokens = 6;
+  int64 total_output_tokens = 7;
+  double cache_efficiency_pct = 8;
+  int32 total_sessions = 9;
+  int32 total_subagents = 10;
+  repeated ModelUsageItem model_usage = 11;
+  repeated RoutineWeightItem routine_weights = 12;
+  repeated SessionTelemetryItem recent_sessions = 13;
+  repeated CommandMetricItem command_metrics = 14;
 }
 
 message CaptureNoteRequest {

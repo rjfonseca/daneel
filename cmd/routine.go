@@ -9,6 +9,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -16,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/routine"
+	"github.com/rjfonseca/daneel/internal/telemetry"
 )
 
 var (
@@ -382,6 +386,14 @@ var routineExecCmd = &cobra.Command{
 			summary = fmt.Sprintf("[%s] %s", desc, summary)
 		}
 
+		itemsProcessed := 0
+		reItems := regexp.MustCompile(`(?i)(\d+)\s+(?:files|notes|repositories|repos|links|sessions|turns|items)`)
+		if matches := reItems.FindStringSubmatch(combinedBuf.String()); len(matches) > 1 {
+			if n, err := strconv.Atoi(matches[1]); err == nil {
+				itemsProcessed = n
+			}
+		}
+
 		vaultDir := ""
 		if cfg != nil {
 			vaultDir = cfg.VaultPath
@@ -390,17 +402,48 @@ var routineExecCmd = &cobra.Command{
 		store, storeErr := routine.OpenDefaultStore(vaultDir)
 		if storeErr == nil && store != nil {
 			defer func() { _ = store.Close() }()
-			_ = store.RecordRun(cmd.Context(), routine.RoutineRun{
-				RoutineName:   name,
-				StartedAt:     startUnix,
-				CompletedAt:   completedAt.Unix(),
-				DurationMs:    durationMs,
-				TriggerSource: routineTriggerSource,
-				ExitCode:      exitCode,
-				Status:        status,
-				Summary:       summary,
-				ErrorMessage:  errorMsg,
-			})
+
+			runRecord := routine.RoutineRun{
+				RoutineName:    name,
+				StartedAt:      startUnix,
+				CompletedAt:    completedAt.Unix(),
+				DurationMs:     durationMs,
+				TriggerSource:  routineTriggerSource,
+				ExitCode:       exitCode,
+				Status:         status,
+				Summary:        summary,
+				ErrorMessage:   errorMsg,
+				ItemsProcessed: itemsProcessed,
+			}
+
+			parserOpts := telemetry.ParserOptions{
+				Since:  24 * time.Hour,
+				Config: cfg,
+			}
+			if vaultDir != "" {
+				brainDir := filepath.Join(vaultDir, "brain")
+				if fi, err := os.Stat(brainDir); err == nil && fi.IsDir() {
+					parserOpts.BrainDir = brainDir
+				}
+			}
+
+			ctx := cmd.Context()
+			if ctx == nil {
+				ctx = context.Background()
+			}
+
+			if summaries, err := telemetry.SyncSessionsToStore(ctx, store, parserOpts); err == nil {
+				if matched := telemetry.FindSessionInWindow(summaries, startedAt, completedAt, name); matched != nil {
+					runRecord.InputTokens = matched.TotalInputTokens
+					runRecord.CacheReadTokens = matched.TotalCacheTokens
+					runRecord.OutputTokens = matched.TotalOutputTokens
+					runRecord.EstimatedCostUSD = matched.TotalCostUSD
+					runRecord.Model = matched.Record.Model
+					runRecord.SessionID = matched.Record.SessionID
+				}
+			}
+
+			_ = store.RecordRun(ctx, runRecord)
 		}
 
 		if exitCode != 0 {

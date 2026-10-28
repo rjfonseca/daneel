@@ -116,6 +116,10 @@ Usage Examples:
 			envMap[k] = v
 		}
 
+		// Inject host GitHub CLI token into environment and ai-jail flags (if authenticated on host)
+		homeDir, _ := os.UserHomeDir()
+		commandTokens = prepareGitHubSandboxAuth(envMap, commandTokens, homeDir, fetchHostGitHubToken)
+
 		var envList []string
 		for k, v := range envMap {
 			envList = append(envList, fmt.Sprintf("%s=%s", k, v))
@@ -291,6 +295,85 @@ func expandHome(path string) string {
 		}
 	}
 	return path
+}
+
+func fetchHostGitHubToken() string {
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, ghPath, "auth", "token").Output() //nolint:gosec // intentional host gh invocation
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func prepareGitHubSandboxAuth(envMap map[string]string, commandTokens []string, homeDir string, fetchToken func() string) []string {
+	for _, tok := range commandTokens {
+		if tok == "--no-github" {
+			return commandTokens
+		}
+	}
+
+	if envMap["GH_TOKEN"] == "" && envMap["GITHUB_TOKEN"] == "" && fetchToken != nil {
+		if tok := strings.TrimSpace(fetchToken()); tok != "" {
+			envMap["GH_TOKEN"] = tok
+		}
+	}
+
+	if envMap["GH_TOKEN"] == "" && envMap["GITHUB_TOKEN"] == "" {
+		return commandTokens
+	}
+
+	jailIdx := -1
+	for i, tok := range commandTokens {
+		if tok == "--" || tok == "--exec" {
+			break
+		}
+		if filepath.Base(tok) == "ai-jail" {
+			jailIdx = i
+			break
+		}
+	}
+	if jailIdx < 0 {
+		return commandTokens
+	}
+
+	ghMask := ""
+	if homeDir != "" {
+		ghMask = "--mask=" + filepath.Join(homeDir, ".config", "gh")
+	}
+
+	hasMask := ghMask == ""
+	hasEnv := false
+	for i, tok := range commandTokens {
+		if ghMask != "" && (tok == ghMask || (tok == "--mask" && i+1 < len(commandTokens) && commandTokens[i+1] == filepath.Join(homeDir, ".config", "gh"))) {
+			hasMask = true
+		}
+		if tok == "--env=GH_TOKEN" || tok == "--github" || (tok == "--env" && i+1 < len(commandTokens) && commandTokens[i+1] == "GH_TOKEN") {
+			hasEnv = true
+		}
+	}
+
+	var injected []string
+	if !hasMask {
+		injected = append(injected, ghMask)
+	}
+	if !hasEnv {
+		injected = append(injected, "--env=GH_TOKEN")
+	}
+	if len(injected) == 0 {
+		return commandTokens
+	}
+
+	res := make([]string, 0, len(commandTokens)+len(injected))
+	res = append(res, commandTokens[:jailIdx+1]...)
+	res = append(res, injected...)
+	res = append(res, commandTokens[jailIdx+1:]...)
+	return res
 }
 
 func init() {
