@@ -121,21 +121,12 @@ func TestTelemetryCmd_JSONOutput(t *testing.T) {
 	RootCmd.SetOut(&stdoutBuf)
 	RootCmd.SetArgs([]string{"--vault-path", tempVault, "telemetry", "--json", "--days=7", "--sync=false"})
 
-	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	err := RootCmd.Execute()
-	_ = w.Close()
-	os.Stdout = origStdout
-
+	pipeOut, err := captureStdout(t, RootCmd.Execute)
 	if err != nil {
 		t.Fatalf("telemetry --json failed: %v", err)
 	}
 
-	var jsonPipe bytes.Buffer
-	_, _ = jsonPipe.ReadFrom(r)
-	outBytes := jsonPipe.Bytes()
+	outBytes := []byte(pipeOut)
 	if len(outBytes) == 0 {
 		outBytes = stdoutBuf.Bytes()
 	}
@@ -181,22 +172,11 @@ func TestTelemetryCmd_TerminalOutput(t *testing.T) {
 	}
 	defer func() { cfg = nil; jsonOut = false; RootCmd.SetArgs(nil) }()
 
-	r, w, _ := os.Pipe()
-	origStdout := os.Stdout
-	os.Stdout = w
-
 	RootCmd.SetArgs([]string{"--vault-path", tempVault, "telemetry", "--days=7", "--sync=false"})
-	err := RootCmd.Execute()
-	_ = w.Close()
-	os.Stdout = origStdout
-
+	out, err := captureStdout(t, RootCmd.Execute)
 	if err != nil {
 		t.Fatalf("telemetry failed: %v", err)
 	}
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	out := buf.String()
 
 	sections := []string{
 		"AI FinOps & Budget Summary",
@@ -223,25 +203,14 @@ func TestTelemetryCmd_FilteredSections(t *testing.T) {
 			FinOps: config.DefaultFinOpsConfig(),
 		},
 	}
-	defer func() { cfg = nil; jsonOut = false; RootCmd.SetArgs(nil) }()
+	defer func() { cfg = nil; jsonOut = false; telemetryRoutines = false; RootCmd.SetArgs(nil) }()
 
 	// Test --routines filter
-	r, w, _ := os.Pipe()
-	origStdout := os.Stdout
-	os.Stdout = w
-
 	RootCmd.SetArgs([]string{"--vault-path", tempVault, "telemetry", "--routines", "--sync=false"})
-	err := RootCmd.Execute()
-	_ = w.Close()
-	os.Stdout = origStdout
-
+	out, err := captureStdout(t, RootCmd.Execute)
 	if err != nil {
 		t.Fatalf("telemetry --routines failed: %v", err)
 	}
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	out := buf.String()
 
 	if !strings.Contains(out, "Routine Weight & Cost Leaderboard") {
 		t.Errorf("expected output to contain Routine Weight, got:\n%s", out)

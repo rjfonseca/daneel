@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -81,10 +82,11 @@ func TestPrepareGitHubSandboxAuth(t *testing.T) {
 			t.Fatalf("expected GH_TOKEN to be set in envMap, got %q", envMap["GH_TOKEN"])
 		}
 
+		wantMask := "--mask=" + filepath.Join("/home/user", ".config", "gh")
 		hasMask := false
 		hasEnvFlag := false
 		for _, tok := range gotTokens {
-			if tok == "--mask=/home/user/.config/gh" {
+			if tok == wantMask {
 				hasMask = true
 			}
 			if tok == "--env=GH_TOKEN" {
@@ -92,7 +94,7 @@ func TestPrepareGitHubSandboxAuth(t *testing.T) {
 			}
 		}
 		if !hasMask {
-			t.Errorf("expected --mask=/home/user/.config/gh in command tokens, got %v", gotTokens)
+			t.Errorf("expected %s in command tokens, got %v", wantMask, gotTokens)
 		}
 		if !hasEnvFlag {
 			t.Errorf("expected --env=GH_TOKEN in command tokens, got %v", gotTokens)
