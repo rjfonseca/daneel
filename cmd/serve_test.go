@@ -333,6 +333,7 @@ func TestGraphServer_GetCognitiveTelemetry(t *testing.T) {
 	server := &GraphServer{
 		vaultDir: tempVault,
 	}
+	cleanupGraphServerRoutineStore(t, server)
 
 	ctx := context.Background()
 	req := connect.NewRequest(&graphv1.GetCognitiveTelemetryRequest{})
@@ -390,6 +391,7 @@ func TestGraphServer_GetCognitiveTelemetry_FromRealEngineHandoff(t *testing.T) {
 	server := &GraphServer{
 		vaultDir: tempVault,
 	}
+	cleanupGraphServerRoutineStore(t, server)
 
 	ctx := context.Background()
 	req := connect.NewRequest(&graphv1.GetCognitiveTelemetryRequest{})
