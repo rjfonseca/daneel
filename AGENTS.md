@@ -170,3 +170,10 @@ Direct manual edits or whitespace normalization in `internal/webfs/dist` are for
 ## Automatic Release Contract
 
 Squash merges into `main` trigger automatic semantic releases. Use Conventional Commit PR titles: `feat` increments minor, every other supported type increments patch, and `!` or a `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer increments major. PR bodies become squash commit bodies. Do not manually edit version counters, create version-bump commits, move release tags or bypass the CI/native-archive gates. Source commits must remain signed. See [automatic releases](docs/releases/automation.md) and [ADR 0034](docs/adr/0034-automatic-semantic-releases.md).
+
+### Choosing `feat` vs `fix` / `refactor` (Avoiding Accidental Minor Bumps)
+
+Because every `feat` PR title automatically publishes a new **minor** (`0.Y.0`) release, agents and contributors must apply strict semantic discipline when naming branches, commits, and PR titles:
+- **Use `feat` ONLY for genuinely new user-facing capabilities**: a new CLI command or flag, a new MCP tool, a new UI panel/visualization mode, or a new configuration schema capability.
+- **Use `fix` (or `refactor` / `perf`) when improving, hardening, or completing an existing command, routine, or behavior** without introducing a new user-facing interface (for example, making an existing cleanup job handle edge cases, worktrees, or stale dirty states).
+- When in doubt whether an improvement warrants a minor release bump, prefer `fix` or `refactor` (patch increment) or ask the user before defaulting to `feat`.

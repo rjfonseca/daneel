@@ -69,15 +69,18 @@ daneel ingest --dry-run
 
 ## 4. Local Workspace Scanner (`daneel workspace`)
 
-Scans local development repositories in `~/Work` (or configured directories) and generates a unified Map of Content:
+Scans local development repositories in `~/Work` (or configured directories), performs automated branch and worktree hygiene, and generates a unified Map of Content:
 
 ```bash
 daneel workspace
 ```
 
-- Discovers Git remotes, primary branches, and active worktrees.
+- Discovers Git remotes, primary branches, and active worktrees via the internal `internal/git` package.
+- **Worktree Pruning**: Automatically removes linked Git worktrees (`git worktree`) whose branches have been merged into `main`/`master` or pushed to `origin` (provided any uncommitted files in the worktree are older than `--inactivity-threshold`, default `48h`).
+- **Stale Dirty Branch Recovery**: When a repository is on an inactive feature branch ($\ge 48\text{h}$), attempts to switch back to `main`/`master` even if uncommitted files exist, provided those files are also older than the inactivity threshold and switching produces no conflicts. If a conflict occurs, local changes are left untouched.
+- **Merged & Pushed Branch Pruning**: Removes local branches (excluding `main`, `master`, `develop`, and active worktree branches) that have already been merged into trunk or pushed to remote tracking branches.
 - Detects programming languages and frameworks.
-- Generates `notes/systems/moc-workspace.md` linking notes directly to local codebases.
+- Generates `notes/organizacao/moc-workspace-work.md` linking notes directly to local codebases.
 
 ---
 

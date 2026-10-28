@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rjfonseca/daneel/internal/git"
 )
 
 // RepoInfo represents metadata for a single Git repository.
@@ -33,6 +33,7 @@ type RepoInfo struct {
 	Dirty             bool     `json:"dirty"`
 	Synced            bool     `json:"synced,omitempty"`
 	PrunedBranches    []string `json:"pruned_branches,omitempty"`
+	PrunedWorktrees   []string `json:"pruned_worktrees,omitempty"`
 	ModifiedCount     int      `json:"modified_count"`
 	UntrackedCount    int      `json:"untracked_count"`
 	FilesPreview      []string `json:"files_preview"`
@@ -41,15 +42,16 @@ type RepoInfo struct {
 
 // WorkspaceReport summarizes the workspace scanning results.
 type WorkspaceReport struct { //nolint:revive
-	TotalRepos          int                   `json:"total_repos"`
-	CleanCount          int                   `json:"clean_count"`
-	DirtyCount          int                   `json:"dirty_count"`
-	SyncedCount         int                   `json:"synced_count"`
-	PrunedBranchesCount int                   `json:"pruned_branches_count,omitempty"`
-	Categories          map[string][]RepoInfo `json:"categories"`
-	DirtyRepos          []RepoInfo            `json:"dirty_repos"`
-	ScannedAt           string                `json:"scanned_at"`
-	MOCFilePath         string                `json:"moc_file_path,omitempty"`
+	TotalRepos           int                   `json:"total_repos"`
+	CleanCount           int                   `json:"clean_count"`
+	DirtyCount           int                   `json:"dirty_count"`
+	SyncedCount          int                   `json:"synced_count"`
+	PrunedBranchesCount  int                   `json:"pruned_branches_count,omitempty"`
+	PrunedWorktreesCount int                   `json:"pruned_worktrees_count,omitempty"`
+	Categories           map[string][]RepoInfo `json:"categories"`
+	DirtyRepos           []RepoInfo            `json:"dirty_repos"`
+	ScannedAt            string                `json:"scanned_at"`
+	MOCFilePath          string                `json:"moc_file_path,omitempty"`
 }
 
 var ignoredDirs = map[string]bool{
@@ -97,45 +99,60 @@ func (s *Scanner) Scan(syncClean bool) (*WorkspaceReport, error) {
 		return report, nil
 	}
 
-	repoDirs := s.discoverRepoDirs()
+	repoDirs, linkedWorktreeDirs := s.discoverRepoDirs()
 	vaultMap := s.buildVaultMapping()
 
-	resultsChan := make(chan RepoInfo, len(repoDirs))
-	var wg sync.WaitGroup
-
-	numWorkers := 16
-	if len(repoDirs) < numWorkers {
-		numWorkers = len(repoDirs)
-	}
-	if numWorkers == 0 {
-		numWorkers = 1
-	}
-
-	jobsChan := make(chan string, len(repoDirs))
-
-	for w := 0; w < numWorkers; w++ {
-		go func() {
-			for repoPath := range jobsChan {
-				info := s.inspectRepo(repoPath, vaultMap, syncClean)
-				resultsChan <- info
-				wg.Done()
-			}
-		}()
-	}
-
-	for _, d := range repoDirs {
-		wg.Add(1)
-		jobsChan <- d
-	}
-	close(jobsChan)
-
-	wg.Wait()
-	close(resultsChan)
-
 	var allRepos []RepoInfo
-	for info := range resultsChan {
-		allRepos = append(allRepos, info)
+
+	scanBatch := func(dirs []string) {
+		if len(dirs) == 0 {
+			return
+		}
+		resultsChan := make(chan RepoInfo, len(dirs))
+		var wg sync.WaitGroup
+
+		numWorkers := 16
+		if len(dirs) < numWorkers {
+			numWorkers = len(dirs)
+		}
+
+		jobsChan := make(chan string, len(dirs))
+
+		for w := 0; w < numWorkers; w++ {
+			go func() {
+				for repoPath := range jobsChan {
+					info := s.inspectRepo(repoPath, vaultMap, syncClean)
+					resultsChan <- info
+					wg.Done()
+				}
+			}()
+		}
+
+		for _, d := range dirs {
+			wg.Add(1)
+			jobsChan <- d
+		}
+		close(jobsChan)
+
+		wg.Wait()
+		close(resultsChan)
+
+		for info := range resultsChan {
+			allRepos = append(allRepos, info)
+		}
 	}
+
+	// 1. Scan primary repositories first (which may prune stale/merged/pushed linked worktrees)
+	scanBatch(repoDirs)
+
+	// 2. Scan any remaining linked worktrees that were preserved on disk
+	var survivingWorktrees []string
+	for _, wtDir := range linkedWorktreeDirs {
+		if _, err := os.Stat(filepath.Join(wtDir, ".git")); err == nil {
+			survivingWorktrees = append(survivingWorktrees, wtDir)
+		}
+	}
+	scanBatch(survivingWorktrees)
 
 	sort.Slice(allRepos, func(i, j int) bool {
 		return allRepos[i].RelPath < allRepos[j].RelPath
@@ -155,13 +172,15 @@ func (s *Scanner) Scan(syncClean bool) (*WorkspaceReport, error) {
 			report.SyncedCount++
 		}
 		report.PrunedBranchesCount += len(r.PrunedBranches)
+		report.PrunedWorktreesCount += len(r.PrunedWorktrees)
 	}
 
 	return report, nil
 }
 
-func (s *Scanner) discoverRepoDirs() []string {
-	var repoDirs []string
+func (s *Scanner) discoverRepoDirs() ([]string, []string) {
+	var primaryDirs []string
+	var linkedWorktrees []string
 
 	_ = filepath.Walk(s.workRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -174,17 +193,21 @@ func (s *Scanner) discoverRepoDirs() []string {
 				return filepath.SkipDir
 			}
 
-			// Check if this directory is a git repository
+			// Check if this directory is a git repository or linked worktree
 			gitDir := filepath.Join(path, ".git")
-			if fi, err := os.Stat(gitDir); err == nil && (fi.IsDir() || !fi.IsDir()) {
-				repoDirs = append(repoDirs, path)
+			if fi, err := os.Stat(gitDir); err == nil {
+				if fi.IsDir() {
+					primaryDirs = append(primaryDirs, path)
+				} else {
+					linkedWorktrees = append(linkedWorktrees, path)
+				}
 				return filepath.SkipDir // Do not look for nested git repositories inside
 			}
 		}
 		return nil
 	})
 
-	return repoDirs
+	return primaryDirs, linkedWorktrees
 }
 
 func (s *Scanner) inspectRepo(repoPath string, vaultMap map[string]string, syncClean bool) RepoInfo {
@@ -203,9 +226,11 @@ func (s *Scanner) inspectRepo(repoPath string, vaultMap map[string]string, syncC
 		}
 	}
 
-	branch := s.getGitBranch(repoPath)
-	dirty, modCount, untrackedCount, filesPreview := s.getGitStatus(repoPath)
-	lastDate, lastMsg, daysSince, lastCommitTime := s.getGitLastCommit(repoPath)
+	branch := git.CurrentBranch(repoPath)
+	st, _ := git.GetStatus(repoPath)
+	dirty, modCount, untrackedCount, filesPreview := st.Dirty, st.ModifiedCount, st.UntrackedCount, st.FilesPreview
+	lastCommit := git.GetLastCommit(repoPath)
+	lastDate, lastMsg, daysSince, lastCommitTime := lastCommit.DateStr, lastCommit.Message, lastCommit.DaysSince, lastCommit.CommitTime
 
 	threshold := s.inactivityThreshold
 	if threshold <= 0 {
@@ -214,34 +239,62 @@ func (s *Scanner) inspectRepo(repoPath string, vaultMap map[string]string, syncC
 
 	var synced bool
 	var prunedBranches []string
+	var prunedWorktrees []string
 
-	// Sync clean repo if requested
-	if syncClean && !dirty {
-		if branch == "main" || branch == "master" {
-			_ = exec.Command("git", "-C", repoPath, "pull", "--quiet").Run() //nolint:gosec // intentional
-			synced = true
-			prunedBranches = s.pruneMergedBranches(repoPath, branch, branch)
-		} else if branch != "unknown" && branch != "" {
-			// Check if the current branch has been inactive for longer than the threshold
-			inactive := false
-			if !lastCommitTime.IsZero() {
-				inactive = time.Since(lastCommitTime) >= threshold
-			}
+	// Sync and clean up repository if requested
+	if syncClean {
+		isLinkedWT := git.IsLinkedWorktree(repoPath)
+		trunk := git.DefaultTrunkBranch(repoPath)
 
-			if inactive {
-				// Try checkout main first, which works if local main or origin/main exists
-				if err := exec.Command("git", "-C", repoPath, "checkout", "main").Run(); err == nil { //nolint:gosec // intentional
-					_ = exec.Command("git", "-C", repoPath, "pull", "--quiet").Run() //nolint:gosec // intentional
-					prunedBranches = s.pruneMergedBranches(repoPath, "main", "main")
-					branch = "main"
-					synced = true
-				} else if err := exec.Command("git", "-C", repoPath, "checkout", "master").Run(); err == nil { //nolint:gosec // intentional
-					_ = exec.Command("git", "-C", repoPath, "pull", "--quiet").Run() //nolint:gosec // intentional
-					prunedBranches = s.pruneMergedBranches(repoPath, "master", "master")
-					branch = "master"
-					synced = true
+		// 1. Prune merged/pushed/stale linked worktrees first (for primary repositories)
+		if !isLinkedWT {
+			prunedWorktrees = git.PruneWorktrees(repoPath, trunk, threshold)
+		}
+
+		// 2. Check if dirty files are stale (older than threshold)
+		dirtyIsStale := !dirty || (!st.LatestDirtyModTime.IsZero() && time.Since(st.LatestDirtyModTime) >= threshold)
+
+		if !isLinkedWT && dirtyIsStale {
+			if branch == "main" || branch == "master" {
+				if !dirty {
+					synced = git.PullQuiet(repoPath)
+				}
+				prunedBranches = git.PruneBranches(repoPath, branch, branch)
+			} else if branch != "unknown" && branch != "" {
+				// Check if the current branch has been inactive for longer than the threshold
+				inactive := false
+				if !lastCommitTime.IsZero() {
+					inactive = time.Since(lastCommitTime) >= threshold
+				}
+
+				if inactive {
+					// Attempt to switch to main/master if local changes do not conflict
+					switchedTo := ""
+					for _, candidate := range []string{"main", "master"} {
+						if git.CheckoutBranch(repoPath, candidate) {
+							switchedTo = candidate
+							break
+						}
+					}
+					if switchedTo != "" {
+						branch = switchedTo
+						if !dirty {
+							synced = git.PullQuiet(repoPath)
+						}
+						prunedBranches = git.PruneBranches(repoPath, switchedTo, switchedTo)
+						// Refresh commit and status metadata after switching branch
+						stAfter, _ := git.GetStatus(repoPath)
+						dirty, modCount, untrackedCount, filesPreview = stAfter.Dirty, stAfter.ModifiedCount, stAfter.UntrackedCount, stAfter.FilesPreview
+						lcAfter := git.GetLastCommit(repoPath)
+						lastDate, lastMsg, daysSince = lcAfter.DateStr, lcAfter.Message, lcAfter.DaysSince
+					}
 				}
 			}
+		}
+
+		// Even if the repo stayed on a dirty/active branch, we can still safely prune other merged/pushed branches if trunk is known
+		if !isLinkedWT && len(prunedBranches) == 0 && trunk != "" {
+			prunedBranches = git.PruneBranches(repoPath, trunk, branch)
 		}
 	}
 
@@ -273,117 +326,12 @@ func (s *Scanner) inspectRepo(repoPath string, vaultMap map[string]string, syncC
 		Dirty:             dirty,
 		Synced:            synced,
 		PrunedBranches:    prunedBranches,
+		PrunedWorktrees:   prunedWorktrees,
 		ModifiedCount:     modCount,
 		UntrackedCount:    untrackedCount,
 		FilesPreview:      filesPreview,
 		VaultLink:         vaultLink,
 	}
-}
-
-func (s *Scanner) getGitBranch(repoPath string) string {
-	cmd := exec.Command("git", "-C", repoPath, "rev-parse", "--abbrev-ref", "HEAD") //nolint:gosec // intentional
-	out, err := cmd.Output()
-	if err != nil {
-		return "unknown"
-	}
-	return strings.TrimSpace(string(out))
-}
-
-func (s *Scanner) getGitStatus(repoPath string) (bool, int, int, []string) {
-	cmd := exec.Command("git", "-C", repoPath, "status", "--porcelain") //nolint:gosec // intentional
-	out, err := cmd.Output()
-	if err != nil || len(out) == 0 {
-		return false, 0, 0, nil
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	modCount := 0
-	untrackedCount := 0
-	var preview []string
-
-	for _, l := range lines {
-		trimmed := strings.TrimSpace(l)
-		if len(trimmed) < 3 {
-			continue
-		}
-		status := trimmed[:2]
-		filePath := strings.TrimSpace(trimmed[2:])
-
-		if strings.Contains(status, "?") {
-			untrackedCount++
-		} else {
-			modCount++
-		}
-
-		if len(preview) < 3 {
-			preview = append(preview, filePath)
-		}
-	}
-
-	return (modCount > 0 || untrackedCount > 0), modCount, untrackedCount, preview
-}
-
-func (s *Scanner) getGitLastCommit(repoPath string) (string, string, int, time.Time) {
-	cmd := exec.Command("git", "-C", repoPath, "log", "-1", "--format=%ct|||%ci|||%s") //nolint:gosec // intentional
-	out, err := cmd.Output()
-	if err != nil || len(out) == 0 {
-		return "—", "—", 999, time.Time{}
-	}
-
-	parts := strings.SplitN(strings.TrimSpace(string(out)), "|||", 3)
-	if len(parts) == 0 {
-		return "—", "—", 999, time.Time{}
-	}
-
-	var commitTime time.Time
-	if ts, err := strconv.ParseInt(parts[0], 10, 64); err == nil && ts > 0 {
-		commitTime = time.Unix(ts, 0)
-	}
-
-	dateStr := "—"
-	if len(parts) > 1 {
-		dateStr = parts[1]
-	}
-	msg := ""
-	if len(parts) > 2 {
-		msg = parts[2]
-	}
-
-	days := 999
-	if !commitTime.IsZero() {
-		days = int(time.Since(commitTime).Hours() / 24)
-	} else if len(dateStr) >= 10 {
-		if t, err := time.Parse("2006-01-02", dateStr[:10]); err == nil {
-			days = int(time.Since(t).Hours() / 24)
-		}
-	}
-	if len(dateStr) >= 10 {
-		dateStr = dateStr[:10]
-	}
-
-	return dateStr, msg, days, commitTime
-}
-
-func (s *Scanner) pruneMergedBranches(repoPath string, targetBranch string, currentBranch string) []string {
-	cmd := exec.Command("git", "-C", repoPath, "branch", "--format=%(refname:short)", "--merged", targetBranch) //nolint:gosec // intentional
-	out, err := cmd.Output()
-	if err != nil {
-		return nil
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var pruned []string
-	for _, line := range lines {
-		b := strings.TrimSpace(line)
-		if b == "" || b == "main" || b == "master" || b == "develop" || b == targetBranch || b == currentBranch {
-			continue
-		}
-		// Attempt safe delete
-		if err := exec.Command("git", "-C", repoPath, "branch", "-d", b).Run(); err == nil { //nolint:gosec // intentional
-			pruned = append(pruned, b)
-		}
-	}
-	return pruned
 }
 
 func (s *Scanner) detectStack(repoPath string) string {
@@ -571,7 +519,10 @@ func (s *Scanner) GenerateMOCContent(rep *WorkspaceReport) string {
 		statusParts = append(statusParts, fmt.Sprintf("%d synced", rep.SyncedCount))
 	}
 	if rep.PrunedBranchesCount > 0 {
-		statusParts = append(statusParts, fmt.Sprintf("%d merged branches pruned", rep.PrunedBranchesCount))
+		statusParts = append(statusParts, fmt.Sprintf("%d merged/pushed branches pruned", rep.PrunedBranchesCount))
+	}
+	if rep.PrunedWorktreesCount > 0 {
+		statusParts = append(statusParts, fmt.Sprintf("%d worktrees pruned", rep.PrunedWorktreesCount))
 	}
 	fmt.Fprintf(&sb, "> 💡 **Current Status:** %s | %d repositories with local changes.\n\n", strings.Join(statusParts, " • "), rep.DirtyCount)
 	sb.WriteString("---\n\n")

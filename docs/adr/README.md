@@ -43,6 +43,7 @@ This directory contains the **Architectural Decision Records (ADRs)** for the Da
 
 | [ADR 0034](0034-automatic-semantic-releases.md) | Automatic Semantic Releases | Accepted | 2026-10-21 |
 | [ADR 0035](0035-supported-release-provenance-event.md) | Supported Release Provenance Event | Accepted | 2026-10-23 |
+| [ADR 0036](0036-workspace-worktree-and-stale-dirty-cleanup.md) | Workspace Worktree Pruning, Pushed Branch Cleanup, and Stale Dirty Checkout | Accepted | 2026-10-27 |
 
 ## Mandatory ADR Invariant
 

@@ -208,3 +208,106 @@ func TestBranchInactivityAndPruning(t *testing.T) {
 		t.Errorf("expected repo with long threshold to remain on 'feat/stale-protected', got %q", got)
 	}
 }
+
+func TestStaleDirtyRepoAndWorktreePruning(t *testing.T) {
+	tempDir := t.TempDir()
+	workDir := filepath.Join(tempDir, "Work")
+	vaultDir := filepath.Join(tempDir, "Vault")
+	_ = os.MkdirAll(workDir, 0750)
+	_ = os.MkdirAll(vaultDir, 0750)
+
+	remoteDir := filepath.Join(tempDir, "remote.git")
+	_ = exec.Command("git", "init", "--bare", "-b", "main", remoteDir).Run()
+
+	initRepo := func(name string) string {
+		repoPath := filepath.Join(workDir, name)
+		_ = os.MkdirAll(repoPath, 0750)
+		_ = exec.Command("git", "-C", repoPath, "init", "-b", "main").Run()
+		_ = exec.Command("git", "-C", repoPath, "config", "user.name", "Ada Lovelace").Run()
+		_ = exec.Command("git", "-C", repoPath, "config", "user.email", "ada@example.com").Run()
+		_ = exec.Command("git", "-C", repoPath, "config", "commit.gpgsign", "false").Run()
+
+		f1 := filepath.Join(repoPath, "file.txt")
+		_ = os.WriteFile(f1, []byte("init"), 0600)
+		_ = exec.Command("git", "-C", repoPath, "add", ".").Run()
+		_ = exec.Command("git", "-C", repoPath, "commit", "-m", "init commit").Run()
+		return repoPath
+	}
+
+	// 1. Stale dirty repo WITHOUT conflict -> should switch to main!
+	repoStaleDirty := initRepo("stale-dirty-ok")
+	_ = exec.Command("git", "-C", repoStaleDirty, "remote", "add", "origin", remoteDir).Run()
+	_ = exec.Command("git", "-C", repoStaleDirty, "push", "-u", "origin", "main").Run()
+	_ = exec.Command("git", "-C", repoStaleDirty, "checkout", "-b", "feat/old-dirty").Run()
+	_ = os.WriteFile(filepath.Join(repoStaleDirty, "pushed.txt"), []byte("pushed work"), 0600)
+	_ = exec.Command("git", "-C", repoStaleDirty, "add", "pushed.txt").Run()
+	cmdOld := exec.Command("git", "-C", repoStaleDirty, "commit", "-m", "old commit")
+	cmdOld.Env = append(os.Environ(), "GIT_COMMITTER_DATE=1600000000", "GIT_AUTHOR_DATE=1600000000")
+	_ = cmdOld.Run()
+	_ = exec.Command("git", "-C", repoStaleDirty, "push", "-u", "origin", "feat/old-dirty").Run()
+
+	// Create an old uncommitted change on file.txt (which was NOT modified between main and feat/old-dirty)
+	oldTime := time.Now().Add(-72 * time.Hour)
+	_ = os.WriteFile(filepath.Join(repoStaleDirty, "file.txt"), []byte("local non-conflicting draft"), 0600)
+	_ = os.Chtimes(filepath.Join(repoStaleDirty, "file.txt"), oldTime, oldTime)
+
+	// Add a pushed worktree to repoStaleDirty inside workDir -> should be removed and not cause duplicate errors
+	wtPushed := filepath.Join(workDir, "stale-dirty-ok-wt")
+	_ = exec.Command("git", "-C", repoStaleDirty, "worktree", "add", "-b", "feat/wt-pushed", wtPushed, "main").Run()
+	_ = os.WriteFile(filepath.Join(wtPushed, "wt.txt"), []byte("wt pushed"), 0600)
+	_ = exec.Command("git", "-C", wtPushed, "add", "wt.txt").Run()
+	cmdWTOld := exec.Command("git", "-C", wtPushed, "commit", "-m", "old wt commit")
+	cmdWTOld.Env = append(os.Environ(), "GIT_COMMITTER_DATE=1600000000", "GIT_AUTHOR_DATE=1600000000")
+	_ = cmdWTOld.Run()
+	_ = exec.Command("git", "-C", wtPushed, "push", "-u", "origin", "feat/wt-pushed").Run()
+
+	// 2. Stale dirty repo WITH conflict -> should stay on feat/conflict!
+	repoConflict := initRepo("stale-dirty-conflict")
+	_ = exec.Command("git", "-C", repoConflict, "checkout", "-b", "feat/conflict").Run()
+	_ = os.WriteFile(filepath.Join(repoConflict, "file.txt"), []byte("committed on branch"), 0600)
+	_ = exec.Command("git", "-C", repoConflict, "add", "file.txt").Run()
+	cmdConflict := exec.Command("git", "-C", repoConflict, "commit", "-m", "branch commit")
+	cmdConflict.Env = append(os.Environ(), "GIT_COMMITTER_DATE=1600000000", "GIT_AUTHOR_DATE=1600000000")
+	_ = cmdConflict.Run()
+	// Now modify file.txt again without committing (so switching to main conflicts with file.txt)
+	_ = os.WriteFile(filepath.Join(repoConflict, "file.txt"), []byte("uncommitted conflict"), 0600)
+	_ = os.Chtimes(filepath.Join(repoConflict, "file.txt"), oldTime, oldTime)
+
+	// 3. Recent dirty repo (< 48h) -> should stay on feat/recent-dirty!
+	repoRecentDirty := initRepo("recent-dirty")
+	_ = exec.Command("git", "-C", repoRecentDirty, "checkout", "-b", "feat/recent-dirty").Run()
+	_ = os.WriteFile(filepath.Join(repoRecentDirty, "file.txt"), []byte("recent uncommitted work"), 0600)
+
+	scanner := NewScanner(workDir, vaultDir)
+	rep, err := scanner.Scan(true)
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+
+	// Verify repoStaleDirty switched to main and pruned feat/old-dirty (pushed) and wtPushed
+	outBranch1, _ := exec.Command("git", "-C", repoStaleDirty, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if got := string(outBranch1); got != "main\n" {
+		t.Errorf("expected stale-dirty-ok to switch to 'main', got %q", got)
+	}
+	if err := exec.Command("git", "-C", repoStaleDirty, "rev-parse", "--verify", "refs/heads/feat/old-dirty").Run(); err == nil {
+		t.Errorf("expected pushed branch feat/old-dirty to be deleted after switching to main")
+	}
+	if _, err := os.Stat(wtPushed); !os.IsNotExist(err) {
+		t.Errorf("expected pushed worktree %s to be deleted", wtPushed)
+	}
+	if rep.PrunedWorktreesCount < 1 {
+		t.Errorf("expected PrunedWorktreesCount >= 1, got %d", rep.PrunedWorktreesCount)
+	}
+
+	// Verify repoConflict remained on feat/conflict
+	outBranch2, _ := exec.Command("git", "-C", repoConflict, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if got := string(outBranch2); got != "feat/conflict\n" {
+		t.Errorf("expected stale-dirty-conflict to remain on 'feat/conflict', got %q", got)
+	}
+
+	// Verify repoRecentDirty remained on feat/recent-dirty
+	outBranch3, _ := exec.Command("git", "-C", repoRecentDirty, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if got := string(outBranch3); got != "feat/recent-dirty\n" {
+		t.Errorf("expected recent-dirty to remain on 'feat/recent-dirty', got %q", got)
+	}
+}
