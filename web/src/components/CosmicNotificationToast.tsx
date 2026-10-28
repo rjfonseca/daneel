@@ -8,12 +8,23 @@ interface CosmicNotificationToastProps {
 
 export const CosmicNotificationToast: React.FC<CosmicNotificationToastProps> = ({ notification, onClose }) => {
   useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => {
+    if (!notification) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
         onClose();
-      }, 4500);
-      return () => clearTimeout(timer);
-    }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    const timer = setTimeout(() => {
+      onClose();
+    }, 4500);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(timer);
+    };
   }, [notification, onClose]);
 
   if (!notification) return null;
