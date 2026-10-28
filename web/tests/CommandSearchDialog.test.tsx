@@ -43,7 +43,7 @@ describe('CommandSearchDialog Component', () => {
     expect(screen.getByRole('dialog', { name: 'Search notes' })).toHaveAttribute('aria-modal', 'true');
   });
 
-  it('exposes the search filter group and active category', () => {
+  it('exposes the search filter group and active category with descriptive title tooltips', () => {
     render(
       <CommandSearchDialog
         isOpen={true}
@@ -62,9 +62,49 @@ describe('CommandSearchDialog Component', () => {
 
     const activeFilterBtn = screen.getByRole('button', { name: 'Architecture' });
     expect(activeFilterBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(activeFilterBtn.getAttribute('title')).toBe('Filter search results by Architecture');
 
     const inactiveFilterBtn = screen.getByRole('button', { name: 'People' });
     expect(inactiveFilterBtn.getAttribute('aria-pressed')).toBe('false');
+    expect(inactiveFilterBtn.getAttribute('title')).toBe('Filter search results by People');
+  });
+
+  it('provides descriptive title tooltip for save search button when enabled or disabled', () => {
+    const { rerender } = render(
+      <CommandSearchDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        searchQuery="a"
+        onSearchChange={vi.fn()}
+        activeFilter="All"
+        onSelectFilter={vi.fn()}
+        filteredResults={[]}
+        onSelectResult={vi.fn()}
+        onSaveSearch={vi.fn()}
+      />
+    );
+
+    const disabledBtn = screen.getByRole('button', { name: 'Save search' });
+    expect(disabledBtn).toBeDisabled();
+    expect(disabledBtn.getAttribute('title')).toBe('Type at least 2 characters to save this search');
+
+    rerender(
+      <CommandSearchDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        searchQuery="foundation"
+        onSearchChange={vi.fn()}
+        activeFilter="All"
+        onSelectFilter={vi.fn()}
+        filteredResults={mockResults}
+        onSelectResult={vi.fn()}
+        onSaveSearch={vi.fn()}
+      />
+    );
+
+    const enabledBtn = screen.getByRole('button', { name: 'Save search' });
+    expect(enabledBtn).not.toBeDisabled();
+    expect(enabledBtn.getAttribute('title')).toBe('Save search for "foundation"');
   });
 
   it('calls onSelectFilter when a filter button is clicked', () => {

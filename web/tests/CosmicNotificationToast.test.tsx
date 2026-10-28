@@ -55,4 +55,13 @@ describe('CosmicNotificationToast', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('invokes onClose when Escape key is pressed', () => {
+    const onClose = vi.fn();
+    const notification = { title: 'Keyboard Test', message: 'Press Escape to dismiss', id: 4 };
+    render(<CosmicNotificationToast notification={notification} onClose={onClose} />);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
