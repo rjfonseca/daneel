@@ -168,6 +168,35 @@ func TestNormalizeText(t *testing.T) {
 	}
 }
 
+func TestToKebabCase(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"Hello World", "hello-world"},
+		{"Ação e Reação 123!", "acao-e-reacao-123"},
+		{"  --  foo   bar -- ", "foo-bar"},
+		{"test128-abc", "test128-abc"},
+		{"---", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := ToKebabCase(tt.input)
+			if got != tt.expected {
+				t.Errorf("ToKebabCase(%q) = %q, expected %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func BenchmarkToKebabCase(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = ToKebabCase("Ação e Reação: Guia de Arquitetura 2026!")
+	}
+}
+
 func TestResolveTaxonomy_OKFAncestors(t *testing.T) {
 	tempVault := t.TempDir()
 
