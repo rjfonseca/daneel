@@ -33,6 +33,20 @@ export function formatDuration(durationMs: bigint | number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+export function formatTokenCount(tokens: bigint | number): string {
+  const n = typeof tokens === 'bigint' ? Number(tokens) : tokens;
+  if (!n || n <= 0) return '0 tok';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M tok`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k tok`;
+  return `${n} tok`;
+}
+
+export function formatCostUSD(cost: number): string {
+  if (!cost || cost <= 0) return '$0.00';
+  if (cost < 0.1) return `$${cost.toFixed(3)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
 export interface RoutineHistoryDeckProps {
   runs: RoutineRunItem[];
   isLoading: boolean;
@@ -145,18 +159,39 @@ export const RoutineHistoryDeck: React.FC<RoutineHistoryDeckProps> = ({
                       </NeonBadge>
                     </div>
 
-                    {/* Routine Name */}
-                    <div className="col-span-3 flex items-center gap-1.5 truncate">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onSelectRoutine) onSelectRoutine(run.routineName);
-                        }}
-                        className="text-white hover:text-cyan-300 font-bold truncate text-left cursor-pointer"
-                        title={`Select routine: ${run.routineName}`}
-                      >
-                        {run.routineName}
-                      </button>
+                    {/* Routine Name & Optional Badges */}
+                    <div className="col-span-3 flex flex-col justify-center truncate">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onSelectRoutine) onSelectRoutine(run.routineName);
+                          }}
+                          className="text-white hover:text-cyan-300 font-bold truncate text-left cursor-pointer"
+                          title={`Select routine: ${run.routineName}`}
+                        >
+                          {run.routineName}
+                        </button>
+                      </div>
+                      {(Number(run.itemsProcessed) > 0 || Number(run.inputTokens) > 0 || (run.estimatedCostUsd !== undefined && run.estimatedCostUsd > 0)) && (
+                        <div className="flex items-center gap-1 mt-0.5 text-[9px]">
+                          {run.estimatedCostUsd !== undefined && run.estimatedCostUsd > 0 && (
+                            <span className="px-1 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                              {formatCostUSD(run.estimatedCostUsd)}
+                            </span>
+                          )}
+                          {Number(run.inputTokens) > 0 && (
+                            <span className="px-1 py-0.2 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
+                              {formatTokenCount(run.inputTokens)}
+                            </span>
+                          )}
+                          {Number(run.itemsProcessed) > 0 && (
+                            <span className="px-1 py-0.2 rounded bg-white/10 border border-white/15 text-slate-300">
+                              {run.itemsProcessed} items
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Trigger */}
@@ -210,6 +245,25 @@ export const RoutineHistoryDeck: React.FC<RoutineHistoryDeckProps> = ({
                           </>
                         )}
                       </div>
+                      {(Number(run.itemsProcessed) > 0 || Number(run.inputTokens) > 0 || (run.estimatedCostUsd !== undefined && run.estimatedCostUsd > 0) || run.model) && (
+                        <div className="flex flex-wrap gap-3 pt-1 text-[10px] text-slate-300 border-t border-white/5 font-mono">
+                          {run.model && (
+                            <span><strong className="text-slate-400">Model:</strong> {run.model}</span>
+                          )}
+                          {Number(run.itemsProcessed) > 0 && (
+                            <span><strong className="text-slate-400">Processed:</strong> {run.itemsProcessed} items</span>
+                          )}
+                          {Number(run.inputTokens) > 0 && (
+                            <span><strong className="text-slate-400">Tokens:</strong> In {Number(run.inputTokens).toLocaleString()} / Cache {Number(run.cacheReadTokens).toLocaleString()} / Out {Number(run.outputTokens).toLocaleString()}</span>
+                          )}
+                          {run.estimatedCostUsd !== undefined && run.estimatedCostUsd > 0 && (
+                            <span><strong className="text-slate-400">Cost:</strong> {formatCostUSD(run.estimatedCostUsd)}</span>
+                          )}
+                          {run.sessionId && (
+                            <span className="truncate max-w-[200px]"><strong className="text-slate-400">Session:</strong> {run.sessionId}</span>
+                          )}
+                        </div>
+                      )}
                       {run.errorMessage && (
                         <div className="p-2.5 rounded-sm bg-rose-950/30 border border-rose-500/30 text-rose-300 font-mono text-[10px] whitespace-pre-wrap">
                           <div className="flex items-center gap-1.5 font-bold mb-1 text-rose-400">

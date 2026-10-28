@@ -605,3 +605,258 @@ func TestParseDuration(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultFinOpsConfig(t *testing.T) {
+	finops := DefaultFinOpsConfig()
+	if finops.DefaultModel != "gemini-pro" {
+		t.Errorf("expected default model gemini-pro, got %s", finops.DefaultModel)
+	}
+
+	expectedModels := []struct {
+		name     string
+		input1M  float64
+		cache1M  float64
+		output1M float64
+	}{
+		{"gemini-pro", 1.25, 0.3125, 5.00},
+		{"pro", 1.25, 0.3125, 5.00},
+		{"gemini-flash", 0.15, 0.0375, 0.60},
+		{"flash", 0.15, 0.0375, 0.60},
+		{"gemini-flash-lite", 0.075, 0.01875, 0.30},
+		{"flash_lite", 0.075, 0.01875, 0.30},
+		{"claude-opus", 15.00, 1.50, 75.00},
+		{"opus", 15.00, 1.50, 75.00},
+		{"claude-sonnet", 3.00, 0.30, 15.00},
+		{"sonnet", 3.00, 0.30, 15.00},
+		{"claude-haiku", 0.80, 0.08, 4.00},
+		{"haiku", 0.80, 0.08, 4.00},
+		{"gpt-codex", 2.50, 1.25, 10.00},
+		{"codex", 2.50, 1.25, 10.00},
+		{"gpt-4o", 2.50, 1.25, 10.00},
+	}
+
+	for _, m := range expectedModels {
+		p, ok := finops.Pricing[m.name]
+		if !ok {
+			t.Fatalf("missing pricing for model: %s", m.name)
+		}
+		if p.InputPer1M != m.input1M {
+			t.Errorf("[%s] expected input %v, got %v", m.name, m.input1M, p.InputPer1M)
+		}
+		if p.CacheReadPer1M != m.cache1M {
+			t.Errorf("[%s] expected cache read %v, got %v", m.name, m.cache1M, p.CacheReadPer1M)
+		}
+		if p.OutputPer1M != m.output1M {
+			t.Errorf("[%s] expected output %v, got %v", m.name, m.output1M, p.OutputPer1M)
+		}
+	}
+}
+
+func TestGetFinOpsConfig_Merging(t *testing.T) {
+	var nilCfg *Config
+	def := nilCfg.GetFinOpsConfig()
+	if def.DefaultModel != "gemini-pro" {
+		t.Errorf("nil config should return default finops")
+	}
+
+	cfg := &Config{
+		Telemetry: TelemetryConfig{
+			FinOps: FinOpsConfig{
+				DailyBudgetUSD:   20.0,
+				MonthlyBudgetUSD: 300.0,
+				DefaultModel:     "claude-sonnet",
+				Pricing: map[string]ModelPricingConfig{
+					"gemini-flash": {
+						InputPer1M:     0.20,
+						CacheReadPer1M: 0.05,
+						OutputPer1M:    0.80,
+					},
+					"custom-local-llm": {
+						InputPer1M:     0.0,
+						CacheReadPer1M: 0.0,
+						OutputPer1M:    0.0,
+					},
+				},
+			},
+		},
+	}
+
+	merged := cfg.GetFinOpsConfig()
+	if merged.DailyBudgetUSD != 20.0 || merged.MonthlyBudgetUSD != 300.0 {
+		t.Errorf("expected budgets 20/300, got %v/%v", merged.DailyBudgetUSD, merged.MonthlyBudgetUSD)
+	}
+	if merged.DefaultModel != "claude-sonnet" {
+		t.Errorf("expected default model claude-sonnet, got %s", merged.DefaultModel)
+	}
+	// Overridden model
+	if flash := merged.Pricing["gemini-flash"]; flash.InputPer1M != 0.20 {
+		t.Errorf("expected overridden flash pricing 0.20, got %v", flash.InputPer1M)
+	}
+	// Custom model
+	if _, ok := merged.Pricing["custom-local-llm"]; !ok {
+		t.Errorf("expected custom-local-llm in pricing")
+	}
+	// Non-overridden model should retain default
+	if sonnet := merged.Pricing["claude-sonnet"]; sonnet.InputPer1M != 3.00 {
+		t.Errorf("expected default sonnet pricing 3.00, got %v", sonnet.InputPer1M)
+	}
+}
+
+func TestResolveModelPricing(t *testing.T) {
+	cfg := &Config{
+		Telemetry: TelemetryConfig{
+			FinOps: FinOpsConfig{
+				Pricing: map[string]ModelPricingConfig{
+					"special-custom-agent": {
+						InputPer1M:     1.0,
+						CacheReadPer1M: 0.2,
+						OutputPer1M:    2.0,
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		modelName      string
+		expectedInput  float64
+		expectedOutput float64
+	}{
+		{"gemini-2.0-flash-lite-preview-02-05", 0.075, 0.30},
+		{"GEMINI_FLASH_LITE", 0.075, 0.30},
+		{"gemini-1.5-flash", 0.15, 0.60},
+		{"FLASH", 0.15, 0.60},
+		{"claude-3-5-sonnet-20241022", 3.00, 15.00},
+		{"Claude-3-Haiku-20240307", 0.80, 4.00},
+		{"claude-3-opus", 15.00, 75.00},
+		{"gpt-4o", 2.50, 10.00},
+		{"openai/gpt-4-turbo", 2.50, 10.00},
+		{"codex-v2", 2.50, 10.00},
+		{"unknown-future-model", 1.25, 5.00}, // defaults to gemini-pro
+		{"special-custom-agent", 1.0, 2.0},
+	}
+
+	for _, tt := range tests {
+		p := cfg.ResolveModelPricing(tt.modelName)
+		if p.InputPer1M != tt.expectedInput {
+			t.Errorf("[%s] expected input %v, got %v", tt.modelName, tt.expectedInput, p.InputPer1M)
+		}
+		if p.OutputPer1M != tt.expectedOutput {
+			t.Errorf("[%s] expected output %v, got %v", tt.modelName, tt.expectedOutput, p.OutputPer1M)
+		}
+	}
+}
+
+func TestCalculateCostUSD(t *testing.T) {
+	cfg := &Config{}
+
+	// 1M tokens of each for gemini-flash: input $0.15, cacheRead $0.0375, output $0.60
+	cost := cfg.CalculateCostUSD("gemini-flash", 1_000_000, 1_000_000, 1_000_000)
+	expected := 0.15 + 0.0375 + 0.60
+	if cost != expected {
+		t.Errorf("expected cost %v, got %v", expected, cost)
+	}
+
+	// 100k input, 50k cache read, 20k output on flash:
+	// (100000*0.15 + 50000*0.0375 + 20000*0.60) / 1000000 = (15000 + 1875 + 12000) / 1000000 = 0.028875
+	cost = cfg.CalculateCostUSD("flash", 100_000, 50_000, 20_000)
+	expected = 0.028875
+	if cost != expected {
+		t.Errorf("expected cost %v, got %v", expected, cost)
+	}
+}
+
+func TestTuiTabsConfig_Telemetry(t *testing.T) {
+	def := DefaultTuiConfig()
+	if def.Tabs.Telemetry == "" {
+		t.Fatal("expected default TUI telemetry tab to be non-empty")
+	}
+	if def.Tabs.Telemetry != "8: 📈 Telemetry" && def.Tabs.Telemetry != "8:Telemetry" {
+		t.Errorf("unexpected telemetry tab format: %s", def.Tabs.Telemetry)
+	}
+
+	cfg := &Config{
+		Tui: TuiConfig{
+			Tabs: TuiTabsConfig{
+				Telemetry: "8: Custom FinOps",
+			},
+		},
+	}
+	merged := cfg.GetTuiConfig()
+	if merged.Tabs.Telemetry != "8: Custom FinOps" {
+		t.Errorf("expected custom telemetry tab, got %s", merged.Tabs.Telemetry)
+	}
+}
+
+func TestLoadConfig_PreservesFinOps(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// 1. Config with only telemetry.finops (taxonomy omitted)
+	finopsOnlyYAML := `
+vault:
+  title: "FinOps Vault"
+telemetry:
+  finops:
+    daily_budget_usd: 12.50
+    monthly_budget_usd: 250.00
+    default_model: "gemini-flash"
+    pricing:
+      custom-agent:
+        input_per_1m: 1.50
+        cache_read_per_1m: 0.30
+        output_per_1m: 6.00
+`
+	configFile := filepath.Join(tempDir, ".daneel.yaml")
+	if err := os.WriteFile(configFile, []byte(finopsOnlyYAML), 0600); err != nil {
+		t.Fatalf("failed to write test yaml: %v", err)
+	}
+
+	cfg, err := LoadConfig(tempDir, configFile, false)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if cfg.Telemetry.FinOps.DailyBudgetUSD != 12.50 {
+		t.Errorf("expected daily budget 12.50, got %v", cfg.Telemetry.FinOps.DailyBudgetUSD)
+	}
+	if cfg.Telemetry.FinOps.MonthlyBudgetUSD != 250.00 {
+		t.Errorf("expected monthly budget 250.00, got %v", cfg.Telemetry.FinOps.MonthlyBudgetUSD)
+	}
+	if cfg.Telemetry.FinOps.DefaultModel != "gemini-flash" {
+		t.Errorf("expected default model gemini-flash, got %s", cfg.Telemetry.FinOps.DefaultModel)
+	}
+	if p, ok := cfg.Telemetry.FinOps.Pricing["custom-agent"]; !ok || p.InputPer1M != 1.50 {
+		t.Errorf("expected custom-agent pricing loaded, got %+v", p)
+	}
+	// Taxonomy should have fallen back to default archetypes
+	if len(cfg.Telemetry.Taxonomy) == 0 {
+		t.Errorf("expected default taxonomy archetypes preserved when omitted in YAML")
+	}
+
+	// 2. Config with both taxonomy and finops
+	bothYAML := `
+vault:
+  title: "Both Vault"
+telemetry:
+  taxonomy:
+    - id: "Custom_Archetype"
+      name: "Custom Archetype"
+      description: "Testing taxonomy preservation"
+  finops:
+    daily_budget_usd: 5.00
+`
+	if err := os.WriteFile(configFile, []byte(bothYAML), 0600); err != nil {
+		t.Fatalf("failed to write test yaml: %v", err)
+	}
+
+	cfgBoth, err := LoadConfig(tempDir, configFile, false)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if len(cfgBoth.Telemetry.Taxonomy) != 1 || cfgBoth.Telemetry.Taxonomy[0].ID != "Custom_Archetype" {
+		t.Errorf("expected custom taxonomy preserved, got %+v", cfgBoth.Telemetry.Taxonomy)
+	}
+	if cfgBoth.Telemetry.FinOps.DailyBudgetUSD != 5.00 {
+		t.Errorf("expected daily budget 5.00 preserved, got %v", cfgBoth.Telemetry.FinOps.DailyBudgetUSD)
+	}
+}

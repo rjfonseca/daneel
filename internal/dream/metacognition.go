@@ -47,6 +47,12 @@ type MetacognitiveReport struct {
 	Insights         []MetacognitiveInsight `json:"insights"`
 	Syntheses        []SynthesisDraft       `json:"syntheses"`
 	EvolutionLogPath string                 `json:"evolution_log_path"`
+	InputTokens      int64                  `json:"input_tokens"`
+	CacheReadTokens  int64                  `json:"cache_read_tokens"`
+	OutputTokens     int64                  `json:"output_tokens"`
+	EstimatedCostUSD float64                `json:"estimated_cost_usd"`
+	SubagentsCount   int                    `json:"subagents_count"`
+	Model            string                 `json:"model,omitempty"`
 }
 
 // RunMetacognitivePass executes Phase 4 (introspective bottleneck analysis & skill refactoring proposals).
@@ -320,6 +326,20 @@ Registro histórico e introspectivo das execuções do Dream Cycle, métricas de
 			for _, in := range report.Metacognition.Insights {
 				fmt.Fprintf(&sb, "  • *[%s]* %s ➔ %s\n", strings.ToUpper(in.Category), in.Observation, in.SuggestedAction)
 			}
+		}
+
+		if report.Metacognition.InputTokens > 0 || report.Metacognition.EstimatedCostUSD > 0 {
+			modelName := report.Metacognition.Model
+			if modelName == "" {
+				modelName = "unknown-model"
+			}
+			fmt.Fprintf(&sb, "- **FinOps & Consumo de IA:** %s | %d in / %d cache / %d out tokens | Custo estimado: $%.4f USD\n",
+				modelName,
+				report.Metacognition.InputTokens,
+				report.Metacognition.CacheReadTokens,
+				report.Metacognition.OutputTokens,
+				report.Metacognition.EstimatedCostUSD,
+			)
 		}
 	}
 

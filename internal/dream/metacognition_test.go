@@ -1,3 +1,4 @@
+//nolint:misspell
 package dream
 
 import (
@@ -134,6 +135,11 @@ func TestMetacognition_EvolutionLogAndDashboard(t *testing.T) {
 				},
 			},
 			EvolutionLogPath: "meta/guias/agente-evolucao.md",
+			InputTokens:      15000,
+			CacheReadTokens:  3000,
+			OutputTokens:     1200,
+			EstimatedCostUSD: 0.0425,
+			Model:            "gemini-pro",
 		},
 	}
 
@@ -159,6 +165,9 @@ func TestMetacognition_EvolutionLogAndDashboard(t *testing.T) {
 	if !strings.Contains(logContent, "Sínteses Ativas Induzidas") {
 		t.Errorf("expected evolution log to mention syntheses, got:\n%s", logContent)
 	}
+	if !strings.Contains(logContent, "FinOps & Consumo de IA") || !strings.Contains(logContent, "15000 in") {
+		t.Errorf("expected evolution log to contain FinOps token metrics, got:\n%s", logContent)
+	}
 
 	// 2. Test UpdateDashboardMetricas
 	if err := UpdateDashboardMetricas(tempVault, report, 80); err != nil {
@@ -176,5 +185,8 @@ func TestMetacognition_EvolutionLogAndDashboard(t *testing.T) {
 	}
 	if !strings.Contains(dashContent, "Tempo Total do Ciclo:** 120ms") {
 		t.Errorf("expected dashboard to contain cycle duration, got:\n%s", dashContent)
+	}
+	if !strings.Contains(dashContent, "## 💰 5. Telemetria Operacional, Custos de IA (FinOps) & Uso do Vault") {
+		t.Errorf("expected dashboard to contain section 5 FinOps & Uso do Vault, got:\n%s", dashContent)
 	}
 }

@@ -1359,19 +1359,26 @@ func (x *GetRoutinesOverviewResponse) GetRoutines() []*RoutineStatusItem {
 }
 
 type RoutineRunItem struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	RoutineName   string                 `protobuf:"bytes,2,opt,name=routine_name,json=routineName,proto3" json:"routine_name,omitempty"`
-	StartedAt     int64                  `protobuf:"varint,3,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	CompletedAt   int64                  `protobuf:"varint,4,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
-	DurationMs    int64                  `protobuf:"varint,5,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
-	TriggerSource string                 `protobuf:"bytes,6,opt,name=trigger_source,json=triggerSource,proto3" json:"trigger_source,omitempty"`
-	ExitCode      int32                  `protobuf:"varint,7,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
-	Status        string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`
-	Summary       string                 `protobuf:"bytes,9,opt,name=summary,proto3" json:"summary,omitempty"`
-	ErrorMessage  string                 `protobuf:"bytes,10,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	RoutineName      string                 `protobuf:"bytes,2,opt,name=routine_name,json=routineName,proto3" json:"routine_name,omitempty"`
+	StartedAt        int64                  `protobuf:"varint,3,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	CompletedAt      int64                  `protobuf:"varint,4,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
+	DurationMs       int64                  `protobuf:"varint,5,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	TriggerSource    string                 `protobuf:"bytes,6,opt,name=trigger_source,json=triggerSource,proto3" json:"trigger_source,omitempty"`
+	ExitCode         int32                  `protobuf:"varint,7,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	Status           string                 `protobuf:"bytes,8,opt,name=status,proto3" json:"status,omitempty"`
+	Summary          string                 `protobuf:"bytes,9,opt,name=summary,proto3" json:"summary,omitempty"`
+	ErrorMessage     string                 `protobuf:"bytes,10,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	ItemsProcessed   int32                  `protobuf:"varint,11,opt,name=items_processed,json=itemsProcessed,proto3" json:"items_processed,omitempty"`
+	InputTokens      int64                  `protobuf:"varint,12,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
+	CacheReadTokens  int64                  `protobuf:"varint,13,opt,name=cache_read_tokens,json=cacheReadTokens,proto3" json:"cache_read_tokens,omitempty"`
+	OutputTokens     int64                  `protobuf:"varint,14,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
+	EstimatedCostUsd float64                `protobuf:"fixed64,15,opt,name=estimated_cost_usd,json=estimatedCostUsd,proto3" json:"estimated_cost_usd,omitempty"`
+	Model            string                 `protobuf:"bytes,16,opt,name=model,proto3" json:"model,omitempty"`
+	SessionId        string                 `protobuf:"bytes,17,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RoutineRunItem) Reset() {
@@ -1470,6 +1477,55 @@ func (x *RoutineRunItem) GetSummary() string {
 func (x *RoutineRunItem) GetErrorMessage() string {
 	if x != nil {
 		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *RoutineRunItem) GetItemsProcessed() int32 {
+	if x != nil {
+		return x.ItemsProcessed
+	}
+	return 0
+}
+
+func (x *RoutineRunItem) GetInputTokens() int64 {
+	if x != nil {
+		return x.InputTokens
+	}
+	return 0
+}
+
+func (x *RoutineRunItem) GetCacheReadTokens() int64 {
+	if x != nil {
+		return x.CacheReadTokens
+	}
+	return 0
+}
+
+func (x *RoutineRunItem) GetOutputTokens() int64 {
+	if x != nil {
+		return x.OutputTokens
+	}
+	return 0
+}
+
+func (x *RoutineRunItem) GetEstimatedCostUsd() float64 {
+	if x != nil {
+		return x.EstimatedCostUsd
+	}
+	return 0
+}
+
+func (x *RoutineRunItem) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *RoutineRunItem) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -2304,6 +2360,12 @@ type GetCognitiveTelemetryResponse struct {
 	TotalFilesScanned        int32                  `protobuf:"varint,10,opt,name=total_files_scanned,json=totalFilesScanned,proto3" json:"total_files_scanned,omitempty"`
 	BrokenLinksCount         int32                  `protobuf:"varint,11,opt,name=broken_links_count,json=brokenLinksCount,proto3" json:"broken_links_count,omitempty"`
 	LastDreamTimestamp       int64                  `protobuf:"varint,12,opt,name=last_dream_timestamp,json=lastDreamTimestamp,proto3" json:"last_dream_timestamp,omitempty"`
+	DreamInputTokens         int64                  `protobuf:"varint,13,opt,name=dream_input_tokens,json=dreamInputTokens,proto3" json:"dream_input_tokens,omitempty"`
+	DreamCacheReadTokens     int64                  `protobuf:"varint,14,opt,name=dream_cache_read_tokens,json=dreamCacheReadTokens,proto3" json:"dream_cache_read_tokens,omitempty"`
+	DreamOutputTokens        int64                  `protobuf:"varint,15,opt,name=dream_output_tokens,json=dreamOutputTokens,proto3" json:"dream_output_tokens,omitempty"`
+	DreamEstimatedCostUsd    float64                `protobuf:"fixed64,16,opt,name=dream_estimated_cost_usd,json=dreamEstimatedCostUsd,proto3" json:"dream_estimated_cost_usd,omitempty"`
+	DreamSubagentsCount      int32                  `protobuf:"varint,17,opt,name=dream_subagents_count,json=dreamSubagentsCount,proto3" json:"dream_subagents_count,omitempty"`
+	DreamModel               string                 `protobuf:"bytes,18,opt,name=dream_model,json=dreamModel,proto3" json:"dream_model,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -2422,6 +2484,720 @@ func (x *GetCognitiveTelemetryResponse) GetLastDreamTimestamp() int64 {
 	return 0
 }
 
+func (x *GetCognitiveTelemetryResponse) GetDreamInputTokens() int64 {
+	if x != nil {
+		return x.DreamInputTokens
+	}
+	return 0
+}
+
+func (x *GetCognitiveTelemetryResponse) GetDreamCacheReadTokens() int64 {
+	if x != nil {
+		return x.DreamCacheReadTokens
+	}
+	return 0
+}
+
+func (x *GetCognitiveTelemetryResponse) GetDreamOutputTokens() int64 {
+	if x != nil {
+		return x.DreamOutputTokens
+	}
+	return 0
+}
+
+func (x *GetCognitiveTelemetryResponse) GetDreamEstimatedCostUsd() float64 {
+	if x != nil {
+		return x.DreamEstimatedCostUsd
+	}
+	return 0
+}
+
+func (x *GetCognitiveTelemetryResponse) GetDreamSubagentsCount() int32 {
+	if x != nil {
+		return x.DreamSubagentsCount
+	}
+	return 0
+}
+
+func (x *GetCognitiveTelemetryResponse) GetDreamModel() string {
+	if x != nil {
+		return x.DreamModel
+	}
+	return ""
+}
+
+type GetOperationalTelemetryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Days          int32                  `protobuf:"varint,1,opt,name=days,proto3" json:"days,omitempty"` // default 7
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOperationalTelemetryRequest) Reset() {
+	*x = GetOperationalTelemetryRequest{}
+	mi := &file_api_v1_graph_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOperationalTelemetryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOperationalTelemetryRequest) ProtoMessage() {}
+
+func (x *GetOperationalTelemetryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOperationalTelemetryRequest.ProtoReflect.Descriptor instead.
+func (*GetOperationalTelemetryRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *GetOperationalTelemetryRequest) GetDays() int32 {
+	if x != nil {
+		return x.Days
+	}
+	return 0
+}
+
+type ModelUsageItem struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Model            string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	Agent            string                 `protobuf:"bytes,2,opt,name=agent,proto3" json:"agent,omitempty"`
+	SessionsCount    int32                  `protobuf:"varint,3,opt,name=sessions_count,json=sessionsCount,proto3" json:"sessions_count,omitempty"`
+	SubagentsCount   int32                  `protobuf:"varint,4,opt,name=subagents_count,json=subagentsCount,proto3" json:"subagents_count,omitempty"`
+	InputTokens      int64                  `protobuf:"varint,5,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
+	CacheReadTokens  int64                  `protobuf:"varint,6,opt,name=cache_read_tokens,json=cacheReadTokens,proto3" json:"cache_read_tokens,omitempty"`
+	OutputTokens     int64                  `protobuf:"varint,7,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
+	EstimatedCostUsd float64                `protobuf:"fixed64,8,opt,name=estimated_cost_usd,json=estimatedCostUsd,proto3" json:"estimated_cost_usd,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ModelUsageItem) Reset() {
+	*x = ModelUsageItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ModelUsageItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ModelUsageItem) ProtoMessage() {}
+
+func (x *ModelUsageItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ModelUsageItem.ProtoReflect.Descriptor instead.
+func (*ModelUsageItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ModelUsageItem) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *ModelUsageItem) GetAgent() string {
+	if x != nil {
+		return x.Agent
+	}
+	return ""
+}
+
+func (x *ModelUsageItem) GetSessionsCount() int32 {
+	if x != nil {
+		return x.SessionsCount
+	}
+	return 0
+}
+
+func (x *ModelUsageItem) GetSubagentsCount() int32 {
+	if x != nil {
+		return x.SubagentsCount
+	}
+	return 0
+}
+
+func (x *ModelUsageItem) GetInputTokens() int64 {
+	if x != nil {
+		return x.InputTokens
+	}
+	return 0
+}
+
+func (x *ModelUsageItem) GetCacheReadTokens() int64 {
+	if x != nil {
+		return x.CacheReadTokens
+	}
+	return 0
+}
+
+func (x *ModelUsageItem) GetOutputTokens() int64 {
+	if x != nil {
+		return x.OutputTokens
+	}
+	return 0
+}
+
+func (x *ModelUsageItem) GetEstimatedCostUsd() float64 {
+	if x != nil {
+		return x.EstimatedCostUsd
+	}
+	return 0
+}
+
+type RoutineWeightItem struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	RoutineName       string                 `protobuf:"bytes,1,opt,name=routine_name,json=routineName,proto3" json:"routine_name,omitempty"`
+	TotalRuns         int32                  `protobuf:"varint,2,opt,name=total_runs,json=totalRuns,proto3" json:"total_runs,omitempty"`
+	SuccessRuns       int32                  `protobuf:"varint,3,opt,name=success_runs,json=successRuns,proto3" json:"success_runs,omitempty"`
+	FailedRuns        int32                  `protobuf:"varint,4,opt,name=failed_runs,json=failedRuns,proto3" json:"failed_runs,omitempty"`
+	AvgDurationMs     float64                `protobuf:"fixed64,5,opt,name=avg_duration_ms,json=avgDurationMs,proto3" json:"avg_duration_ms,omitempty"`
+	MaxDurationMs     int64                  `protobuf:"varint,6,opt,name=max_duration_ms,json=maxDurationMs,proto3" json:"max_duration_ms,omitempty"`
+	TotalItems        int64                  `protobuf:"varint,7,opt,name=total_items,json=totalItems,proto3" json:"total_items,omitempty"`
+	TotalInputTokens  int64                  `protobuf:"varint,8,opt,name=total_input_tokens,json=totalInputTokens,proto3" json:"total_input_tokens,omitempty"`
+	TotalCacheTokens  int64                  `protobuf:"varint,9,opt,name=total_cache_tokens,json=totalCacheTokens,proto3" json:"total_cache_tokens,omitempty"`
+	TotalOutputTokens int64                  `protobuf:"varint,10,opt,name=total_output_tokens,json=totalOutputTokens,proto3" json:"total_output_tokens,omitempty"`
+	TotalCostUsd      float64                `protobuf:"fixed64,11,opt,name=total_cost_usd,json=totalCostUsd,proto3" json:"total_cost_usd,omitempty"`
+	LastRunAt         int64                  `protobuf:"varint,12,opt,name=last_run_at,json=lastRunAt,proto3" json:"last_run_at,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *RoutineWeightItem) Reset() {
+	*x = RoutineWeightItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoutineWeightItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoutineWeightItem) ProtoMessage() {}
+
+func (x *RoutineWeightItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoutineWeightItem.ProtoReflect.Descriptor instead.
+func (*RoutineWeightItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *RoutineWeightItem) GetRoutineName() string {
+	if x != nil {
+		return x.RoutineName
+	}
+	return ""
+}
+
+func (x *RoutineWeightItem) GetTotalRuns() int32 {
+	if x != nil {
+		return x.TotalRuns
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetSuccessRuns() int32 {
+	if x != nil {
+		return x.SuccessRuns
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetFailedRuns() int32 {
+	if x != nil {
+		return x.FailedRuns
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetAvgDurationMs() float64 {
+	if x != nil {
+		return x.AvgDurationMs
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetMaxDurationMs() int64 {
+	if x != nil {
+		return x.MaxDurationMs
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetTotalItems() int64 {
+	if x != nil {
+		return x.TotalItems
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetTotalInputTokens() int64 {
+	if x != nil {
+		return x.TotalInputTokens
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetTotalCacheTokens() int64 {
+	if x != nil {
+		return x.TotalCacheTokens
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetTotalOutputTokens() int64 {
+	if x != nil {
+		return x.TotalOutputTokens
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetTotalCostUsd() float64 {
+	if x != nil {
+		return x.TotalCostUsd
+	}
+	return 0
+}
+
+func (x *RoutineWeightItem) GetLastRunAt() int64 {
+	if x != nil {
+		return x.LastRunAt
+	}
+	return 0
+}
+
+type SessionTelemetryItem struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	SessionId        string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ParentSessionId  string                 `protobuf:"bytes,2,opt,name=parent_session_id,json=parentSessionId,proto3" json:"parent_session_id,omitempty"`
+	Agent            string                 `protobuf:"bytes,3,opt,name=agent,proto3" json:"agent,omitempty"`
+	Model            string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	Role             string                 `protobuf:"bytes,5,opt,name=role,proto3" json:"role,omitempty"`
+	StartedAt        int64                  `protobuf:"varint,6,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	TurnsCount       int32                  `protobuf:"varint,7,opt,name=turns_count,json=turnsCount,proto3" json:"turns_count,omitempty"`
+	SubagentsCount   int32                  `protobuf:"varint,8,opt,name=subagents_count,json=subagentsCount,proto3" json:"subagents_count,omitempty"`
+	InputTokens      int64                  `protobuf:"varint,9,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
+	CacheReadTokens  int64                  `protobuf:"varint,10,opt,name=cache_read_tokens,json=cacheReadTokens,proto3" json:"cache_read_tokens,omitempty"`
+	OutputTokens     int64                  `protobuf:"varint,11,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
+	EstimatedCostUsd float64                `protobuf:"fixed64,12,opt,name=estimated_cost_usd,json=estimatedCostUsd,proto3" json:"estimated_cost_usd,omitempty"`
+	SkillsUsed       string                 `protobuf:"bytes,13,opt,name=skills_used,json=skillsUsed,proto3" json:"skills_used,omitempty"`
+	IsRoutine        bool                   `protobuf:"varint,14,opt,name=is_routine,json=isRoutine,proto3" json:"is_routine,omitempty"`
+	RoutineName      string                 `protobuf:"bytes,15,opt,name=routine_name,json=routineName,proto3" json:"routine_name,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *SessionTelemetryItem) Reset() {
+	*x = SessionTelemetryItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionTelemetryItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionTelemetryItem) ProtoMessage() {}
+
+func (x *SessionTelemetryItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SessionTelemetryItem.ProtoReflect.Descriptor instead.
+func (*SessionTelemetryItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *SessionTelemetryItem) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *SessionTelemetryItem) GetParentSessionId() string {
+	if x != nil {
+		return x.ParentSessionId
+	}
+	return ""
+}
+
+func (x *SessionTelemetryItem) GetAgent() string {
+	if x != nil {
+		return x.Agent
+	}
+	return ""
+}
+
+func (x *SessionTelemetryItem) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *SessionTelemetryItem) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *SessionTelemetryItem) GetStartedAt() int64 {
+	if x != nil {
+		return x.StartedAt
+	}
+	return 0
+}
+
+func (x *SessionTelemetryItem) GetTurnsCount() int32 {
+	if x != nil {
+		return x.TurnsCount
+	}
+	return 0
+}
+
+func (x *SessionTelemetryItem) GetSubagentsCount() int32 {
+	if x != nil {
+		return x.SubagentsCount
+	}
+	return 0
+}
+
+func (x *SessionTelemetryItem) GetInputTokens() int64 {
+	if x != nil {
+		return x.InputTokens
+	}
+	return 0
+}
+
+func (x *SessionTelemetryItem) GetCacheReadTokens() int64 {
+	if x != nil {
+		return x.CacheReadTokens
+	}
+	return 0
+}
+
+func (x *SessionTelemetryItem) GetOutputTokens() int64 {
+	if x != nil {
+		return x.OutputTokens
+	}
+	return 0
+}
+
+func (x *SessionTelemetryItem) GetEstimatedCostUsd() float64 {
+	if x != nil {
+		return x.EstimatedCostUsd
+	}
+	return 0
+}
+
+func (x *SessionTelemetryItem) GetSkillsUsed() string {
+	if x != nil {
+		return x.SkillsUsed
+	}
+	return ""
+}
+
+func (x *SessionTelemetryItem) GetIsRoutine() bool {
+	if x != nil {
+		return x.IsRoutine
+	}
+	return false
+}
+
+func (x *SessionTelemetryItem) GetRoutineName() string {
+	if x != nil {
+		return x.RoutineName
+	}
+	return ""
+}
+
+type CommandMetricItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Surface       string                 `protobuf:"bytes,1,opt,name=surface,proto3" json:"surface,omitempty"`
+	Command       string                 `protobuf:"bytes,2,opt,name=command,proto3" json:"command,omitempty"`
+	TotalCalls    int32                  `protobuf:"varint,3,opt,name=total_calls,json=totalCalls,proto3" json:"total_calls,omitempty"`
+	ErrorCalls    int32                  `protobuf:"varint,4,opt,name=error_calls,json=errorCalls,proto3" json:"error_calls,omitempty"`
+	AvgDurationMs float64                `protobuf:"fixed64,5,opt,name=avg_duration_ms,json=avgDurationMs,proto3" json:"avg_duration_ms,omitempty"`
+	MaxDurationMs int64                  `protobuf:"varint,6,opt,name=max_duration_ms,json=maxDurationMs,proto3" json:"max_duration_ms,omitempty"`
+	LastCalledAt  int64                  `protobuf:"varint,7,opt,name=last_called_at,json=lastCalledAt,proto3" json:"last_called_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandMetricItem) Reset() {
+	*x = CommandMetricItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandMetricItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandMetricItem) ProtoMessage() {}
+
+func (x *CommandMetricItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandMetricItem.ProtoReflect.Descriptor instead.
+func (*CommandMetricItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *CommandMetricItem) GetSurface() string {
+	if x != nil {
+		return x.Surface
+	}
+	return ""
+}
+
+func (x *CommandMetricItem) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *CommandMetricItem) GetTotalCalls() int32 {
+	if x != nil {
+		return x.TotalCalls
+	}
+	return 0
+}
+
+func (x *CommandMetricItem) GetErrorCalls() int32 {
+	if x != nil {
+		return x.ErrorCalls
+	}
+	return 0
+}
+
+func (x *CommandMetricItem) GetAvgDurationMs() float64 {
+	if x != nil {
+		return x.AvgDurationMs
+	}
+	return 0
+}
+
+func (x *CommandMetricItem) GetMaxDurationMs() int64 {
+	if x != nil {
+		return x.MaxDurationMs
+	}
+	return 0
+}
+
+func (x *CommandMetricItem) GetLastCalledAt() int64 {
+	if x != nil {
+		return x.LastCalledAt
+	}
+	return 0
+}
+
+type GetOperationalTelemetryResponse struct {
+	state                protoimpl.MessageState  `protogen:"open.v1"`
+	WindowDays           int32                   `protobuf:"varint,1,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`
+	TotalCostUsd         float64                 `protobuf:"fixed64,2,opt,name=total_cost_usd,json=totalCostUsd,proto3" json:"total_cost_usd,omitempty"`
+	DailyBudgetUsd       float64                 `protobuf:"fixed64,3,opt,name=daily_budget_usd,json=dailyBudgetUsd,proto3" json:"daily_budget_usd,omitempty"`
+	MonthlyBudgetUsd     float64                 `protobuf:"fixed64,4,opt,name=monthly_budget_usd,json=monthlyBudgetUsd,proto3" json:"monthly_budget_usd,omitempty"`
+	TotalInputTokens     int64                   `protobuf:"varint,5,opt,name=total_input_tokens,json=totalInputTokens,proto3" json:"total_input_tokens,omitempty"`
+	TotalCacheReadTokens int64                   `protobuf:"varint,6,opt,name=total_cache_read_tokens,json=totalCacheReadTokens,proto3" json:"total_cache_read_tokens,omitempty"`
+	TotalOutputTokens    int64                   `protobuf:"varint,7,opt,name=total_output_tokens,json=totalOutputTokens,proto3" json:"total_output_tokens,omitempty"`
+	CacheEfficiencyPct   float64                 `protobuf:"fixed64,8,opt,name=cache_efficiency_pct,json=cacheEfficiencyPct,proto3" json:"cache_efficiency_pct,omitempty"`
+	TotalSessions        int32                   `protobuf:"varint,9,opt,name=total_sessions,json=totalSessions,proto3" json:"total_sessions,omitempty"`
+	TotalSubagents       int32                   `protobuf:"varint,10,opt,name=total_subagents,json=totalSubagents,proto3" json:"total_subagents,omitempty"`
+	ModelUsage           []*ModelUsageItem       `protobuf:"bytes,11,rep,name=model_usage,json=modelUsage,proto3" json:"model_usage,omitempty"`
+	RoutineWeights       []*RoutineWeightItem    `protobuf:"bytes,12,rep,name=routine_weights,json=routineWeights,proto3" json:"routine_weights,omitempty"`
+	RecentSessions       []*SessionTelemetryItem `protobuf:"bytes,13,rep,name=recent_sessions,json=recentSessions,proto3" json:"recent_sessions,omitempty"`
+	CommandMetrics       []*CommandMetricItem    `protobuf:"bytes,14,rep,name=command_metrics,json=commandMetrics,proto3" json:"command_metrics,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GetOperationalTelemetryResponse) Reset() {
+	*x = GetOperationalTelemetryResponse{}
+	mi := &file_api_v1_graph_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOperationalTelemetryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOperationalTelemetryResponse) ProtoMessage() {}
+
+func (x *GetOperationalTelemetryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOperationalTelemetryResponse.ProtoReflect.Descriptor instead.
+func (*GetOperationalTelemetryResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *GetOperationalTelemetryResponse) GetWindowDays() int32 {
+	if x != nil {
+		return x.WindowDays
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetTotalCostUsd() float64 {
+	if x != nil {
+		return x.TotalCostUsd
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetDailyBudgetUsd() float64 {
+	if x != nil {
+		return x.DailyBudgetUsd
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetMonthlyBudgetUsd() float64 {
+	if x != nil {
+		return x.MonthlyBudgetUsd
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetTotalInputTokens() int64 {
+	if x != nil {
+		return x.TotalInputTokens
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetTotalCacheReadTokens() int64 {
+	if x != nil {
+		return x.TotalCacheReadTokens
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetTotalOutputTokens() int64 {
+	if x != nil {
+		return x.TotalOutputTokens
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetCacheEfficiencyPct() float64 {
+	if x != nil {
+		return x.CacheEfficiencyPct
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetTotalSessions() int32 {
+	if x != nil {
+		return x.TotalSessions
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetTotalSubagents() int32 {
+	if x != nil {
+		return x.TotalSubagents
+	}
+	return 0
+}
+
+func (x *GetOperationalTelemetryResponse) GetModelUsage() []*ModelUsageItem {
+	if x != nil {
+		return x.ModelUsage
+	}
+	return nil
+}
+
+func (x *GetOperationalTelemetryResponse) GetRoutineWeights() []*RoutineWeightItem {
+	if x != nil {
+		return x.RoutineWeights
+	}
+	return nil
+}
+
+func (x *GetOperationalTelemetryResponse) GetRecentSessions() []*SessionTelemetryItem {
+	if x != nil {
+		return x.RecentSessions
+	}
+	return nil
+}
+
+func (x *GetOperationalTelemetryResponse) GetCommandMetrics() []*CommandMetricItem {
+	if x != nil {
+		return x.CommandMetrics
+	}
+	return nil
+}
+
 type CaptureNoteRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Title           string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
@@ -2433,7 +3209,7 @@ type CaptureNoteRequest struct {
 
 func (x *CaptureNoteRequest) Reset() {
 	*x = CaptureNoteRequest{}
-	mi := &file_api_v1_graph_proto_msgTypes[34]
+	mi := &file_api_v1_graph_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2445,7 +3221,7 @@ func (x *CaptureNoteRequest) String() string {
 func (*CaptureNoteRequest) ProtoMessage() {}
 
 func (x *CaptureNoteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_graph_proto_msgTypes[34]
+	mi := &file_api_v1_graph_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2458,7 +3234,7 @@ func (x *CaptureNoteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CaptureNoteRequest.ProtoReflect.Descriptor instead.
 func (*CaptureNoteRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_graph_proto_rawDescGZIP(), []int{34}
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *CaptureNoteRequest) GetTitle() string {
@@ -2492,7 +3268,7 @@ type CaptureNoteResponse struct {
 
 func (x *CaptureNoteResponse) Reset() {
 	*x = CaptureNoteResponse{}
-	mi := &file_api_v1_graph_proto_msgTypes[35]
+	mi := &file_api_v1_graph_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2504,7 +3280,7 @@ func (x *CaptureNoteResponse) String() string {
 func (*CaptureNoteResponse) ProtoMessage() {}
 
 func (x *CaptureNoteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_graph_proto_msgTypes[35]
+	mi := &file_api_v1_graph_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2517,7 +3293,7 @@ func (x *CaptureNoteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CaptureNoteResponse.ProtoReflect.Descriptor instead.
 func (*CaptureNoteResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_graph_proto_rawDescGZIP(), []int{35}
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *CaptureNoteResponse) GetRelPath() string {
@@ -2639,7 +3415,7 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\vlast_result\x18\r \x01(\tR\n" +
 	"lastResult\"V\n" +
 	"\x1bGetRoutinesOverviewResponse\x127\n" +
-	"\broutines\x18\x01 \x03(\v2\x1b.graph.v1.RoutineStatusItemR\broutines\"\xc1\x02\n" +
+	"\broutines\x18\x01 \x03(\v2\x1b.graph.v1.RoutineStatusItemR\broutines\"\xc1\x04\n" +
 	"\x0eRoutineRunItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\froutine_name\x18\x02 \x01(\tR\vroutineName\x12\x1d\n" +
@@ -2653,7 +3429,15 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x06status\x18\b \x01(\tR\x06status\x12\x18\n" +
 	"\asummary\x18\t \x01(\tR\asummary\x12#\n" +
 	"\rerror_message\x18\n" +
-	" \x01(\tR\ferrorMessage\"S\n" +
+	" \x01(\tR\ferrorMessage\x12'\n" +
+	"\x0fitems_processed\x18\v \x01(\x05R\x0eitemsProcessed\x12!\n" +
+	"\finput_tokens\x18\f \x01(\x03R\vinputTokens\x12*\n" +
+	"\x11cache_read_tokens\x18\r \x01(\x03R\x0fcacheReadTokens\x12#\n" +
+	"\routput_tokens\x18\x0e \x01(\x03R\foutputTokens\x12,\n" +
+	"\x12estimated_cost_usd\x18\x0f \x01(\x01R\x10estimatedCostUsd\x12\x14\n" +
+	"\x05model\x18\x10 \x01(\tR\x05model\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x11 \x01(\tR\tsessionId\"S\n" +
 	"\x18GetRoutineHistoryRequest\x12!\n" +
 	"\froutine_name\x18\x01 \x01(\tR\vroutineName\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\"I\n" +
@@ -2721,7 +3505,7 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x0eclassification\x18\x03 \x01(\tR\x0eclassification\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12)\n" +
 	"\x10suggested_action\x18\x05 \x01(\tR\x0fsuggestedAction\x12\x1c\n" +
-	"\ttimestamp\x18\x06 \x01(\x03R\ttimestamp\"\xf2\x04\n" +
+	"\ttimestamp\x18\x06 \x01(\x03R\ttimestamp\"\x95\a\n" +
 	"\x1dGetCognitiveTelemetryResponse\x123\n" +
 	"\x16last_cycle_duration_ms\x18\x01 \x01(\x03R\x13lastCycleDurationMs\x12>\n" +
 	"\rstage_timings\x18\x02 \x03(\v2\x19.graph.v1.StageTimingItemR\fstageTimings\x12 \n" +
@@ -2735,7 +3519,92 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x13total_files_scanned\x18\n" +
 	" \x01(\x05R\x11totalFilesScanned\x12,\n" +
 	"\x12broken_links_count\x18\v \x01(\x05R\x10brokenLinksCount\x120\n" +
-	"\x14last_dream_timestamp\x18\f \x01(\x03R\x12lastDreamTimestamp\"t\n" +
+	"\x14last_dream_timestamp\x18\f \x01(\x03R\x12lastDreamTimestamp\x12,\n" +
+	"\x12dream_input_tokens\x18\r \x01(\x03R\x10dreamInputTokens\x125\n" +
+	"\x17dream_cache_read_tokens\x18\x0e \x01(\x03R\x14dreamCacheReadTokens\x12.\n" +
+	"\x13dream_output_tokens\x18\x0f \x01(\x03R\x11dreamOutputTokens\x127\n" +
+	"\x18dream_estimated_cost_usd\x18\x10 \x01(\x01R\x15dreamEstimatedCostUsd\x122\n" +
+	"\x15dream_subagents_count\x18\x11 \x01(\x05R\x13dreamSubagentsCount\x12\x1f\n" +
+	"\vdream_model\x18\x12 \x01(\tR\n" +
+	"dreamModel\"4\n" +
+	"\x1eGetOperationalTelemetryRequest\x12\x12\n" +
+	"\x04days\x18\x01 \x01(\x05R\x04days\"\xae\x02\n" +
+	"\x0eModelUsageItem\x12\x14\n" +
+	"\x05model\x18\x01 \x01(\tR\x05model\x12\x14\n" +
+	"\x05agent\x18\x02 \x01(\tR\x05agent\x12%\n" +
+	"\x0esessions_count\x18\x03 \x01(\x05R\rsessionsCount\x12'\n" +
+	"\x0fsubagents_count\x18\x04 \x01(\x05R\x0esubagentsCount\x12!\n" +
+	"\finput_tokens\x18\x05 \x01(\x03R\vinputTokens\x12*\n" +
+	"\x11cache_read_tokens\x18\x06 \x01(\x03R\x0fcacheReadTokens\x12#\n" +
+	"\routput_tokens\x18\a \x01(\x03R\foutputTokens\x12,\n" +
+	"\x12estimated_cost_usd\x18\b \x01(\x01R\x10estimatedCostUsd\"\xdc\x03\n" +
+	"\x11RoutineWeightItem\x12!\n" +
+	"\froutine_name\x18\x01 \x01(\tR\vroutineName\x12\x1d\n" +
+	"\n" +
+	"total_runs\x18\x02 \x01(\x05R\ttotalRuns\x12!\n" +
+	"\fsuccess_runs\x18\x03 \x01(\x05R\vsuccessRuns\x12\x1f\n" +
+	"\vfailed_runs\x18\x04 \x01(\x05R\n" +
+	"failedRuns\x12&\n" +
+	"\x0favg_duration_ms\x18\x05 \x01(\x01R\ravgDurationMs\x12&\n" +
+	"\x0fmax_duration_ms\x18\x06 \x01(\x03R\rmaxDurationMs\x12\x1f\n" +
+	"\vtotal_items\x18\a \x01(\x03R\n" +
+	"totalItems\x12,\n" +
+	"\x12total_input_tokens\x18\b \x01(\x03R\x10totalInputTokens\x12,\n" +
+	"\x12total_cache_tokens\x18\t \x01(\x03R\x10totalCacheTokens\x12.\n" +
+	"\x13total_output_tokens\x18\n" +
+	" \x01(\x03R\x11totalOutputTokens\x12$\n" +
+	"\x0etotal_cost_usd\x18\v \x01(\x01R\ftotalCostUsd\x12\x1e\n" +
+	"\vlast_run_at\x18\f \x01(\x03R\tlastRunAt\"\x8f\x04\n" +
+	"\x14SessionTelemetryItem\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12*\n" +
+	"\x11parent_session_id\x18\x02 \x01(\tR\x0fparentSessionId\x12\x14\n" +
+	"\x05agent\x18\x03 \x01(\tR\x05agent\x12\x14\n" +
+	"\x05model\x18\x04 \x01(\tR\x05model\x12\x12\n" +
+	"\x04role\x18\x05 \x01(\tR\x04role\x12\x1d\n" +
+	"\n" +
+	"started_at\x18\x06 \x01(\x03R\tstartedAt\x12\x1f\n" +
+	"\vturns_count\x18\a \x01(\x05R\n" +
+	"turnsCount\x12'\n" +
+	"\x0fsubagents_count\x18\b \x01(\x05R\x0esubagentsCount\x12!\n" +
+	"\finput_tokens\x18\t \x01(\x03R\vinputTokens\x12*\n" +
+	"\x11cache_read_tokens\x18\n" +
+	" \x01(\x03R\x0fcacheReadTokens\x12#\n" +
+	"\routput_tokens\x18\v \x01(\x03R\foutputTokens\x12,\n" +
+	"\x12estimated_cost_usd\x18\f \x01(\x01R\x10estimatedCostUsd\x12\x1f\n" +
+	"\vskills_used\x18\r \x01(\tR\n" +
+	"skillsUsed\x12\x1d\n" +
+	"\n" +
+	"is_routine\x18\x0e \x01(\bR\tisRoutine\x12!\n" +
+	"\froutine_name\x18\x0f \x01(\tR\vroutineName\"\xff\x01\n" +
+	"\x11CommandMetricItem\x12\x18\n" +
+	"\asurface\x18\x01 \x01(\tR\asurface\x12\x18\n" +
+	"\acommand\x18\x02 \x01(\tR\acommand\x12\x1f\n" +
+	"\vtotal_calls\x18\x03 \x01(\x05R\n" +
+	"totalCalls\x12\x1f\n" +
+	"\verror_calls\x18\x04 \x01(\x05R\n" +
+	"errorCalls\x12&\n" +
+	"\x0favg_duration_ms\x18\x05 \x01(\x01R\ravgDurationMs\x12&\n" +
+	"\x0fmax_duration_ms\x18\x06 \x01(\x03R\rmaxDurationMs\x12$\n" +
+	"\x0elast_called_at\x18\a \x01(\x03R\flastCalledAt\"\xe7\x05\n" +
+	"\x1fGetOperationalTelemetryResponse\x12\x1f\n" +
+	"\vwindow_days\x18\x01 \x01(\x05R\n" +
+	"windowDays\x12$\n" +
+	"\x0etotal_cost_usd\x18\x02 \x01(\x01R\ftotalCostUsd\x12(\n" +
+	"\x10daily_budget_usd\x18\x03 \x01(\x01R\x0edailyBudgetUsd\x12,\n" +
+	"\x12monthly_budget_usd\x18\x04 \x01(\x01R\x10monthlyBudgetUsd\x12,\n" +
+	"\x12total_input_tokens\x18\x05 \x01(\x03R\x10totalInputTokens\x125\n" +
+	"\x17total_cache_read_tokens\x18\x06 \x01(\x03R\x14totalCacheReadTokens\x12.\n" +
+	"\x13total_output_tokens\x18\a \x01(\x03R\x11totalOutputTokens\x120\n" +
+	"\x14cache_efficiency_pct\x18\b \x01(\x01R\x12cacheEfficiencyPct\x12%\n" +
+	"\x0etotal_sessions\x18\t \x01(\x05R\rtotalSessions\x12'\n" +
+	"\x0ftotal_subagents\x18\n" +
+	" \x01(\x05R\x0etotalSubagents\x129\n" +
+	"\vmodel_usage\x18\v \x03(\v2\x18.graph.v1.ModelUsageItemR\n" +
+	"modelUsage\x12D\n" +
+	"\x0froutine_weights\x18\f \x03(\v2\x1b.graph.v1.RoutineWeightItemR\x0eroutineWeights\x12G\n" +
+	"\x0frecent_sessions\x18\r \x03(\v2\x1e.graph.v1.SessionTelemetryItemR\x0erecentSessions\x12D\n" +
+	"\x0fcommand_metrics\x18\x0e \x03(\v2\x1b.graph.v1.CommandMetricItemR\x0ecommandMetrics\"t\n" +
 	"\x12CaptureNoteRequest\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12)\n" +
 	"\x10content_markdown\x18\x02 \x01(\tR\x0fcontentMarkdown\x12\x1d\n" +
@@ -2752,7 +3621,7 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x19ACTION_FLASH_NOTIFICATION\x10\x03\x12\x18\n" +
 	"\x14ACTION_GALAXY_RELOAD\x10\x04\x12\x13\n" +
 	"\x0fACTION_PIN_NOTE\x10\x05\x12\x15\n" +
-	"\x11ACTION_UNPIN_NOTE\x10\x06\x1a\x02\x10\x012\xdf\b\n" +
+	"\x11ACTION_UNPIN_NOTE\x10\x06\x1a\x02\x10\x012\xcf\t\n" +
 	"\fGraphService\x12D\n" +
 	"\tGetGalaxy\x12\x1a.graph.v1.GetGalaxyRequest\x1a\x1b.graph.v1.GetGalaxyResponse\x12>\n" +
 	"\aGetNote\x12\x18.graph.v1.GetNoteRequest\x1a\x19.graph.v1.GetNoteResponse\x12J\n" +
@@ -2766,7 +3635,8 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x15GetCognitiveTelemetry\x12&.graph.v1.GetCognitiveTelemetryRequest\x1a'.graph.v1.GetCognitiveTelemetryResponse\x12P\n" +
 	"\rUpsertRoutine\x12\x1e.graph.v1.UpsertRoutineRequest\x1a\x1f.graph.v1.UpsertRoutineResponse\x12P\n" +
 	"\rDeleteRoutine\x12\x1e.graph.v1.DeleteRoutineRequest\x1a\x1f.graph.v1.DeleteRoutineResponse\x12\\\n" +
-	"\x11GetRoutineHistory\x12\".graph.v1.GetRoutineHistoryRequest\x1a#.graph.v1.GetRoutineHistoryResponseB,Z*github.com/rjfonseca/daneel/api/v1;graphv1b\x06proto3"
+	"\x11GetRoutineHistory\x12\".graph.v1.GetRoutineHistoryRequest\x1a#.graph.v1.GetRoutineHistoryResponse\x12n\n" +
+	"\x17GetOperationalTelemetry\x12(.graph.v1.GetOperationalTelemetryRequest\x1a).graph.v1.GetOperationalTelemetryResponseB,Z*github.com/rjfonseca/daneel/api/v1;graphv1b\x06proto3"
 
 var (
 	file_api_v1_graph_proto_rawDescOnce sync.Once
@@ -2781,46 +3651,52 @@ func file_api_v1_graph_proto_rawDescGZIP() []byte {
 }
 
 var file_api_v1_graph_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_v1_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_api_v1_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_api_v1_graph_proto_goTypes = []any{
-	(UIActionType)(0),                     // 0: graph.v1.UIActionType
-	(*UIEvent)(nil),                       // 1: graph.v1.UIEvent
-	(*SubscribeUIEventsRequest)(nil),      // 2: graph.v1.SubscribeUIEventsRequest
-	(*ReportActiveContextRequest)(nil),    // 3: graph.v1.ReportActiveContextRequest
-	(*ReportActiveContextResponse)(nil),   // 4: graph.v1.ReportActiveContextResponse
-	(*GetGalaxyRequest)(nil),              // 5: graph.v1.GetGalaxyRequest
-	(*GalaxyStats)(nil),                   // 6: graph.v1.GalaxyStats
-	(*PinnedAnchor)(nil),                  // 7: graph.v1.PinnedAnchor
-	(*GetGalaxyResponse)(nil),             // 8: graph.v1.GetGalaxyResponse
-	(*Node)(nil),                          // 9: graph.v1.Node
-	(*Link)(nil),                          // 10: graph.v1.Link
-	(*GetNoteRequest)(nil),                // 11: graph.v1.GetNoteRequest
-	(*GetNoteResponse)(nil),               // 12: graph.v1.GetNoteResponse
-	(*SearchNotesRequest)(nil),            // 13: graph.v1.SearchNotesRequest
-	(*SearchNotesResponse)(nil),           // 14: graph.v1.SearchNotesResponse
-	(*SearchResult)(nil),                  // 15: graph.v1.SearchResult
-	(*ExecuteRoutineRequest)(nil),         // 16: graph.v1.ExecuteRoutineRequest
-	(*RoutineOutputEvent)(nil),            // 17: graph.v1.RoutineOutputEvent
-	(*GetRoutinesOverviewRequest)(nil),    // 18: graph.v1.GetRoutinesOverviewRequest
-	(*RoutineStatusItem)(nil),             // 19: graph.v1.RoutineStatusItem
-	(*GetRoutinesOverviewResponse)(nil),   // 20: graph.v1.GetRoutinesOverviewResponse
-	(*RoutineRunItem)(nil),                // 21: graph.v1.RoutineRunItem
-	(*GetRoutineHistoryRequest)(nil),      // 22: graph.v1.GetRoutineHistoryRequest
-	(*GetRoutineHistoryResponse)(nil),     // 23: graph.v1.GetRoutineHistoryResponse
-	(*UpsertRoutineRequest)(nil),          // 24: graph.v1.UpsertRoutineRequest
-	(*UpsertRoutineResponse)(nil),         // 25: graph.v1.UpsertRoutineResponse
-	(*DeleteRoutineRequest)(nil),          // 26: graph.v1.DeleteRoutineRequest
-	(*DeleteRoutineResponse)(nil),         // 27: graph.v1.DeleteRoutineResponse
-	(*GetStaffTelemetryRequest)(nil),      // 28: graph.v1.GetStaffTelemetryRequest
-	(*StaffPeriodSummary)(nil),            // 29: graph.v1.StaffPeriodSummary
-	(*GetStaffTelemetryResponse)(nil),     // 30: graph.v1.GetStaffTelemetryResponse
-	(*GetCognitiveTelemetryRequest)(nil),  // 31: graph.v1.GetCognitiveTelemetryRequest
-	(*StageTimingItem)(nil),               // 32: graph.v1.StageTimingItem
-	(*AgentEvalItem)(nil),                 // 33: graph.v1.AgentEvalItem
-	(*GetCognitiveTelemetryResponse)(nil), // 34: graph.v1.GetCognitiveTelemetryResponse
-	(*CaptureNoteRequest)(nil),            // 35: graph.v1.CaptureNoteRequest
-	(*CaptureNoteResponse)(nil),           // 36: graph.v1.CaptureNoteResponse
-	nil,                                   // 37: graph.v1.ExecuteRoutineRequest.ParamsEntry
+	(UIActionType)(0),                       // 0: graph.v1.UIActionType
+	(*UIEvent)(nil),                         // 1: graph.v1.UIEvent
+	(*SubscribeUIEventsRequest)(nil),        // 2: graph.v1.SubscribeUIEventsRequest
+	(*ReportActiveContextRequest)(nil),      // 3: graph.v1.ReportActiveContextRequest
+	(*ReportActiveContextResponse)(nil),     // 4: graph.v1.ReportActiveContextResponse
+	(*GetGalaxyRequest)(nil),                // 5: graph.v1.GetGalaxyRequest
+	(*GalaxyStats)(nil),                     // 6: graph.v1.GalaxyStats
+	(*PinnedAnchor)(nil),                    // 7: graph.v1.PinnedAnchor
+	(*GetGalaxyResponse)(nil),               // 8: graph.v1.GetGalaxyResponse
+	(*Node)(nil),                            // 9: graph.v1.Node
+	(*Link)(nil),                            // 10: graph.v1.Link
+	(*GetNoteRequest)(nil),                  // 11: graph.v1.GetNoteRequest
+	(*GetNoteResponse)(nil),                 // 12: graph.v1.GetNoteResponse
+	(*SearchNotesRequest)(nil),              // 13: graph.v1.SearchNotesRequest
+	(*SearchNotesResponse)(nil),             // 14: graph.v1.SearchNotesResponse
+	(*SearchResult)(nil),                    // 15: graph.v1.SearchResult
+	(*ExecuteRoutineRequest)(nil),           // 16: graph.v1.ExecuteRoutineRequest
+	(*RoutineOutputEvent)(nil),              // 17: graph.v1.RoutineOutputEvent
+	(*GetRoutinesOverviewRequest)(nil),      // 18: graph.v1.GetRoutinesOverviewRequest
+	(*RoutineStatusItem)(nil),               // 19: graph.v1.RoutineStatusItem
+	(*GetRoutinesOverviewResponse)(nil),     // 20: graph.v1.GetRoutinesOverviewResponse
+	(*RoutineRunItem)(nil),                  // 21: graph.v1.RoutineRunItem
+	(*GetRoutineHistoryRequest)(nil),        // 22: graph.v1.GetRoutineHistoryRequest
+	(*GetRoutineHistoryResponse)(nil),       // 23: graph.v1.GetRoutineHistoryResponse
+	(*UpsertRoutineRequest)(nil),            // 24: graph.v1.UpsertRoutineRequest
+	(*UpsertRoutineResponse)(nil),           // 25: graph.v1.UpsertRoutineResponse
+	(*DeleteRoutineRequest)(nil),            // 26: graph.v1.DeleteRoutineRequest
+	(*DeleteRoutineResponse)(nil),           // 27: graph.v1.DeleteRoutineResponse
+	(*GetStaffTelemetryRequest)(nil),        // 28: graph.v1.GetStaffTelemetryRequest
+	(*StaffPeriodSummary)(nil),              // 29: graph.v1.StaffPeriodSummary
+	(*GetStaffTelemetryResponse)(nil),       // 30: graph.v1.GetStaffTelemetryResponse
+	(*GetCognitiveTelemetryRequest)(nil),    // 31: graph.v1.GetCognitiveTelemetryRequest
+	(*StageTimingItem)(nil),                 // 32: graph.v1.StageTimingItem
+	(*AgentEvalItem)(nil),                   // 33: graph.v1.AgentEvalItem
+	(*GetCognitiveTelemetryResponse)(nil),   // 34: graph.v1.GetCognitiveTelemetryResponse
+	(*GetOperationalTelemetryRequest)(nil),  // 35: graph.v1.GetOperationalTelemetryRequest
+	(*ModelUsageItem)(nil),                  // 36: graph.v1.ModelUsageItem
+	(*RoutineWeightItem)(nil),               // 37: graph.v1.RoutineWeightItem
+	(*SessionTelemetryItem)(nil),            // 38: graph.v1.SessionTelemetryItem
+	(*CommandMetricItem)(nil),               // 39: graph.v1.CommandMetricItem
+	(*GetOperationalTelemetryResponse)(nil), // 40: graph.v1.GetOperationalTelemetryResponse
+	(*CaptureNoteRequest)(nil),              // 41: graph.v1.CaptureNoteRequest
+	(*CaptureNoteResponse)(nil),             // 42: graph.v1.CaptureNoteResponse
+	nil,                                     // 43: graph.v1.ExecuteRoutineRequest.ParamsEntry
 }
 var file_api_v1_graph_proto_depIdxs = []int32{
 	0,  // 0: graph.v1.UIEvent.action:type_name -> graph.v1.UIActionType
@@ -2829,44 +3705,50 @@ var file_api_v1_graph_proto_depIdxs = []int32{
 	6,  // 3: graph.v1.GetGalaxyResponse.stats:type_name -> graph.v1.GalaxyStats
 	7,  // 4: graph.v1.GetGalaxyResponse.pinned_anchors:type_name -> graph.v1.PinnedAnchor
 	15, // 5: graph.v1.SearchNotesResponse.results:type_name -> graph.v1.SearchResult
-	37, // 6: graph.v1.ExecuteRoutineRequest.params:type_name -> graph.v1.ExecuteRoutineRequest.ParamsEntry
+	43, // 6: graph.v1.ExecuteRoutineRequest.params:type_name -> graph.v1.ExecuteRoutineRequest.ParamsEntry
 	19, // 7: graph.v1.GetRoutinesOverviewResponse.routines:type_name -> graph.v1.RoutineStatusItem
 	21, // 8: graph.v1.GetRoutineHistoryResponse.runs:type_name -> graph.v1.RoutineRunItem
 	29, // 9: graph.v1.GetStaffTelemetryResponse.rolling_weeks:type_name -> graph.v1.StaffPeriodSummary
 	29, // 10: graph.v1.GetStaffTelemetryResponse.monthly_history:type_name -> graph.v1.StaffPeriodSummary
 	32, // 11: graph.v1.GetCognitiveTelemetryResponse.stage_timings:type_name -> graph.v1.StageTimingItem
 	33, // 12: graph.v1.GetCognitiveTelemetryResponse.recent_evals:type_name -> graph.v1.AgentEvalItem
-	5,  // 13: graph.v1.GraphService.GetGalaxy:input_type -> graph.v1.GetGalaxyRequest
-	11, // 14: graph.v1.GraphService.GetNote:input_type -> graph.v1.GetNoteRequest
-	35, // 15: graph.v1.GraphService.CaptureNote:input_type -> graph.v1.CaptureNoteRequest
-	13, // 16: graph.v1.GraphService.SearchNotes:input_type -> graph.v1.SearchNotesRequest
-	2,  // 17: graph.v1.GraphService.SubscribeUIEvents:input_type -> graph.v1.SubscribeUIEventsRequest
-	3,  // 18: graph.v1.GraphService.ReportActiveContext:input_type -> graph.v1.ReportActiveContextRequest
-	16, // 19: graph.v1.GraphService.ExecuteRoutine:input_type -> graph.v1.ExecuteRoutineRequest
-	18, // 20: graph.v1.GraphService.GetRoutinesOverview:input_type -> graph.v1.GetRoutinesOverviewRequest
-	28, // 21: graph.v1.GraphService.GetStaffTelemetry:input_type -> graph.v1.GetStaffTelemetryRequest
-	31, // 22: graph.v1.GraphService.GetCognitiveTelemetry:input_type -> graph.v1.GetCognitiveTelemetryRequest
-	24, // 23: graph.v1.GraphService.UpsertRoutine:input_type -> graph.v1.UpsertRoutineRequest
-	26, // 24: graph.v1.GraphService.DeleteRoutine:input_type -> graph.v1.DeleteRoutineRequest
-	22, // 25: graph.v1.GraphService.GetRoutineHistory:input_type -> graph.v1.GetRoutineHistoryRequest
-	8,  // 26: graph.v1.GraphService.GetGalaxy:output_type -> graph.v1.GetGalaxyResponse
-	12, // 27: graph.v1.GraphService.GetNote:output_type -> graph.v1.GetNoteResponse
-	36, // 28: graph.v1.GraphService.CaptureNote:output_type -> graph.v1.CaptureNoteResponse
-	14, // 29: graph.v1.GraphService.SearchNotes:output_type -> graph.v1.SearchNotesResponse
-	1,  // 30: graph.v1.GraphService.SubscribeUIEvents:output_type -> graph.v1.UIEvent
-	4,  // 31: graph.v1.GraphService.ReportActiveContext:output_type -> graph.v1.ReportActiveContextResponse
-	17, // 32: graph.v1.GraphService.ExecuteRoutine:output_type -> graph.v1.RoutineOutputEvent
-	20, // 33: graph.v1.GraphService.GetRoutinesOverview:output_type -> graph.v1.GetRoutinesOverviewResponse
-	30, // 34: graph.v1.GraphService.GetStaffTelemetry:output_type -> graph.v1.GetStaffTelemetryResponse
-	34, // 35: graph.v1.GraphService.GetCognitiveTelemetry:output_type -> graph.v1.GetCognitiveTelemetryResponse
-	25, // 36: graph.v1.GraphService.UpsertRoutine:output_type -> graph.v1.UpsertRoutineResponse
-	27, // 37: graph.v1.GraphService.DeleteRoutine:output_type -> graph.v1.DeleteRoutineResponse
-	23, // 38: graph.v1.GraphService.GetRoutineHistory:output_type -> graph.v1.GetRoutineHistoryResponse
-	26, // [26:39] is the sub-list for method output_type
-	13, // [13:26] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	36, // 13: graph.v1.GetOperationalTelemetryResponse.model_usage:type_name -> graph.v1.ModelUsageItem
+	37, // 14: graph.v1.GetOperationalTelemetryResponse.routine_weights:type_name -> graph.v1.RoutineWeightItem
+	38, // 15: graph.v1.GetOperationalTelemetryResponse.recent_sessions:type_name -> graph.v1.SessionTelemetryItem
+	39, // 16: graph.v1.GetOperationalTelemetryResponse.command_metrics:type_name -> graph.v1.CommandMetricItem
+	5,  // 17: graph.v1.GraphService.GetGalaxy:input_type -> graph.v1.GetGalaxyRequest
+	11, // 18: graph.v1.GraphService.GetNote:input_type -> graph.v1.GetNoteRequest
+	41, // 19: graph.v1.GraphService.CaptureNote:input_type -> graph.v1.CaptureNoteRequest
+	13, // 20: graph.v1.GraphService.SearchNotes:input_type -> graph.v1.SearchNotesRequest
+	2,  // 21: graph.v1.GraphService.SubscribeUIEvents:input_type -> graph.v1.SubscribeUIEventsRequest
+	3,  // 22: graph.v1.GraphService.ReportActiveContext:input_type -> graph.v1.ReportActiveContextRequest
+	16, // 23: graph.v1.GraphService.ExecuteRoutine:input_type -> graph.v1.ExecuteRoutineRequest
+	18, // 24: graph.v1.GraphService.GetRoutinesOverview:input_type -> graph.v1.GetRoutinesOverviewRequest
+	28, // 25: graph.v1.GraphService.GetStaffTelemetry:input_type -> graph.v1.GetStaffTelemetryRequest
+	31, // 26: graph.v1.GraphService.GetCognitiveTelemetry:input_type -> graph.v1.GetCognitiveTelemetryRequest
+	24, // 27: graph.v1.GraphService.UpsertRoutine:input_type -> graph.v1.UpsertRoutineRequest
+	26, // 28: graph.v1.GraphService.DeleteRoutine:input_type -> graph.v1.DeleteRoutineRequest
+	22, // 29: graph.v1.GraphService.GetRoutineHistory:input_type -> graph.v1.GetRoutineHistoryRequest
+	35, // 30: graph.v1.GraphService.GetOperationalTelemetry:input_type -> graph.v1.GetOperationalTelemetryRequest
+	8,  // 31: graph.v1.GraphService.GetGalaxy:output_type -> graph.v1.GetGalaxyResponse
+	12, // 32: graph.v1.GraphService.GetNote:output_type -> graph.v1.GetNoteResponse
+	42, // 33: graph.v1.GraphService.CaptureNote:output_type -> graph.v1.CaptureNoteResponse
+	14, // 34: graph.v1.GraphService.SearchNotes:output_type -> graph.v1.SearchNotesResponse
+	1,  // 35: graph.v1.GraphService.SubscribeUIEvents:output_type -> graph.v1.UIEvent
+	4,  // 36: graph.v1.GraphService.ReportActiveContext:output_type -> graph.v1.ReportActiveContextResponse
+	17, // 37: graph.v1.GraphService.ExecuteRoutine:output_type -> graph.v1.RoutineOutputEvent
+	20, // 38: graph.v1.GraphService.GetRoutinesOverview:output_type -> graph.v1.GetRoutinesOverviewResponse
+	30, // 39: graph.v1.GraphService.GetStaffTelemetry:output_type -> graph.v1.GetStaffTelemetryResponse
+	34, // 40: graph.v1.GraphService.GetCognitiveTelemetry:output_type -> graph.v1.GetCognitiveTelemetryResponse
+	25, // 41: graph.v1.GraphService.UpsertRoutine:output_type -> graph.v1.UpsertRoutineResponse
+	27, // 42: graph.v1.GraphService.DeleteRoutine:output_type -> graph.v1.DeleteRoutineResponse
+	23, // 43: graph.v1.GraphService.GetRoutineHistory:output_type -> graph.v1.GetRoutineHistoryResponse
+	40, // 44: graph.v1.GraphService.GetOperationalTelemetry:output_type -> graph.v1.GetOperationalTelemetryResponse
+	31, // [31:45] is the sub-list for method output_type
+	17, // [17:31] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_graph_proto_init() }
@@ -2880,7 +3762,7 @@ func file_api_v1_graph_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_graph_proto_rawDesc), len(file_api_v1_graph_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   37,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

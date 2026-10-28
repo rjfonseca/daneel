@@ -30,6 +30,7 @@ import (
 	"github.com/rjfonseca/daneel/internal/ops/tracking"
 	"github.com/rjfonseca/daneel/internal/routine"
 	"github.com/rjfonseca/daneel/internal/search"
+	"github.com/rjfonseca/daneel/internal/telemetry"
 	"github.com/rjfonseca/daneel/internal/vault"
 	"github.com/rjfonseca/daneel/internal/webfs"
 )
@@ -1332,22 +1333,192 @@ func (s *GraphServer) GetRoutineHistory(
 	items := make([]*graphv1.RoutineRunItem, 0, len(runs))
 	for _, r := range runs {
 		items = append(items, &graphv1.RoutineRunItem{
-			Id:            r.ID,
-			RoutineName:   r.RoutineName,
-			StartedAt:     r.StartedAt,
-			CompletedAt:   r.CompletedAt,
-			DurationMs:    r.DurationMs,
-			TriggerSource: r.TriggerSource,
-			ExitCode:      int32(r.ExitCode), //nolint:gosec
-			Status:        r.Status,
-			Summary:       r.Summary,
-			ErrorMessage:  r.ErrorMessage,
+			Id:               r.ID,
+			RoutineName:      r.RoutineName,
+			StartedAt:        r.StartedAt,
+			CompletedAt:      r.CompletedAt,
+			DurationMs:       r.DurationMs,
+			TriggerSource:    r.TriggerSource,
+			ExitCode:         int32(r.ExitCode), //nolint:gosec
+			Status:           r.Status,
+			Summary:          r.Summary,
+			ErrorMessage:     r.ErrorMessage,
+			ItemsProcessed:   int32(r.ItemsProcessed), //nolint:gosec
+			InputTokens:      r.InputTokens,
+			CacheReadTokens:  r.CacheReadTokens,
+			OutputTokens:     r.OutputTokens,
+			EstimatedCostUsd: r.EstimatedCostUSD,
+			Model:            r.Model,
+			SessionId:        r.SessionID,
 		})
 	}
 
 	return connect.NewResponse(&graphv1.GetRoutineHistoryResponse{
 		Runs: items,
 	}), nil
+}
+
+func (s *GraphServer) GetOperationalTelemetry(
+	ctx context.Context,
+	req *connect.Request[graphv1.GetOperationalTelemetryRequest],
+) (*connect.Response[graphv1.GetOperationalTelemetryResponse], error) {
+	days := int(req.Msg.Days)
+	if days <= 0 {
+		days = 7
+	}
+
+	sinceDuration := time.Duration(days) * 24 * time.Hour
+	sinceUnix := time.Now().Add(-sinceDuration).Unix()
+
+	resp := &graphv1.GetOperationalTelemetryResponse{
+		WindowDays:     int32(days), //nolint:gosec
+		ModelUsage:     make([]*graphv1.ModelUsageItem, 0),
+		RoutineWeights: make([]*graphv1.RoutineWeightItem, 0),
+		RecentSessions: make([]*graphv1.SessionTelemetryItem, 0),
+		CommandMetrics: make([]*graphv1.CommandMetricItem, 0),
+	}
+
+	if s.cfg != nil {
+		finOpsCfg := s.cfg.GetFinOpsConfig()
+		resp.DailyBudgetUsd = finOpsCfg.DailyBudgetUSD
+		resp.MonthlyBudgetUsd = finOpsCfg.MonthlyBudgetUSD
+	}
+
+	st := s.getRoutineStore()
+	if st == nil {
+		return connect.NewResponse(resp), nil
+	}
+
+	recentSessions, err := st.GetRecentSessionsTelemetry(ctx, sinceUnix, 100)
+	if err != nil {
+		recentSessions = []routine.SessionTelemetryRecord{}
+	}
+
+	// Auto-sync if store has 0 sessions
+	if len(recentSessions) == 0 {
+		if sqlStore, ok := st.(*routine.SQLiteStore); ok {
+			parserOpts := telemetry.ParserOptions{
+				Since:  sinceDuration,
+				Config: s.cfg,
+			}
+			vaultDir := s.vaultDir
+			if vaultDir == "" && s.cfg != nil {
+				vaultDir = s.cfg.VaultPath
+			}
+			if vaultDir != "" {
+				brainDir := filepath.Join(vaultDir, "brain")
+				if fi, statErr := os.Stat(brainDir); statErr == nil && fi.IsDir() {
+					parserOpts.BrainDir = brainDir
+				}
+			}
+			syncCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			_, _ = telemetry.SyncSessionsToStore(syncCtx, sqlStore, parserOpts)
+			cancel()
+			if refreshed, err := st.GetRecentSessionsTelemetry(ctx, sinceUnix, 100); err == nil {
+				recentSessions = refreshed
+			}
+		}
+	}
+
+	modelAggs, err := st.GetModelUsageAggregates(ctx, sinceUnix)
+	if err != nil {
+		modelAggs = []routine.ModelUsageAgg{}
+	}
+
+	routineWeights, err := st.GetRoutineWeightAggregates(ctx, sinceUnix)
+	if err != nil {
+		routineWeights = []routine.RoutineWeightAgg{}
+	}
+
+	commandMetrics, err := st.GetCommandAggregates(ctx, sinceUnix, 100)
+	if err != nil {
+		commandMetrics = []routine.CommandTelemetryAgg{}
+	}
+
+	var totalIn, totalCache, totalOut int64
+	var totalCost float64
+	var totalSubagents int
+
+	for _, session := range recentSessions {
+		totalIn += session.InputTokens
+		totalCache += session.CacheReadTokens
+		totalOut += session.OutputTokens
+		totalCost += session.EstimatedCostUSD
+		totalSubagents += session.SubagentsCount
+
+		resp.RecentSessions = append(resp.RecentSessions, &graphv1.SessionTelemetryItem{
+			SessionId:        session.SessionID,
+			ParentSessionId:  session.ParentSessionID,
+			Agent:            session.Agent,
+			Model:            session.Model,
+			Role:             session.Role,
+			StartedAt:        session.StartedAt,
+			TurnsCount:       int32(session.TurnsCount),     //nolint:gosec
+			SubagentsCount:   int32(session.SubagentsCount), //nolint:gosec
+			InputTokens:      session.InputTokens,
+			CacheReadTokens:  session.CacheReadTokens,
+			OutputTokens:     session.OutputTokens,
+			EstimatedCostUsd: session.EstimatedCostUSD,
+			SkillsUsed:       session.SkillsUsed,
+			IsRoutine:        session.IsRoutine,
+			RoutineName:      session.RoutineName,
+		})
+	}
+
+	resp.TotalSessions = int32(len(recentSessions)) //nolint:gosec
+	resp.TotalSubagents = int32(totalSubagents)     //nolint:gosec
+	resp.TotalInputTokens = totalIn
+	resp.TotalCacheReadTokens = totalCache
+	resp.TotalOutputTokens = totalOut
+	resp.TotalCostUsd = totalCost
+
+	if totalIn+totalCache > 0 {
+		resp.CacheEfficiencyPct = float64(totalCache) / float64(totalIn+totalCache) * 100.0
+	}
+
+	for _, m := range modelAggs {
+		resp.ModelUsage = append(resp.ModelUsage, &graphv1.ModelUsageItem{
+			Model:            m.Model,
+			Agent:            m.Agent,
+			SessionsCount:    int32(m.SessionsCount),  //nolint:gosec
+			SubagentsCount:   int32(m.SubagentsCount), //nolint:gosec
+			InputTokens:      m.InputTokens,
+			CacheReadTokens:  m.CacheReadTokens,
+			OutputTokens:     m.OutputTokens,
+			EstimatedCostUsd: m.EstimatedCostUSD,
+		})
+	}
+
+	for _, w := range routineWeights {
+		resp.RoutineWeights = append(resp.RoutineWeights, &graphv1.RoutineWeightItem{
+			RoutineName:       w.RoutineName,
+			TotalRuns:         int32(w.TotalRuns),   //nolint:gosec
+			SuccessRuns:       int32(w.SuccessRuns), //nolint:gosec
+			FailedRuns:        int32(w.FailedRuns),  //nolint:gosec
+			AvgDurationMs:     w.AvgDurationMs,
+			MaxDurationMs:     w.MaxDurationMs,
+			TotalItems:        w.TotalItems,
+			TotalInputTokens:  w.TotalInputTokens,
+			TotalCacheTokens:  w.TotalCacheTokens,
+			TotalOutputTokens: w.TotalOutputTokens,
+			TotalCostUsd:      w.TotalCostUSD,
+			LastRunAt:         w.LastRunAt,
+		})
+	}
+
+	for _, c := range commandMetrics {
+		resp.CommandMetrics = append(resp.CommandMetrics, &graphv1.CommandMetricItem{
+			Surface:       c.Surface,
+			Command:       c.Command,
+			TotalCalls:    int32(c.TotalCalls), //nolint:gosec
+			ErrorCalls:    int32(c.ErrorCalls), //nolint:gosec
+			AvgDurationMs: c.AvgDurationMs,
+			MaxDurationMs: c.MaxDurationMs,
+			LastCalledAt:  c.LastCalledAt,
+		})
+	}
+
+	return connect.NewResponse(resp), nil
 }
 
 func (s *GraphServer) GetStaffTelemetry(
@@ -1531,6 +1702,12 @@ func (s *GraphServer) GetCognitiveTelemetry(
 					Description: st.Description,
 				})
 			}
+			resp.DreamInputTokens = dreamRep.Metacognition.InputTokens
+			resp.DreamCacheReadTokens = dreamRep.Metacognition.CacheReadTokens
+			resp.DreamOutputTokens = dreamRep.Metacognition.OutputTokens
+			resp.DreamEstimatedCostUsd = dreamRep.Metacognition.EstimatedCostUSD
+			resp.DreamSubagentsCount = int32(dreamRep.Metacognition.SubagentsCount) //nolint:gosec
+			resp.DreamModel = dreamRep.Metacognition.Model
 		} else {
 			// Resilient fallback for partial or legacy handoff cache
 			if dreamRep.BrokenLinksCount > 0 && len(resp.Bottlenecks) == 0 {
@@ -1597,6 +1774,21 @@ func (s *GraphServer) GetCognitiveTelemetry(
 				resp.ScannedTurns++
 			}
 			resp.RecentEvals = append(resp.RecentEvals, item)
+		}
+	}
+
+	// 3. Resilient fallback for FinOps telemetry from latest dream routine run
+	if resp.DreamInputTokens == 0 && resp.DreamEstimatedCostUsd == 0 {
+		if st := s.getRoutineStore(); st != nil {
+			if latestDream, err := st.GetLatestRun(ctx, "dream"); err == nil && latestDream != nil {
+				if latestDream.InputTokens > 0 || latestDream.EstimatedCostUSD > 0 {
+					resp.DreamInputTokens = latestDream.InputTokens
+					resp.DreamCacheReadTokens = latestDream.CacheReadTokens
+					resp.DreamOutputTokens = latestDream.OutputTokens
+					resp.DreamEstimatedCostUsd = latestDream.EstimatedCostUSD
+					resp.DreamModel = latestDream.Model
+				}
+			}
 		}
 	}
 

@@ -201,17 +201,28 @@ func renderSessionNote(ctx context.Context, sessionID string, entries []SpoolEnt
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	model, inputTokens, outputTokens := extractMetricsFromEntries(entries)
+
 	var sb strings.Builder
 	sb.WriteString("---\n")
 	sb.WriteString("type: session_log\n")
 	fmt.Fprintf(&sb, "description: %q\n", fmt.Sprintf("Agent session log for %s in %s", agent, cwd))
 	fmt.Fprintf(&sb, "agent: %q\n", agent)
+	if model != "" {
+		fmt.Fprintf(&sb, "model: %q\n", model)
+	}
 	fmt.Fprintf(&sb, "directory: %q\n", cwd)
 	if gitRoot != "" {
 		fmt.Fprintf(&sb, "git_root: %q\n", gitRoot)
 	}
 	fmt.Fprintf(&sb, "duration_minutes: %d\n", durationMinutes)
 	fmt.Fprintf(&sb, "events_count: %d\n", len(entries))
+	if inputTokens > 0 {
+		fmt.Fprintf(&sb, "input_tokens: %d\n", inputTokens)
+	}
+	if outputTokens > 0 {
+		fmt.Fprintf(&sb, "output_tokens: %d\n", outputTokens)
+	}
 	fmt.Fprintf(&sb, "session_id: %q\n", sessionID)
 	fmt.Fprintf(&sb, "date: %q\n", startTime.Format("2006-01-02"))
 	sb.WriteString("---\n\n<untrusted_content>\n")
@@ -288,4 +299,36 @@ func deduplicate(list []string) []string {
 		result = append(result, clean)
 	}
 	return result
+}
+
+func extractMetricsFromEntries(entries []SpoolEntry) (string, int64, int64) {
+	model := ""
+	var inputTokens, outputTokens int64
+	for _, entry := range entries {
+		if len(entry.Payload) == 0 {
+			continue
+		}
+		var payload map[string]interface{}
+		if err := json.Unmarshal(entry.Payload, &payload); err != nil {
+			continue
+		}
+		if m, ok := payload["model"].(string); ok && m != "" {
+			model = m
+		}
+		if inTok, ok := payload["input_tokens"].(float64); ok && inTok > 0 {
+			inputTokens += int64(inTok)
+		}
+		if outTok, ok := payload["output_tokens"].(float64); ok && outTok > 0 {
+			outputTokens += int64(outTok)
+		}
+		if usage, ok := payload["usage"].(map[string]interface{}); ok {
+			if inTok, ok := usage["input_tokens"].(float64); ok && inTok > 0 {
+				inputTokens += int64(inTok)
+			}
+			if outTok, ok := usage["output_tokens"].(float64); ok && outTok > 0 {
+				outputTokens += int64(outTok)
+			}
+		}
+	}
+	return model, inputTokens, outputTokens
 }

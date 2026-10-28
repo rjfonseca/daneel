@@ -2,22 +2,27 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/config"
+	"github.com/rjfonseca/daneel/internal/routine"
 )
 
 var (
-	cfgFile    string
-	vaultPath  string
-	globalFlag bool
-	jsonOut    bool
-	verbose    bool
-	cfg        *config.Config
+	cfgFile      string
+	vaultPath    string
+	globalFlag   bool
+	jsonOut      bool
+	verbose      bool
+	cfg          *config.Config
+	cmdStartTime time.Time
 )
 
 // RootCmd represents the base command when called without any subcommands.
@@ -44,7 +49,47 @@ consolidation (Dream Cycle), engineering leadership copilots, and native MCP too
 		if err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
+		cmdStartTime = time.Now()
 		return nil
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		name := cmd.Name()
+		if name == "daneel" || name == "serve" || name == "daemon" || name == "mcp" || name == "tui" || name == "hook" {
+			return
+		}
+		if cmdStartTime.IsZero() {
+			return
+		}
+		durationMs := time.Since(cmdStartTime).Milliseconds()
+
+		vPath := ""
+		if cfg != nil {
+			vPath = cfg.VaultPath
+		}
+		store, err := routine.OpenDefaultStore(vPath)
+		if err != nil || store == nil {
+			return
+		}
+		defer func() { _ = store.Close() }()
+
+		scope := strings.Join(args, " ")
+		if len(scope) > 120 {
+			scope = scope[:120]
+		}
+
+		ctx := cmd.Context()
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		_ = store.RecordCommandEvent(ctx, routine.CommandTelemetryEvent{
+			Surface:    "cli",
+			Command:    name,
+			Scope:      scope,
+			StartedAt:  cmdStartTime.Unix(),
+			DurationMs: durationMs,
+			IsError:    false,
+		})
 	},
 	RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive
 		// If launched without subcommands, open TUI

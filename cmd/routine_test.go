@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/routine"
@@ -134,5 +136,68 @@ func TestRoutineCmd_ExecAndRecordLedger(t *testing.T) {
 	}
 	if latest.Status != "success" || latest.ExitCode != 0 {
 		t.Errorf("expected success status and exit code 0, got status=%s, code=%d", latest.Status, latest.ExitCode)
+	}
+}
+
+func TestRoutineCmd_Exec_ExtractsItemsAndCorrelatesFinOps(t *testing.T) {
+	t.Setenv("DANEEL_VAULT_PATH", "")
+	t.Setenv("DANEEL_CONFIG", "")
+	tempDir := t.TempDir()
+	tempBrainDir := filepath.Join(tempDir, "brain")
+
+	sessID := "routine-sess-123"
+	sessLogsDir := filepath.Join(tempBrainDir, sessID)
+	_ = os.MkdirAll(sessLogsDir, 0750)
+
+	t0 := time.Now()
+	transcript := fmt.Sprintf(`{"step_index":0,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":%q,"input_tokens":5000,"output_tokens":1000,"tool_calls":[]}`+"\n", t0.Format(time.RFC3339))
+	_ = os.WriteFile(filepath.Join(sessLogsDir, "transcript.jsonl"), []byte(transcript), 0600)
+
+	cfg = &config.Config{
+		VaultPath: tempDir,
+		DBPath:    filepath.Join(tempDir, "test.db"),
+		Routines:  config.DefaultRoutinesConfig(),
+		Telemetry: config.TelemetryConfig{
+			FinOps: config.DefaultFinOpsConfig(),
+		},
+	}
+	defer func() { vaultPath = ""; cfg = nil; RootCmd.SetArgs(nil) }()
+
+	origExecutor := routineExecutor
+	defer func() { routineExecutor = origExecutor }()
+
+	routineExecutor = func(ctx context.Context, cmdName string, cmdArgs []string, stdout, stderr io.Writer) (int, error) {
+		_, _ = stdout.Write([]byte("Hygiene complete: scanned 42 files and 15 notes\n"))
+		return 0, nil
+	}
+
+	RootCmd.SetArgs([]string{"--vault-path", tempDir, "routine", "exec", "workspace"})
+	err := RootCmd.Execute()
+	if err != nil {
+		t.Fatalf("routine exec failed: %v", err)
+	}
+
+	store, err := routine.OpenDefaultStore(tempDir)
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	latest, err := store.GetLatestRun(context.Background(), "workspace")
+	if err != nil {
+		t.Fatalf("failed to get latest run: %v", err)
+	}
+	if latest == nil {
+		t.Fatalf("expected recorded run for workspace, got nil")
+	}
+
+	if latest.ItemsProcessed != 42 {
+		t.Errorf("expected ItemsProcessed 42, got %d", latest.ItemsProcessed)
+	}
+	if latest.InputTokens != 5000 {
+		t.Errorf("expected InputTokens 5000, got %d", latest.InputTokens)
+	}
+	if latest.OutputTokens != 1000 {
+		t.Errorf("expected OutputTokens 1000, got %d", latest.OutputTokens)
 	}
 }

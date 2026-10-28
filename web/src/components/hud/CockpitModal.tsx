@@ -23,7 +23,10 @@ import {
   Sparkles,
   CheckCircle2,
   TrendingUp,
-  Calendar
+  Calendar,
+  Coins,
+  Cpu,
+  Database
 } from 'lucide-react';
 import { client } from '@/lib/apiClient';
 import { HudCard } from './HudCard';
@@ -33,13 +36,14 @@ import { HotkeyBadge } from './HotkeyBadge';
 import { CyberTerminal } from './CyberTerminal';
 import { SkillParameterDeck } from './SkillParameterDeck';
 import { RoutineEditorModal } from './RoutineEditorModal';
-import { RoutineHistoryDeck, formatRelativeTime } from './RoutineHistoryDeck';
+import { RoutineHistoryDeck, formatRelativeTime, formatCostUSD, formatTokenCount, formatDuration } from './RoutineHistoryDeck';
 import { useRoutineExecution, type UseRoutineExecutionResult } from '@/hooks/useRoutineExecution';
 import type { 
   RoutineStatusItem, 
   RoutineRunItem,
   GetStaffTelemetryResponse, 
-  GetCognitiveTelemetryResponse 
+  GetCognitiveTelemetryResponse,
+  GetOperationalTelemetryResponse 
 } from '@/gen/api/v1/graph_pb';
 import { describeLastResult, describeSchedule, formatRunTimestamp } from '@/lib/cockpitPresentation';
 
@@ -50,7 +54,7 @@ export interface CockpitModalProps {
   execution?: UseRoutineExecutionResult;
 }
 
-type TabMode = 'routines' | 'telemetry' | 'metacognition';
+type TabMode = 'routines' | 'telemetry' | 'metacognition' | 'finops';
 type CategoryFilter = 'all' | 'deterministic' | 'ai_skill';
 
 export const CockpitModal: React.FC<CockpitModalProps> = ({ 
@@ -71,6 +75,8 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({
   const [isLoadingTelemetry, setIsLoadingTelemetry] = useState<boolean>(false);
   const [isLoadingCognitive, setIsLoadingCognitive] = useState<boolean>(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [operationalTelemetry, setOperationalTelemetry] = useState<GetOperationalTelemetryResponse | null>(null);
+  const [isLoadingOperational, setIsLoadingOperational] = useState<boolean>(false);
   const [actionsViewMode, setActionsViewMode] = useState<'terminal' | 'history'>('terminal');
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingRoutine, setEditingRoutine] = useState<RoutineStatusItem | null>(null);
@@ -143,11 +149,26 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({
     }
   };
 
+  const loadOperationalTelemetry = async (days = 7) => {
+    setIsLoadingOperational(true);
+    try {
+      if (client.getOperationalTelemetry) {
+        const res = await client.getOperationalTelemetry({ days });
+        setOperationalTelemetry(res);
+      }
+    } catch (err) {
+      console.error('Failed to load operational telemetry:', err);
+    } finally {
+      setIsLoadingOperational(false);
+    }
+  };
+
   const handleRefreshAll = () => {
     loadRoutines();
     loadStaffTelemetry();
     loadCognitiveTelemetry();
     loadRoutineHistory();
+    loadOperationalTelemetry();
   };
 
   const handleOpenCreateRoutine = () => {
@@ -199,6 +220,7 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({
     loadStaffTelemetry();
     loadCognitiveTelemetry();
     loadRoutineHistory();
+    loadOperationalTelemetry();
   }, [isOpen]);
 
   // Track routine name during execution
@@ -368,6 +390,23 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({
                   <span className="flex items-center gap-1.5">
                     <Brain className="w-3.5 h-3.5" />
                     Agent insights
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('finops');
+                    loadOperationalTelemetry();
+                  }}
+                  data-testid="cockpit-tab-finops"
+                  className={`px-3 py-1 text-xs font-mono rounded-sm transition-all cursor-pointer cosmic-focus-visible ${
+                    activeTab === 'finops'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-glow-amber'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Coins className="w-3.5 h-3.5" />
+                    FinOps & Ops
                   </span>
                 </button>
               </div>
@@ -1303,6 +1342,51 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({
                     </HudCard>
                   </div>
 
+                  {/* Dream Cycle AI FinOps Card */}
+                  {(Number(cognitiveTelemetry.dreamInputTokens) > 0 || (cognitiveTelemetry.dreamEstimatedCostUsd !== undefined && cognitiveTelemetry.dreamEstimatedCostUsd > 0)) && (
+                    <HudCard variant="amber" className="p-4 relative" data-testid="dream-cycle-finops-card">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Coins className="w-4 h-4 text-amber-400" />
+                          <span className="text-xs font-mono font-bold text-amber-300 uppercase">
+                            Dream Cycle AI FinOps &amp; Tokens
+                          </span>
+                        </div>
+                        {cognitiveTelemetry.dreamModel && (
+                          <span className="text-[10px] font-mono text-slate-300 bg-white/5 px-2 py-0.5 rounded-sm border border-white/10">
+                            {cognitiveTelemetry.dreamModel}
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-3 pt-3 border-t border-white/10 font-mono">
+                        <div>
+                          <div className="text-[10px] text-slate-400 uppercase">Total Spend</div>
+                          <div className="text-lg font-bold text-amber-300 mt-0.5">
+                            {formatCostUSD(cognitiveTelemetry.dreamEstimatedCostUsd || 0)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400 uppercase">Input / Cache</div>
+                          <div className="text-xs text-white mt-0.5">
+                            {formatTokenCount(cognitiveTelemetry.dreamInputTokens)} / {formatTokenCount(cognitiveTelemetry.dreamCacheReadTokens)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400 uppercase">Output Tokens</div>
+                          <div className="text-xs text-white mt-0.5">
+                            {formatTokenCount(cognitiveTelemetry.dreamOutputTokens)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-400 uppercase">Subagents Spawned</div>
+                          <div className="text-xs text-white mt-0.5">
+                            {cognitiveTelemetry.dreamSubagentsCount || 0} subagents
+                          </div>
+                        </div>
+                      </div>
+                    </HudCard>
+                  )}
+
                   {/* Main Grid: Dream Engine Profiling vs Agent Telemetry */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                     {/* Left Column: Dream Engine Introspective Profiling */}
@@ -1534,6 +1618,260 @@ export const CockpitModal: React.FC<CockpitModalProps> = ({
               ) : (
                 <div className="p-8 text-center text-xs text-slate-500 font-mono">
                   Cognitive telemetry data unavailable. Run `daneel dream --stats` to generate introspective data.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 4: FinOps & Operational Telemetry Deck */}
+          {activeTab === 'finops' && (
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6 bg-[#070a14]/50">
+              {isLoadingOperational ? (
+                <div className="flex flex-col items-center justify-center p-12 text-slate-500 text-xs gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+                  <span>Loading FinOps spend metrics & operational telemetry...</span>
+                </div>
+              ) : operationalTelemetry ? (
+                <>
+                  {/* Top FinOps KPI Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                    {/* Total AI Spend */}
+                    <HudCard variant="amber" className="p-4 relative">
+                      <div className="text-[10px] font-mono text-amber-300 uppercase">
+                        Total AI Spend ({operationalTelemetry.windowDays}d)
+                      </div>
+                      <div className="text-2xl font-bold font-mono text-white mt-1">
+                        {formatCostUSD(operationalTelemetry.totalCostUsd)}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-2">
+                        <span>Daily: {formatCostUSD(operationalTelemetry.dailyBudgetUsd)}</span>
+                        <span>•</span>
+                        <span>Monthly: {formatCostUSD(operationalTelemetry.monthlyBudgetUsd)}</span>
+                      </div>
+                    </HudCard>
+
+                    {/* Total Tokens */}
+                    <HudCard variant="cyan" className="p-4 relative">
+                      <div className="text-[10px] font-mono text-cyan-300 uppercase">
+                        Total Tokens
+                      </div>
+                      <div className="text-2xl font-bold font-mono text-white mt-1">
+                        {formatTokenCount(Number(operationalTelemetry.totalInputTokens) + Number(operationalTelemetry.totalCacheReadTokens) + Number(operationalTelemetry.totalOutputTokens))}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1 truncate" title={`In ${Number(operationalTelemetry.totalInputTokens).toLocaleString()} | Cache ${Number(operationalTelemetry.totalCacheReadTokens).toLocaleString()} | Out ${Number(operationalTelemetry.totalOutputTokens).toLocaleString()}`}>
+                        In {formatTokenCount(operationalTelemetry.totalInputTokens)} • Cache {formatTokenCount(operationalTelemetry.totalCacheReadTokens)} • Out {formatTokenCount(operationalTelemetry.totalOutputTokens)}
+                      </div>
+                    </HudCard>
+
+                    {/* Prompt Cache Efficiency */}
+                    <HudCard variant="emerald" className="p-4 relative">
+                      <div className="text-[10px] font-mono text-emerald-300 uppercase">
+                        Prompt Cache Efficiency
+                      </div>
+                      <div className="text-2xl font-bold font-mono text-emerald-300 mt-1">
+                        {operationalTelemetry.cacheEfficiencyPct.toFixed(1)}%
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1">
+                        Hit Ratio across Prompts
+                      </div>
+                    </HudCard>
+
+                    {/* AI Sessions & Subagents */}
+                    <HudCard variant="indigo" className="p-4 relative">
+                      <div className="text-[10px] font-mono text-indigo-300 uppercase">
+                        AI Sessions &amp; Subagents
+                      </div>
+                      <div className="text-2xl font-bold font-mono text-white mt-1">
+                        {operationalTelemetry.totalSessions} sessions
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-1">
+                        {operationalTelemetry.totalSubagents} subagents spawned
+                      </div>
+                    </HudCard>
+                  </div>
+
+                  {/* Main Breakdown Grids */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    {/* Left Column: Model Usage & Heaviest Routines */}
+                    <div className="lg:col-span-7 space-y-4">
+                      {/* Model & Agent FinOps Breakdown */}
+                      <HudCard variant="default" className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <Cpu className="w-4 h-4 text-cyan-400" />
+                            Model &amp; Agent FinOps Breakdown
+                          </h3>
+                          <NeonBadge accent="cyan" size="sm">
+                            Token Spend
+                          </NeonBadge>
+                        </div>
+
+                        {operationalTelemetry.modelUsage.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left font-mono text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-white/10 text-slate-400 text-[10px] uppercase">
+                                  <th className="py-2 px-2.5">Model</th>
+                                  <th className="py-2 px-2.5">Agent</th>
+                                  <th className="py-2 px-2.5 text-right">Sessions</th>
+                                  <th className="py-2 px-2.5 text-right">Tokens (In / Cache)</th>
+                                  <th className="py-2 px-2.5 text-right">Cost (USD)</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                {operationalTelemetry.modelUsage.map((m, idx) => (
+                                  <tr key={`${m.model}-${m.agent}-${idx}`} className="hover:bg-white/5 transition-colors">
+                                    <td className="py-2 px-2.5 text-white font-bold">{m.model}</td>
+                                    <td className="py-2 px-2.5 text-slate-300">
+                                      <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px]">
+                                        {m.agent}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-slate-300">
+                                      {m.sessionsCount} <span className="text-[10px] text-slate-500">({m.subagentsCount} sub)</span>
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-cyan-300">
+                                      {formatTokenCount(m.inputTokens)} / {formatTokenCount(m.cacheReadTokens)}
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-amber-300 font-bold">
+                                      {formatCostUSD(m.estimatedCostUsd)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="p-6 text-center text-xs text-slate-500 font-mono">
+                            No model token usage recorded in this window.
+                          </div>
+                        )}
+                      </HudCard>
+
+                      {/* Heaviest Routines & Cost Leaderboard */}
+                      <HudCard variant="default" className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-amber-400" />
+                            Heaviest Routines &amp; Cost Leaderboard
+                          </h3>
+                          <NeonBadge accent="amber" size="sm">
+                            Routine Weights
+                          </NeonBadge>
+                        </div>
+
+                        {operationalTelemetry.routineWeights.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left font-mono text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-white/10 text-slate-400 text-[10px] uppercase">
+                                  <th className="py-2 px-2.5">Routine</th>
+                                  <th className="py-2 px-2.5 text-right">Runs</th>
+                                  <th className="py-2 px-2.5 text-right">Avg / Max</th>
+                                  <th className="py-2 px-2.5 text-right">Items</th>
+                                  <th className="py-2 px-2.5 text-right">Tokens</th>
+                                  <th className="py-2 px-2.5 text-right">Cost (USD)</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                {operationalTelemetry.routineWeights.map((rw, idx) => (
+                                  <tr key={`${rw.routineName}-${idx}`} className="hover:bg-white/5 transition-colors">
+                                    <td className="py-2 px-2.5 text-white font-bold">{rw.routineName}</td>
+                                    <td className="py-2 px-2.5 text-right text-slate-300">
+                                      <span className="text-emerald-400">{rw.successRuns}</span>
+                                      {rw.failedRuns > 0 && <span className="text-rose-400"> / {rw.failedRuns} fail</span>}
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-slate-400">
+                                      {formatDuration(rw.avgDurationMs)} / {formatDuration(rw.maxDurationMs)}
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-slate-300">
+                                      {Number(rw.totalItems) > 0 ? `${rw.totalItems}` : '-'}
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-cyan-300">
+                                      {formatTokenCount(Number(rw.totalInputTokens) + Number(rw.totalCacheTokens) + Number(rw.totalOutputTokens))}
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-amber-300 font-bold">
+                                      {formatCostUSD(rw.totalCostUsd)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="p-6 text-center text-xs text-slate-500 font-mono">
+                            No routine execution metrics available for this period.
+                          </div>
+                        )}
+                      </HudCard>
+                    </div>
+
+                    {/* Right Column: Vault Primitives & MCP Latency */}
+                    <div className="lg:col-span-5 space-y-4">
+                      {/* Vault Primitives & MCP Latency */}
+                      <HudCard variant="default" className="p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <Database className="w-4 h-4 text-indigo-400" />
+                            Vault Primitives &amp; MCP Latency
+                          </h3>
+                          <NeonBadge accent="indigo" size="sm">
+                            Tool Latency
+                          </NeonBadge>
+                        </div>
+
+                        {operationalTelemetry.commandMetrics.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left font-mono text-xs border-collapse">
+                              <thead>
+                                <tr className="border-b border-white/10 text-slate-400 text-[10px] uppercase">
+                                  <th className="py-2 px-2.5">Surface / Command</th>
+                                  <th className="py-2 px-2.5 text-right">Calls</th>
+                                  <th className="py-2 px-2.5 text-right">Avg Latency</th>
+                                  <th className="py-2 px-2.5 text-right">Max</th>
+                                  <th className="py-2 px-2.5 text-right">Errors</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                {operationalTelemetry.commandMetrics.map((cm, idx) => (
+                                  <tr key={`${cm.surface}-${cm.command}-${idx}`} className="hover:bg-white/5 transition-colors">
+                                    <td className="py-2 px-2.5 text-white font-medium">
+                                      <span className="text-[10px] uppercase px-1 py-0.2 rounded bg-white/5 text-slate-400 mr-1.5">
+                                        {cm.surface}
+                                      </span>
+                                      {cm.command}
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-slate-300">{cm.totalCalls}</td>
+                                    <td className="py-2 px-2.5 text-right text-cyan-300 font-mono">
+                                      {cm.avgDurationMs.toFixed(1)}ms
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right text-slate-400 font-mono">
+                                      {Number(cm.maxDurationMs)}ms
+                                    </td>
+                                    <td className="py-2 px-2.5 text-right">
+                                      {cm.errorCalls > 0 ? (
+                                        <span className="text-rose-400 font-bold">{cm.errorCalls}</span>
+                                      ) : (
+                                        <span className="text-emerald-400">0</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="p-6 text-center text-xs text-slate-500 font-mono">
+                            No CLI/MCP command executions recorded yet.
+                          </div>
+                        )}
+                      </HudCard>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="p-8 text-center text-xs text-slate-500 font-mono">
+                  Operational telemetry data unavailable. Run `daneel telemetry` to generate metrics.
                 </div>
               )}
             </div>

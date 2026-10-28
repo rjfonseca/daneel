@@ -77,9 +77,25 @@ type ArchetypeConfig struct {
 	TargetMax   float64  `yaml:"target_max,omitempty" json:"target_max,omitempty"`
 }
 
+// ModelPricingConfig defines token costs per 1 million tokens for an LLM model.
+type ModelPricingConfig struct {
+	InputPer1M     float64 `yaml:"input_per_1m" json:"input_per_1m"`
+	CacheReadPer1M float64 `yaml:"cache_read_per_1m" json:"cache_read_per_1m"`
+	OutputPer1M    float64 `yaml:"output_per_1m" json:"output_per_1m"`
+}
+
+// FinOpsConfig defines operational telemetry budgets and LLM pricing rates.
+type FinOpsConfig struct {
+	DailyBudgetUSD   float64                       `yaml:"daily_budget_usd,omitempty" json:"daily_budget_usd,omitempty"`
+	MonthlyBudgetUSD float64                       `yaml:"monthly_budget_usd,omitempty" json:"monthly_budget_usd,omitempty"`
+	DefaultModel     string                        `yaml:"default_model,omitempty" json:"default_model,omitempty"`
+	Pricing          map[string]ModelPricingConfig `yaml:"pricing,omitempty" json:"pricing,omitempty"`
+}
+
 // TelemetryConfig defines daily log tracking rules and taxonomy.
 type TelemetryConfig struct {
 	Taxonomy []ArchetypeConfig `yaml:"taxonomy,omitempty" json:"taxonomy,omitempty"`
+	FinOps   FinOpsConfig      `yaml:"finops,omitempty" json:"finops,omitempty"`
 }
 
 // RadarItem represents an active strategic, technical, or friction monitoring topic.
@@ -249,6 +265,7 @@ type TuiTabsConfig struct {
 	People    string `yaml:"people,omitempty" json:"people,omitempty"`
 	Routines  string `yaml:"routines,omitempty" json:"routines,omitempty"`
 	Skills    string `yaml:"skills,omitempty" json:"skills,omitempty"`
+	Telemetry string `yaml:"telemetry,omitempty" json:"telemetry,omitempty"`
 }
 
 // TuiConfig defines the TUI customization.
@@ -514,6 +531,31 @@ func DefaultTuiConfig() TuiConfig {
 			People:    "4: 🤝 People",
 			Routines:  "5: 🌙 Routines",
 			Skills:    "6: ⚡ Skills",
+			Telemetry: "8: 📈 Telemetry",
+		},
+	}
+}
+
+// DefaultFinOpsConfig returns sensible default FinOps pricing and model rates.
+func DefaultFinOpsConfig() FinOpsConfig {
+	return FinOpsConfig{
+		DefaultModel: "gemini-pro",
+		Pricing: map[string]ModelPricingConfig{
+			"gemini-pro":        {InputPer1M: 1.25, CacheReadPer1M: 0.3125, OutputPer1M: 5.00},
+			"pro":               {InputPer1M: 1.25, CacheReadPer1M: 0.3125, OutputPer1M: 5.00},
+			"gemini-flash":      {InputPer1M: 0.15, CacheReadPer1M: 0.0375, OutputPer1M: 0.60},
+			"flash":             {InputPer1M: 0.15, CacheReadPer1M: 0.0375, OutputPer1M: 0.60},
+			"gemini-flash-lite": {InputPer1M: 0.075, CacheReadPer1M: 0.01875, OutputPer1M: 0.30},
+			"flash_lite":        {InputPer1M: 0.075, CacheReadPer1M: 0.01875, OutputPer1M: 0.30},
+			"claude-opus":       {InputPer1M: 15.00, CacheReadPer1M: 1.50, OutputPer1M: 75.00},
+			"opus":              {InputPer1M: 15.00, CacheReadPer1M: 1.50, OutputPer1M: 75.00},
+			"claude-sonnet":     {InputPer1M: 3.00, CacheReadPer1M: 0.30, OutputPer1M: 15.00},
+			"sonnet":            {InputPer1M: 3.00, CacheReadPer1M: 0.30, OutputPer1M: 15.00},
+			"claude-haiku":      {InputPer1M: 0.80, CacheReadPer1M: 0.08, OutputPer1M: 4.00},
+			"haiku":             {InputPer1M: 0.80, CacheReadPer1M: 0.08, OutputPer1M: 4.00},
+			"gpt-codex":         {InputPer1M: 2.50, CacheReadPer1M: 1.25, OutputPer1M: 10.00},
+			"codex":             {InputPer1M: 2.50, CacheReadPer1M: 1.25, OutputPer1M: 10.00},
+			"gpt-4o":            {InputPer1M: 2.50, CacheReadPer1M: 1.25, OutputPer1M: 10.00},
 		},
 	}
 }
@@ -578,7 +620,78 @@ func (c *Config) GetTuiConfig() TuiConfig {
 	if c.Tui.Tabs.Skills != "" {
 		def.Tabs.Skills = c.Tui.Tabs.Skills
 	}
+	if c.Tui.Tabs.Telemetry != "" {
+		def.Tabs.Telemetry = c.Tui.Tabs.Telemetry
+	}
 	return def
+}
+
+// GetFinOpsConfig returns merged FinOps configuration, overlaying user pricing onto defaults.
+func (c *Config) GetFinOpsConfig() FinOpsConfig {
+	def := DefaultFinOpsConfig()
+	if c == nil {
+		return def
+	}
+	res := def
+	if c.Telemetry.FinOps.DailyBudgetUSD > 0 {
+		res.DailyBudgetUSD = c.Telemetry.FinOps.DailyBudgetUSD
+	}
+	if c.Telemetry.FinOps.MonthlyBudgetUSD > 0 {
+		res.MonthlyBudgetUSD = c.Telemetry.FinOps.MonthlyBudgetUSD
+	}
+	if c.Telemetry.FinOps.DefaultModel != "" {
+		res.DefaultModel = c.Telemetry.FinOps.DefaultModel
+	}
+	// Deep copy default pricing so caller mutations cannot affect defaults
+	merged := make(map[string]ModelPricingConfig, len(def.Pricing)+len(c.Telemetry.FinOps.Pricing))
+	for k, v := range def.Pricing {
+		merged[k] = v
+	}
+	for k, v := range c.Telemetry.FinOps.Pricing {
+		merged[strings.ToLower(k)] = v
+	}
+	res.Pricing = merged
+	return res
+}
+
+// ResolveModelPricing returns the pricing config for a model name, normalizing aliases and falling back sensibly.
+func (c *Config) ResolveModelPricing(modelName string) ModelPricingConfig {
+	finops := c.GetFinOpsConfig()
+	lower := strings.ToLower(strings.TrimSpace(modelName))
+
+	// Direct match check in merged pricing first
+	if p, ok := finops.Pricing[lower]; ok {
+		return p
+	}
+
+	var canonical string
+	switch {
+	case strings.Contains(lower, "flash-lite") || strings.Contains(lower, "flash_lite"):
+		canonical = "gemini-flash-lite"
+	case strings.Contains(lower, "flash"):
+		canonical = "gemini-flash"
+	case strings.Contains(lower, "sonnet"):
+		canonical = "claude-sonnet"
+	case strings.Contains(lower, "haiku"):
+		canonical = "claude-haiku"
+	case strings.Contains(lower, "opus"):
+		canonical = "claude-opus"
+	case strings.Contains(lower, "codex") || strings.Contains(lower, "gpt"):
+		canonical = "gpt-codex"
+	default:
+		canonical = "gemini-pro"
+	}
+
+	if p, ok := finops.Pricing[canonical]; ok {
+		return p
+	}
+	return finops.Pricing["gemini-pro"]
+}
+
+// CalculateCostUSD calculates the estimated cost in USD based on model token counts.
+func (c *Config) CalculateCostUSD(modelName string, inputTokens, cacheReadTokens, outputTokens int64) float64 {
+	p := c.ResolveModelPricing(modelName)
+	return (float64(inputTokens)*p.InputPer1M + float64(cacheReadTokens)*p.CacheReadPer1M + float64(outputTokens)*p.OutputPer1M) / 1_000_000.0
 }
 
 // DefaultRoutinesConfig returns the default background routines.
@@ -1147,7 +1260,7 @@ func LoadConfig(customVaultPath string, customConfigPath string, forceGlobal boo
 		Vault:        VaultConfig{IndexedDirs: DefaultIndexedDirs(), Categories: DefaultCategories()},
 		Workspace:    WorkspaceConfig{WorkDir: "~/Work", DefaultGitHost: "github.com"},
 		Publishing:   PublishingConfig{ContentDir: "public/content"},
-		Telemetry:    TelemetryConfig{Taxonomy: DefaultTaxonomyArchetypes()},
+		Telemetry:    TelemetryConfig{Taxonomy: DefaultTaxonomyArchetypes(), FinOps: DefaultFinOpsConfig()},
 		Radar:        DefaultRadarItems(),
 		Dream:        DreamConfig{AutoFix: true, Routing: DefaultRoutingMap()},
 		Chat:         DefaultChatConfig(),
@@ -1181,7 +1294,13 @@ func LoadConfig(customVaultPath string, customConfigPath string, forceGlobal boo
 					cfg.Publishing = fileCfg.Publishing
 				}
 				if len(fileCfg.Telemetry.Taxonomy) > 0 {
-					cfg.Telemetry = fileCfg.Telemetry
+					cfg.Telemetry.Taxonomy = fileCfg.Telemetry.Taxonomy
+				}
+				if fileCfg.Telemetry.FinOps.DailyBudgetUSD > 0 ||
+					fileCfg.Telemetry.FinOps.MonthlyBudgetUSD > 0 ||
+					fileCfg.Telemetry.FinOps.DefaultModel != "" ||
+					len(fileCfg.Telemetry.FinOps.Pricing) > 0 {
+					cfg.Telemetry.FinOps = fileCfg.Telemetry.FinOps
 				}
 				if len(fileCfg.Radar) > 0 {
 					cfg.Radar = fileCfg.Radar
@@ -1198,7 +1317,7 @@ func LoadConfig(customVaultPath string, customConfigPath string, forceGlobal boo
 				if fileCfg.Evaluation.DossierTitle != "" || len(fileCfg.Evaluation.StrategicDeliveries) > 0 {
 					cfg.Evaluation = fileCfg.Evaluation
 				}
-				if fileCfg.Tui.Tabs.Search != "" || fileCfg.Tui.Tabs.Dashboard != "" || fileCfg.Tui.Tabs.Workspace != "" || fileCfg.Tui.Tabs.People != "" || fileCfg.Tui.Tabs.Routines != "" || fileCfg.Tui.Tabs.Skills != "" {
+				if fileCfg.Tui.Tabs.Search != "" || fileCfg.Tui.Tabs.Dashboard != "" || fileCfg.Tui.Tabs.Workspace != "" || fileCfg.Tui.Tabs.People != "" || fileCfg.Tui.Tabs.Routines != "" || fileCfg.Tui.Tabs.Skills != "" || fileCfg.Tui.Tabs.Telemetry != "" {
 					cfg.Tui = fileCfg.Tui
 				}
 				if fileCfg.Hotbar.WeeklyPattern != "" || len(fileCfg.Hotbar.PinnedAnchors) > 0 {

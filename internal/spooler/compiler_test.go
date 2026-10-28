@@ -338,6 +338,53 @@ func TestCompiler_CompileSessionSupportsLargeValidPayload(t *testing.T) {
 	}
 }
 
+func TestCompiler_CompileSession_IncludesModelAndTokensInFrontmatter(t *testing.T) {
+	tempCacheDir := t.TempDir()
+	tempVaultDir := t.TempDir()
+
+	sp := spooler.New(tempCacheDir)
+	startTime := time.Date(2026, 10, 5, 14, 0, 0, 0, time.UTC)
+
+	p1, _ := json.Marshal(map[string]interface{}{
+		"model":         "gemini-flash",
+		"input_tokens":  12000,
+		"output_tokens": 1500,
+	})
+	_, err := sp.AppendEvent(spooler.Event{
+		SessionID: "session-finops-frontmatter",
+		Event:     "SessionStart",
+		Agent:     "antigravity",
+		CWD:       "/tmp/test",
+		Raw:       p1,
+		Timestamp: startTime,
+	})
+	if err != nil {
+		t.Fatalf("failed to append event: %v", err)
+	}
+
+	c := spooler.NewCompiler(tempVaultDir, sp)
+	mdPath, err := c.CompileSession("session-finops-frontmatter")
+	if err != nil {
+		t.Fatalf("CompileSession failed: %v", err)
+	}
+
+	contentBytes, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("failed to read markdown: %v", err)
+	}
+	content := string(contentBytes)
+
+	if !strings.Contains(content, `model: "gemini-flash"`) {
+		t.Errorf("expected frontmatter to contain model: \"gemini-flash\", got:\n%s", content)
+	}
+	if !strings.Contains(content, "input_tokens: 12000") {
+		t.Errorf("expected frontmatter to contain input_tokens: 12000, got:\n%s", content)
+	}
+	if !strings.Contains(content, "output_tokens: 1500") {
+		t.Errorf("expected frontmatter to contain output_tokens: 1500, got:\n%s", content)
+	}
+}
+
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)

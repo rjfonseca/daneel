@@ -24,6 +24,7 @@ const (
 	ViewRoutines
 	ViewSkills
 	ViewHooks
+	ViewTelemetry
 )
 
 // AppModel is the root BubbleTea application model.
@@ -48,6 +49,7 @@ type AppModel struct {
 	routinesView  *RoutinesView
 	skillsView    *SkillsView
 	hooksView     *HooksView
+	telemetryView *TelemetryView
 }
 
 // NewAppModel constructs the root TUI application with all sub-views.
@@ -62,6 +64,22 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 	rv := NewRoutinesView(vaultRoot, styles)
 	skv := NewSkillsView(vaultRoot, styles)
 	hv := NewHooksView(vaultRoot, styles)
+	tv := NewTelemetryView(vaultRoot, styles)
+
+	telemetryTab := tuiCfg.Tabs.Telemetry
+	if telemetryTab == "" {
+		telemetryTab = "8: 📈 Telemetry"
+	}
+	tabs := []string{
+		tuiCfg.Tabs.Search,
+		tuiCfg.Tabs.Dashboard,
+		tuiCfg.Tabs.Workspace,
+		tuiCfg.Tabs.People,
+		tuiCfg.Tabs.Routines,
+		tuiCfg.Tabs.Skills,
+		"Agent Activity",
+		telemetryTab,
+	}
 
 	return &AppModel{
 		vaultRoot:     vaultRoot,
@@ -69,7 +87,7 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 		styles:        styles,
 		keyMap:        keyMap,
 		activeTab:     ViewSearch,
-		tabs:          []string{tuiCfg.Tabs.Search, tuiCfg.Tabs.Dashboard, tuiCfg.Tabs.Workspace, tuiCfg.Tabs.People, tuiCfg.Tabs.Routines, tuiCfg.Tabs.Skills, "Agent Activity"},
+		tabs:          tabs,
 		searchView:    sv,
 		dashboardView: dv,
 		workspaceView: wv,
@@ -77,6 +95,7 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 		routinesView:  rv,
 		skillsView:    skv,
 		hooksView:     hv,
+		telemetryView: tv,
 	}
 }
 
@@ -116,6 +135,11 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.activeTab = ViewPeople
 				case "dream":
 					m.activeTab = ViewRoutines
+				case "telemetry", "finops":
+					m.activeTab = ViewTelemetry
+					if m.telemetryView != nil && !m.telemetryView.loaded {
+						m.telemetryView.Refresh()
+					}
 				}
 			}
 			return m, nil
@@ -215,6 +239,9 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.hooksView != nil {
 			m.hooksView.SetSize(msg.Width, contentHeight)
 		}
+		if m.telemetryView != nil {
+			m.telemetryView.SetSize(msg.Width, contentHeight)
+		}
 		return m, nil
 
 	case tea.MouseMsg:
@@ -265,6 +292,9 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "tab":
 			m.activeTab = (m.activeTab + 1) % ViewType(len(m.tabs))
+			if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
+				m.telemetryView.Refresh()
+			}
 			return m, nil
 
 		case "shift+tab":
@@ -273,12 +303,25 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.activeTab--
 			}
+			if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
+				m.telemetryView.Refresh()
+			}
+			return m, nil
+
+		case "T":
+			m.activeTab = ViewTelemetry
+			if m.telemetryView != nil {
+				m.telemetryView.Refresh()
+			}
 			return m, nil
 
 		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 			idx := int(msg.String()[0] - '1')
 			if idx >= 0 && idx < len(m.tabs) {
 				m.activeTab = ViewType(idx)
+				if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
+					m.telemetryView.Refresh()
+				}
 			}
 			return m, nil
 		}
@@ -320,6 +363,11 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ViewHooks:
 		if m.hooksView != nil {
 			m.hooksView, childCmd = m.hooksView.Update(msg)
+			cmds = append(cmds, childCmd)
+		}
+	case ViewTelemetry:
+		if m.telemetryView != nil {
+			m.telemetryView, childCmd = m.telemetryView.Update(msg)
 			cmds = append(cmds, childCmd)
 		}
 	}
@@ -380,6 +428,10 @@ func (m *AppModel) View() string {
 		if m.hooksView != nil {
 			content = m.hooksView.View()
 		}
+	case ViewTelemetry:
+		if m.telemetryView != nil {
+			content = m.telemetryView.View()
+		}
 	}
 
 	// 4. Status / Help Bar
@@ -436,7 +488,8 @@ func (m *AppModel) renderStatusBar() string {
 			d string
 		}{
 			{"/", "Query"},
-			{"1-5 / Tab", "Sectors"},
+			{"1-8 / Tab", "Sectors"},
+			{"T", "Telemetry"},
 			{"j/k", "Scan"},
 			{"h/l", "Pane"},
 			{"Enter", "Inspect ($EDITOR)"},
@@ -463,8 +516,9 @@ func (m *AppModel) renderHelpOverlay(background string) string { //nolint:revive
 	helpSB.WriteString(m.styles.HelpTitle.Render("📖 R. Daneel Olivaw — Positronic Engine Directives") + "\n\n")
 
 	shortcuts := [][]string{
-		{"Tab / Shift+Tab", "Cycle through the 5 Galactic Sectors"},
-		{"1 .. 5", "Jump to Sector (1: Seldon Index, 2: Radar, 3: Work, 4: Partners, 5: Dream)"},
+		{"Tab / Shift+Tab", "Cycle through the 8 Galactic Sectors"},
+		{"1 .. 8", "Jump to Sector (1: Search, 2: Dashboard, ..., 8: Telemetry)"},
+		{"T", "Jump directly to Telemetry & AI FinOps Sector"},
 		{"/", "Activate Positronic Query Mode (type search freely)"},
 		{"Esc", "Deactivate Query Mode and return to Zeroth Law normal scan"},
 		{"Alt+S / Ctrl+S", "Cycle knowledge scope (all, tech, daily, meta, sources)"},

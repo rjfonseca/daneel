@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/rjfonseca/daneel/internal/config"
+	"github.com/rjfonseca/daneel/internal/routine"
 	"github.com/rjfonseca/daneel/internal/search"
 )
 
@@ -325,5 +326,58 @@ func TestNoteToolsStayInsideVault(t *testing.T) {
 		if !isErr || strings.Contains(text, "private external content") {
 			t.Fatalf("%s escaped vault: %s", tool, text)
 		}
+	}
+}
+
+func TestMCPTelemetryRecorded(t *testing.T) {
+	vaultRoot := t.TempDir()
+	dbPath := filepath.Join(vaultRoot, "cache.db")
+	engine, err := search.Open(dbPath, vaultRoot)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer func() { _ = engine.Close() }()
+
+	initReq := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n"
+	toolReq := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"vault_health","arguments":{}}}` + "\n"
+
+	inBuf := bytes.NewBufferString(initReq + toolReq)
+	outBuf := &bytes.Buffer{}
+
+	server := &Server{
+		vaultRoot: vaultRoot,
+		engine:    engine,
+		in:        inBuf,
+		out:       outBuf,
+	}
+
+	if err := server.Serve(); err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	store, err := routine.OpenDefaultStore(vaultRoot)
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	aggs, err := store.GetCommandAggregates(context.Background(), 0, 50)
+	if err != nil {
+		t.Fatalf("GetCommandAggregates failed: %v", err)
+	}
+
+	found := false
+	for _, a := range aggs {
+		if a.Surface == "mcp" && a.Command == "vault_health" {
+			found = true
+			if a.TotalCalls != 1 {
+				t.Errorf("expected 1 call, got %d", a.TotalCalls)
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("expected MCP telemetry record for vault_health, got aggs: %+v", aggs)
 	}
 }

@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CaptureNoteRequest, CaptureNoteResponse, DeleteRoutineRequest, DeleteRoutineResponse, ExecuteRoutineRequest, GetCognitiveTelemetryRequest, GetCognitiveTelemetryResponse, GetGalaxyRequest, GetGalaxyResponse, GetNoteRequest, GetNoteResponse, GetRoutineHistoryRequest, GetRoutineHistoryResponse, GetRoutinesOverviewRequest, GetRoutinesOverviewResponse, GetStaffTelemetryRequest, GetStaffTelemetryResponse, ReportActiveContextRequest, ReportActiveContextResponse, RoutineOutputEvent, SearchNotesRequest, SearchNotesResponse, SubscribeUIEventsRequest, UIEvent, UpsertRoutineRequest, UpsertRoutineResponse } from "./graph_pb.js";
+import { CaptureNoteRequest, CaptureNoteResponse, DeleteRoutineRequest, DeleteRoutineResponse, ExecuteRoutineRequest, GetCognitiveTelemetryRequest, GetCognitiveTelemetryResponse, GetGalaxyRequest, GetGalaxyResponse, GetNoteRequest, GetNoteResponse, GetOperationalTelemetryRequest, GetOperationalTelemetryResponse, GetRoutineHistoryRequest, GetRoutineHistoryResponse, GetRoutinesOverviewRequest, GetRoutinesOverviewResponse, GetStaffTelemetryRequest, GetStaffTelemetryResponse, ReportActiveContextRequest, ReportActiveContextResponse, RoutineOutputEvent, SearchNotesRequest, SearchNotesResponse, SubscribeUIEventsRequest, UIEvent, UpsertRoutineRequest, UpsertRoutineResponse } from "./graph_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -154,6 +154,17 @@ export const GraphService = {
       name: "GetRoutineHistory",
       I: GetRoutineHistoryRequest,
       O: GetRoutineHistoryResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Returns operational FinOps telemetry, routine weights, and command latency metrics
+     *
+     * @generated from rpc graph.v1.GraphService.GetOperationalTelemetry
+     */
+    getOperationalTelemetry: {
+      name: "GetOperationalTelemetry",
+      I: GetOperationalTelemetryRequest,
+      O: GetOperationalTelemetryResponse,
       kind: MethodKind.Unary,
     },
   }

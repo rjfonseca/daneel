@@ -1,7 +1,8 @@
-//nolint:revive // package comment not required
+//nolint:revive,misspell // package comment not required
 package dream
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,6 +18,8 @@ import (
 
 	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/ops/workspace"
+	"github.com/rjfonseca/daneel/internal/routine"
+	"github.com/rjfonseca/daneel/internal/telemetry"
 	"github.com/rjfonseca/daneel/internal/vault"
 )
 
@@ -477,6 +480,91 @@ func UpdateDashboardMetricas(vaultRoot string, report *FullDreamReport, totalNot
 		fmt.Fprintf(&sb, "- **Sínteses de Conhecimento Geradas:** %d\n", len(report.Metacognition.Syntheses))
 		sb.WriteString("- **Diário de Evolução:** [[meta/guias/agente-evolucao.md]]\n\n")
 	}
+
+	// 5. Section 5: Telemetria Operacional, Custos de IA (FinOps) & Uso do Vault
+	sb.WriteString("## 💰 5. Telemetria Operacional, Custos de IA (FinOps) & Uso do Vault\n")
+	store, storeErr := routine.OpenDefaultStore(vaultRoot)
+	if storeErr == nil && store != nil {
+		defer func() { _ = store.Close() }()
+		ctx := context.Background()
+		parserOpts := telemetry.ParserOptions{
+			Since: 7 * 24 * time.Hour,
+		}
+		if vaultRoot != "" {
+			brainDir := filepath.Join(vaultRoot, "brain")
+			if fi, err := os.Stat(brainDir); err == nil && fi.IsDir() {
+				parserOpts.BrainDir = brainDir
+			}
+		}
+		summaries, _ := telemetry.SyncSessionsToStore(ctx, store, parserOpts)
+
+		since7d := time.Now().Add(-7 * 24 * time.Hour).Unix()
+		sessions, _ := store.GetRecentSessionsTelemetry(ctx, since7d, 200)
+
+		var totalSessions, totalSubagents int
+		var totalIn, totalCache, totalOut int64
+		var totalCostUSD float64
+
+		for _, s := range sessions {
+			totalSessions++
+			totalSubagents += s.SubagentsCount
+			totalIn += s.InputTokens
+			totalCache += s.CacheReadTokens
+			totalOut += s.OutputTokens
+			totalCostUSD += s.EstimatedCostUSD
+		}
+		if len(sessions) == 0 && len(summaries) > 0 {
+			for _, sum := range summaries {
+				totalSessions++
+				totalSubagents += sum.Record.SubagentsCount
+				totalIn += sum.Record.InputTokens
+				totalCache += sum.Record.CacheReadTokens
+				totalOut += sum.Record.OutputTokens
+				totalCostUSD += sum.Record.EstimatedCostUSD
+			}
+		}
+
+		cacheRate := 0.0
+		if totalIn+totalCache > 0 {
+			cacheRate = float64(totalCache) / float64(totalIn+totalCache) * 100.0
+		}
+
+		dreamCost := 0.0
+		if report.Metacognition != nil {
+			dreamCost = report.Metacognition.EstimatedCostUSD
+		}
+
+		fmt.Fprintf(&sb, "- **Sessões de IA & Subagentes (7d):** %d sessões, %d subagentes disparados\n", totalSessions, totalSubagents)
+		fmt.Fprintf(&sb, "- **Consumo de Tokens (7d):** %d in / %d cache read / %d out (Taxa de Cache: %.1f%%)\n", totalIn, totalCache, totalOut, cacheRate)
+		fmt.Fprintf(&sb, "- **Custo Estimado de IA (7d):** $%.4f USD (Último Dream Cycle: $%.4f USD)\n", totalCostUSD, dreamCost)
+
+		// Top Heaviest Routines
+		if weights, err := store.GetRoutineWeightAggregates(ctx, since7d); err == nil && len(weights) > 0 {
+			sb.WriteString("- **Rotinas Mais Pesadas (7d):**\n")
+			for i, w := range weights {
+				if i >= 3 {
+					break
+				}
+				fmt.Fprintf(&sb, "  - **%s:** %.0fms méd (%d execuções, %d itens, $%.4f USD)\n",
+					w.RoutineName, w.AvgDurationMs, w.TotalRuns, w.TotalItems, w.TotalCostUSD)
+			}
+		}
+
+		// Top Vault Primitives
+		if cmds, err := store.GetCommandAggregates(ctx, since7d, 5); err == nil && len(cmds) > 0 {
+			sb.WriteString("- **Primitivas do Vault Mais Utilizadas (CLI / MCP):**\n")
+			for i, c := range cmds {
+				if i >= 3 {
+					break
+				}
+				fmt.Fprintf(&sb, "  - `[%s] %s`: %d chamadas (latência média: %.1fms)\n",
+					strings.ToUpper(c.Surface), c.Command, c.TotalCalls, c.AvgDurationMs)
+			}
+		}
+	} else {
+		sb.WriteString("- *Dados de telemetria operacional indisponíveis.*\n")
+	}
+	sb.WriteString("\n")
 
 	return safefile.WriteFile(vaultRoot, dashPath, []byte(sb.String()), 0600)
 }
