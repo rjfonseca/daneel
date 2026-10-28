@@ -231,7 +231,7 @@ func SyncMOCs(vaultRoot string, autoFix bool) ([]string, error) {
 					catTitle = strings.ToUpper(catTitle[:1]) + catTitle[1:]
 				}
 				var sb strings.Builder
-				sb.WriteString(fmt.Sprintf("---\ntype: moc\ntags:\n  - notes/moc\n---\n# 🗺️ MOC: %s\n\n> **Master Index:** [Master MOC](../moc-indice-geral.md)\n\n## 📚 Indexed Notes\n", catTitle))
+				fmt.Fprintf(&sb, "---\ntype: moc\ntags:\n  - notes/moc\n---\n# 🗺️ MOC: %s\n\n> **Master Index:** [Master MOC](../moc-indice-geral.md)\n\n## 📚 Indexed Notes\n", catTitle)
 
 				for _, f := range noteFiles {
 					noteData, err := os.ReadFile(filepath.Join(catDir, f.Name())) //nolint:gosec // intentional
@@ -246,7 +246,7 @@ func SyncMOCs(vaultRoot string, autoFix bool) ([]string, error) {
 							desc = strings.TrimSpace(dm[1])
 						}
 					}
-					sb.WriteString(fmt.Sprintf("\n- [%s](%s) — %s\n", title, f.Name(), desc))
+					fmt.Fprintf(&sb, "\n- [%s](%s) — %s\n", title, f.Name(), desc)
 				}
 
 				if err := safefile.WriteFile(vaultRoot, mocFile, []byte(sb.String()), 0600); err != nil {
