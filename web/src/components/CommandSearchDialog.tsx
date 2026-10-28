@@ -86,6 +86,7 @@ export const CommandSearchDialog: React.FC<CommandSearchDialogProps> = ({
                 type="button"
                 onClick={() => onSelectFilter(f)}
                 aria-pressed={activeFilter === f}
+                title={`Filter search results by ${f}`}
                 className={`shrink-0 px-3 py-1 text-xs font-bold rounded-full transition-colors border cursor-pointer cosmic-focus-visible ${
                   activeFilter === f 
                     ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50' 
@@ -141,7 +142,15 @@ export const CommandSearchDialog: React.FC<CommandSearchDialogProps> = ({
             )}
           </CommandList>
           {onSaveSearch && <div className="flex justify-end border-t border-white/10 px-4 py-2">
-            <button type="button" onClick={onSaveSearch} disabled={searchQuery.trim().length < 2} className="rounded-md border border-indigo-500/30 px-3 py-1.5 text-xs text-indigo-200 hover:bg-indigo-500/15 disabled:opacity-40 cosmic-focus-visible">Save search</button>
+            <button
+              type="button"
+              onClick={onSaveSearch}
+              disabled={searchQuery.trim().length < 2}
+              title={searchQuery.trim().length >= 2 ? `Save search for "${searchQuery.trim()}"` : 'Type at least 2 characters to save this search'}
+              className="rounded-md border border-indigo-500/30 px-3 py-1.5 text-xs text-indigo-200 hover:bg-indigo-500/15 disabled:opacity-40 cosmic-focus-visible"
+            >
+              Save search
+            </button>
           </div>}
         </Command>
         </Dialog.Popup>
