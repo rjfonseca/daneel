@@ -114,3 +114,33 @@ func TestDreamKeepsLegacyLocalFeedbackCache(t *testing.T) {
 		t.Fatalf("feedback history lost: %+v", learnings.FeedbackHistory)
 	}
 }
+
+func TestSyncMOCsAutoCreatesMissingMOC(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "notes", "pessoas")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "jane-doe.md"), []byte("# Jane Doe\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	missing, err := SyncMOCs(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing) != 1 || missing[0] != "notes/pessoas/moc-pessoas.md" {
+		t.Fatalf("expected 1 missing MOC 'notes/pessoas/moc-pessoas.md', got %v", missing)
+	}
+
+	if _, err := SyncMOCs(root, true); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "moc-pessoas.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "jane-doe") {
+		t.Fatalf("expected created MOC to contain jane-doe: %s", data)
+	}
+}
