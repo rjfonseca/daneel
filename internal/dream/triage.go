@@ -203,8 +203,56 @@ func SyncMOCs(vaultRoot string, autoFix bool) ([]string, error) {
 		}
 
 		catDir := filepath.Join(notesDir, cat.Name())
+		files, err := os.ReadDir(catDir)
+		if err != nil {
+			continue
+		}
+
+		var noteFiles []os.DirEntry
+		for _, f := range files {
+			if f.IsDir() || !strings.HasSuffix(f.Name(), ".md") || strings.HasPrefix(f.Name(), "moc-") || f.Name() == "README.md" {
+				continue
+			}
+			noteFiles = append(noteFiles, f)
+		}
+
+		if len(noteFiles) == 0 {
+			continue
+		}
+
 		mocFile := filepath.Join(catDir, fmt.Sprintf("moc-%s.md", cat.Name()))
+		mocRelPath := fmt.Sprintf("notes/%s/moc-%s.md", cat.Name(), cat.Name())
+
 		if _, err := os.Stat(mocFile); os.IsNotExist(err) {
+			missingNotes = append(missingNotes, mocRelPath)
+			if autoFix {
+				catTitle := cat.Name()
+				if len(catTitle) > 0 {
+					catTitle = strings.ToUpper(catTitle[:1]) + catTitle[1:]
+				}
+				var sb strings.Builder
+				sb.WriteString(fmt.Sprintf("---\ntype: moc\ntags:\n  - notes/moc\n---\n# 🗺️ MOC: %s\n\n> **Master Index:** [Master MOC](../moc-indice-geral.md)\n\n## 📚 Indexed Notes\n", catTitle))
+
+				for _, f := range noteFiles {
+					noteData, err := os.ReadFile(filepath.Join(catDir, f.Name())) //nolint:gosec // intentional
+					title := strings.TrimSuffix(f.Name(), ".md")
+					desc := "Technical note."
+					if err == nil {
+						nc := string(noteData)
+						if tm := regexp.MustCompile(`(?m)^#\s+(.*?)$`).FindStringSubmatch(nc); len(tm) > 1 {
+							title = strings.TrimSpace(tm[1])
+						}
+						if dm := regexp.MustCompile(`(?m)^description:\s*["']?(.*?)["']?$`).FindStringSubmatch(nc); len(dm) > 1 {
+							desc = strings.TrimSpace(dm[1])
+						}
+					}
+					sb.WriteString(fmt.Sprintf("\n- [%s](%s) — %s\n", title, f.Name(), desc))
+				}
+
+				if err := safefile.WriteFile(vaultRoot, mocFile, []byte(sb.String()), 0600); err != nil {
+					return missingNotes, err
+				}
+			}
 			continue
 		}
 
@@ -214,17 +262,9 @@ func SyncMOCs(vaultRoot string, autoFix bool) ([]string, error) {
 		}
 		mocContent := string(mocData)
 
-		files, err := os.ReadDir(catDir)
-		if err != nil {
-			continue
-		}
-
-		for _, f := range files {
-			if f.IsDir() || !strings.HasSuffix(f.Name(), ".md") || strings.HasPrefix(f.Name(), "moc-") || f.Name() == "README.md" {
-				continue
-			}
-
-			if !strings.Contains(mocContent, f.Name()) {
+		for _, f := range noteFiles {
+			fNameNoExt := strings.TrimSuffix(f.Name(), ".md")
+			if !strings.Contains(mocContent, f.Name()) && !strings.Contains(mocContent, fNameNoExt) {
 				rel := fmt.Sprintf("notes/%s/%s", cat.Name(), f.Name())
 				missingNotes = append(missingNotes, rel)
 
@@ -232,7 +272,7 @@ func SyncMOCs(vaultRoot string, autoFix bool) ([]string, error) {
 					noteData, err := os.ReadFile(filepath.Join(catDir, f.Name())) //nolint:gosec // intentional
 					if err == nil {
 						nc := string(noteData)
-						title := strings.TrimSuffix(f.Name(), ".md")
+						title := fNameNoExt
 						if tm := regexp.MustCompile(`(?m)^#\s+(.*?)$`).FindStringSubmatch(nc); len(tm) > 1 {
 							title = strings.TrimSpace(tm[1])
 						}

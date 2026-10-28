@@ -14,12 +14,14 @@ func TestFullDreamCycle(t *testing.T) {
 	tempDir := t.TempDir()
 
 	notesDir := filepath.Join(tempDir, "notes", "ia")
+	pessoasDir := filepath.Join(tempDir, "notes", "pessoas")
 	dailyDir := filepath.Join(tempDir, "daily")
 	inboxDir := filepath.Join(tempDir, "inbox")
 	metaDir := filepath.Join(tempDir, "meta", "pessoas")
 	carreiraDir := filepath.Join(tempDir, "meta", "carreira")
 
 	_ = os.MkdirAll(notesDir, 0750)
+	_ = os.MkdirAll(pessoasDir, 0750)
 	_ = os.MkdirAll(dailyDir, 0750)
 	_ = os.MkdirAll(inboxDir, 0750)
 	_ = os.MkdirAll(metaDir, 0750)
@@ -38,6 +40,16 @@ description: RAG com FTS5 e BM25.
 # RAG Avançado
 `
 	_ = os.WriteFile(noteFile, []byte(noteContent), 0600)
+
+	// Create note in notes/pessoas/
+	janeFile := filepath.Join(pessoasDir, "jane-doe.md")
+	janeContent := `---
+type: pessoa
+description: Engenheira de Software.
+---
+# Jane Doe
+`
+	_ = os.WriteFile(janeFile, []byte(janeContent), 0600)
 
 	// Create daily note
 	dailyFile := filepath.Join(dailyDir, "2026-08-15.md")
@@ -84,6 +96,16 @@ tempo-E_Overhead: 0.5
 	mocData, _ := os.ReadFile(mocFile) //nolint:gosec // intentional
 	if !strings.Contains(string(mocData), "rag-avancado.md") {
 		t.Errorf("expected moc-ia.md to contain synchronized rag-avancado.md link")
+	}
+
+	mocPessoasPath := filepath.Join(tempDir, "notes", "pessoas", "moc-pessoas.md")
+	content, err := os.ReadFile(mocPessoasPath)
+	if err != nil {
+		t.Fatalf("failed to read moc file: %v", err)
+	}
+
+	if !strings.Contains(string(content), "jane-doe") {
+		t.Errorf("expected moc-pessoas.md to contain synchronized jane-doe link")
 	}
 
 	// Verify feedback recording
