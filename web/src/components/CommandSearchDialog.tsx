@@ -72,6 +72,8 @@ export const CommandSearchDialog: React.FC<CommandSearchDialogProps> = ({
             placeholder="Search notes, Seldon satellites, or clusters..." 
             value={searchQuery} 
             onValueChange={onSearchChange} 
+            onClear={() => onSearchChange('')}
+            showClear={Boolean(searchQuery.trim())}
             className="border-none focus:ring-0 text-white placeholder-gray-500 py-4 text-sm"
           />
           
