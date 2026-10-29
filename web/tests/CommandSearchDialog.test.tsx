@@ -189,6 +189,44 @@ describe('CommandSearchDialog Component', () => {
     expect(screen.getByText('No results found.')).toBeDefined();
   });
 
+  it('renders a clear button when searchQuery is non-empty and resets search when clicked', () => {
+    const onSearchChange = vi.fn();
+    const { rerender } = render(
+      <CommandSearchDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        searchQuery=""
+        onSearchChange={onSearchChange}
+        activeFilter="All"
+        onSelectFilter={vi.fn()}
+        filteredResults={[]}
+        onSelectResult={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Clear search query' })).toBeNull();
+
+    rerender(
+      <CommandSearchDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        searchQuery="foundation"
+        onSearchChange={onSearchChange}
+        activeFilter="All"
+        onSelectFilter={vi.fn()}
+        filteredResults={mockResults}
+        onSelectResult={vi.fn()}
+      />
+    );
+
+    const clearBtn = screen.getByRole('button', { name: 'Clear search query' });
+    expect(clearBtn).toBeInTheDocument();
+    expect(clearBtn).toHaveAttribute('title', 'Clear search query');
+
+    fireEvent.click(clearBtn);
+    expect(onSearchChange).toHaveBeenCalledWith('');
+  });
+
   it('reveals more than eight results on demand and has focus-visible accessibility styling', () => {
     const results = Array.from({ length: 10 }, (_, idx) => ({ relPath: `notes/${idx}.md`, title: `Note ${idx}`, snippet: 'Result' }));
     render(

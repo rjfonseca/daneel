@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { SearchIcon, CheckIcon } from "lucide-react"
+import { SearchIcon, CheckIcon, XIcon } from "lucide-react"
 
 function Command({
   className,
@@ -64,8 +64,13 @@ function CommandDialog({
 
 function CommandInput({
   className,
+  onClear,
+  showClear,
   ...props
-}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+}: React.ComponentProps<typeof CommandPrimitive.Input> & {
+  onClear?: () => void;
+  showClear?: boolean;
+}) {
   return (
     <div data-slot="command-input-wrapper" className="flex items-center px-4 border-b border-gray-800/80 bg-transparent">
       <SearchIcon className="size-4 mr-3 shrink-0 text-indigo-400/80" />
@@ -77,6 +82,17 @@ function CommandInput({
         )}
         {...props}
       />
+      {showClear && onClear && (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear search query"
+          title="Clear search query"
+          className="ml-1 shrink-0 rounded-md p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer cosmic-focus-visible"
+        >
+          <XIcon className="size-4" aria-hidden="true" />
+        </button>
+      )}
     </div>
   )
 }
