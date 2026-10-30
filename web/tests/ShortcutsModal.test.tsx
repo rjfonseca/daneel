@@ -23,9 +23,14 @@ describe('ShortcutsModal Component', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('manages initial focus and traps focus on Tab', () => {
+  it('manages initial focus, traps focus on Tab, and restores focus on unmount', () => {
     const onClose = vi.fn();
-    render(<ShortcutsModal isOpen onClose={onClose} />);
+    const triggerBtn = document.createElement('button');
+    document.body.appendChild(triggerBtn);
+    triggerBtn.focus();
+    expect(document.activeElement).toBe(triggerBtn);
+
+    const { unmount } = render(<ShortcutsModal isOpen onClose={onClose} />);
 
     const closeBtn = screen.getByRole('button', { name: /Close shortcuts dialog/i });
     expect(document.activeElement).toBe(closeBtn);
@@ -41,5 +46,9 @@ describe('ShortcutsModal Component', () => {
     // Pressing Escape closes the modal
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(document.activeElement).toBe(triggerBtn);
+    document.body.removeChild(triggerBtn);
   });
 });

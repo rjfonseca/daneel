@@ -37,6 +37,8 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
   useEffect(() => {
     if (!isOpen) return;
 
+    const previousFocus = document.activeElement as HTMLElement | null;
+
     const closeBtn = modalRef.current?.querySelector<HTMLButtonElement>('button[aria-label="Close shortcuts dialog"]');
     closeBtn?.focus();
 
@@ -66,7 +68,10 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      previousFocus?.focus();
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
