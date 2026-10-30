@@ -22,4 +22,24 @@ describe('ShortcutsModal Component', () => {
     fireEvent.click(container.firstElementChild as HTMLElement);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('manages initial focus and traps focus on Tab', () => {
+    const onClose = vi.fn();
+    render(<ShortcutsModal isOpen onClose={onClose} />);
+
+    const closeBtn = screen.getByRole('button', { name: /Close shortcuts dialog/i });
+    expect(document.activeElement).toBe(closeBtn);
+
+    // Pressing Tab when only one focusable element exists loops back to the same element
+    fireEvent.keyDown(window, { key: 'Tab' });
+    expect(document.activeElement).toBe(closeBtn);
+
+    // Pressing Shift+Tab also loops back
+    fireEvent.keyDown(window, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(closeBtn);
+
+    // Pressing Escape closes the modal
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
