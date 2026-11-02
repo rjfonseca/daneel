@@ -127,7 +127,9 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
             }}
             variant="ghost"
             size="sm"
-            title="Search terminal logs"
+            title={showSearch ? "Hide search bar" : "Search terminal logs"}
+            aria-label={showSearch ? "Hide search bar" : "Search terminal logs"}
+            aria-expanded={showSearch}
             data-testid={`${testIdPrefix}-search-toggle-btn`}
             className={`p-1.5 ${showSearch ? 'text-cyan-300 bg-cyan-500/10' : 'text-slate-400 hover:text-white'}`}
           >
@@ -140,6 +142,7 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
             disabled={isRunning}
             data-testid={`${testIdPrefix}-verbose-toggle`}
             aria-pressed={verbose}
+            aria-label={verbose ? "Disable verbose output" : "Enable verbose output"}
             className={`px-2 py-1 text-[11px] font-mono rounded-sm border transition-all cursor-pointer cosmic-focus-visible flex items-center gap-1 ${
               verbose
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-glow-amber'
@@ -157,6 +160,7 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
             variant="ghost"
             size="sm"
             title="Clear terminal logs"
+            aria-label="Clear terminal logs"
             data-testid={`${testIdPrefix}-clear-btn`}
             className="text-slate-400 hover:text-white p-1.5"
           >
@@ -170,6 +174,7 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
             variant="ghost"
             size="sm"
             title="Download terminal logs"
+            aria-label="Download terminal logs"
             data-testid={`${testIdPrefix}-download-logs-btn`}
             className="text-slate-400 hover:text-cyan-300 p-1.5"
           >
@@ -182,7 +187,8 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
             disabled={logs.length === 0}
             variant="ghost"
             size="sm"
-            title="Copy terminal output to clipboard"
+            title={copiedLogs ? "Copied to clipboard!" : "Copy terminal output to clipboard"}
+            aria-label={copiedLogs ? "Copied terminal output to clipboard" : "Copy terminal output to clipboard"}
             data-testid={`${testIdPrefix}-copy-logs-btn`}
             className="text-slate-400 hover:text-cyan-300 p-1.5"
           >
@@ -192,6 +198,9 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
               <Copy className="w-3.5 h-3.5" />
             )}
           </CyberButton>
+          <span className="sr-only" aria-live="polite">
+            {copiedLogs ? 'Terminal output copied to clipboard' : ''}
+          </span>
 
           {/* Pop out to Cockpit Modal if provided */}
           {onOpenCockpit && (
@@ -200,6 +209,7 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
               variant="ghost"
               size="sm"
               title="Open in full Cockpit (Alt+C)"
+              aria-label="Open in full Cockpit (Alt+C)"
               data-testid={`${testIdPrefix}-open-cockpit-btn`}
               className="text-slate-400 hover:text-cyan-300 p-1.5"
             >
@@ -250,6 +260,13 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setShowSearch(false);
+                  setSearchQuery('');
+                }
+              }}
               placeholder="Filter terminal logs..."
               data-testid={`${testIdPrefix}-search-input`}
               className="w-full pl-8 pr-7 py-1 text-xs bg-[#030305] border border-white/10 rounded-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-cyan-500/60 font-mono"
@@ -269,6 +286,7 @@ export const CyberTerminal: React.FC<CyberTerminalProps> = ({
             <span 
               className="text-[10px] font-mono text-cyan-400 shrink-0"
               data-testid={`${testIdPrefix}-match-count`}
+              aria-live="polite"
             >
               {filteredLogs.length} / {logs.length} matched
             </span>
