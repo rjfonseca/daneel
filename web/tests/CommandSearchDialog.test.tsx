@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CommandSearchDialog } from '../src/components/CommandSearchDialog';
 import type { SearchResultItem } from '../src/types/galaxy';
 
@@ -224,6 +224,21 @@ describe('CommandSearchDialog Component', () => {
     expect(clearBtn).toHaveAttribute('title', 'Clear search query');
 
     fireEvent.click(clearBtn);
+    expect(onSearchChange).toHaveBeenCalledWith('');
+  });
+
+  it('does not select a result when Enter activates the clear button', async () => {
+    const onSelectResult = vi.fn();
+    const onSearchChange = vi.fn();
+    render(<CommandSearchDialog isOpen onClose={vi.fn()} searchQuery="foundation" onSearchChange={onSearchChange} activeFilter="All" onSelectFilter={vi.fn()} filteredResults={mockResults} onSelectResult={onSelectResult} />);
+    const input = screen.getByRole('combobox');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await waitFor(() => expect(document.querySelector('[cmdk-item][data-selected="true"]')).not.toBeNull());
+    const clear = screen.getByRole('button', { name: 'Clear search query' });
+    clear.focus();
+    fireEvent.keyDown(clear, { key: 'Enter' });
+    expect(onSelectResult).not.toHaveBeenCalled();
+    fireEvent.click(clear);
     expect(onSearchChange).toHaveBeenCalledWith('');
   });
 

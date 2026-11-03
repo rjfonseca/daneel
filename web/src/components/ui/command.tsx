@@ -86,6 +86,9 @@ function CommandInput({
         <button
           type="button"
           onClick={onClear}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.stopPropagation()
+          }}
           aria-label="Clear search query"
           title="Clear search query"
           className="ml-1 shrink-0 rounded-md p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer cosmic-focus-visible"
