@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/rjfonseca/daneel/internal/config"
+	"github.com/rjfonseca/daneel/internal/ops/meetings"
 	"github.com/rjfonseca/daneel/internal/ops/workspace"
 	"github.com/rjfonseca/daneel/internal/routine"
 	"github.com/rjfonseca/daneel/internal/telemetry"
@@ -33,31 +34,33 @@ type HandoffQuestion struct {
 
 // FullDreamReport contains all synthesized data from all 3 cognitive layers.
 type FullDreamReport struct {
-	Date              string                     `json:"date"`
-	GeneratedAt       string                     `json:"generated_at"`
-	TotalFilesScanned int                        `json:"total_files_scanned"`
-	FixedLinksCount   int                        `json:"fixed_links_count"`
-	BrokenLinksCount  int                        `json:"broken_links_count"`
-	MissingMOCs       []string                   `json:"missing_mocs"`
-	DenseCategories   []DenseCategory            `json:"dense_categories"`
-	DailyTelemetry    map[string]interface{}     `json:"daily_telemetry,omitempty"`
-	TemporalAnalysis  *TemporalWindowData        `json:"temporal_analysis"`
-	StrategicRadar    *StrategicRadar            `json:"strategic_radar"`
-	SyncedPeople      []string                   `json:"synced_people"`
-	WorkspaceSummary  *workspace.WorkspaceReport `json:"workspace_summary,omitempty"`
-	InboxTriaged      []InboxTriageItem          `json:"inbox_triaged"`
-	RecentSessions    []SessionLogTriage         `json:"recent_sessions,omitempty"`
-	EmergingConcepts  []EmergingConcept          `json:"emerging_concepts"`
-	BacklogP0         []string                   `json:"backlog_p0"`
-	BacklogP1         []string                   `json:"backlog_p1"`
-	HandoffQuestions  []HandoffQuestion          `json:"handoff_questions"`
-	Metacognition     *MetacognitiveReport       `json:"metacognition,omitempty"`
+	Date                  string                     `json:"date"`
+	GeneratedAt           string                     `json:"generated_at"`
+	TotalFilesScanned     int                        `json:"total_files_scanned"`
+	FixedLinksCount       int                        `json:"fixed_links_count"`
+	BrokenLinksCount      int                        `json:"broken_links_count"`
+	MissingMOCs           []string                   `json:"missing_mocs"`
+	DenseCategories       []DenseCategory            `json:"dense_categories"`
+	DailyTelemetry        map[string]interface{}     `json:"daily_telemetry,omitempty"`
+	TemporalAnalysis      *TemporalWindowData        `json:"temporal_analysis"`
+	StrategicRadar        *StrategicRadar            `json:"strategic_radar"`
+	SyncedPeople          []string                   `json:"synced_people"`
+	WorkspaceSummary      *workspace.WorkspaceReport `json:"workspace_summary,omitempty"`
+	IngestedMeetingsCount int                        `json:"ingested_meetings_count"`
+	InboxTriaged          []InboxTriageItem          `json:"inbox_triaged"`
+	RecentSessions        []SessionLogTriage         `json:"recent_sessions,omitempty"`
+	EmergingConcepts      []EmergingConcept          `json:"emerging_concepts"`
+	BacklogP0             []string                   `json:"backlog_p0"`
+	BacklogP1             []string                   `json:"backlog_p1"`
+	HandoffQuestions      []HandoffQuestion          `json:"handoff_questions"`
+	Metacognition         *MetacognitiveReport       `json:"metacognition,omitempty"`
 }
 
 // DreamEngine coordinates the 5-layer cognitive REM cycle.
 type DreamEngine struct { //nolint:revive
 	vaultRoot  string
 	synthesize bool
+	force      bool
 }
 
 // NewDreamEngine creates a new dream cycle engine.
@@ -68,6 +71,12 @@ func NewDreamEngine(vaultRoot string) *DreamEngine {
 // SetSynthesize enables or disables Phase 5 knowledge synthesis induction.
 func (e *DreamEngine) SetSynthesize(enabled bool) *DreamEngine {
 	e.synthesize = enabled
+	return e
+}
+
+// SetForce enables or disables full-scan mode, bypassing incremental watermarks.
+func (e *DreamEngine) SetForce(force bool) *DreamEngine {
+	e.force = force
 	return e
 }
 
@@ -94,8 +103,16 @@ func (e *DreamEngine) RunFullCycle(targetDate string, autoFix bool, dryRun bool)
 
 	// 1. Layer 1: Deterministic Graph Hygiene (Links, MOCs, Workspace)
 	startPhase1 := time.Now()
+
+	if autoFix && !dryRun {
+		proc := meetings.NewProcessor(e.vaultRoot)
+		if ingRep, err := proc.ProcessInbox(true); err == nil && ingRep != nil {
+			report.IngestedMeetingsCount = ingRep.TotalProcessed
+		}
+	}
+
 	targetMap := make(map[string]string)
-	notes, err := vault.ScanVault(e.vaultRoot, []string{"notes", "meta", "daily", "inbox", "sources"})
+	notes, err := vault.ScanVaultIncremental(e.vaultRoot, []string{"notes", "meta", "daily", "inbox", "sources"}, e.force)
 	if err == nil {
 		report.TotalFilesScanned = len(notes)
 		for _, n := range notes {
@@ -111,6 +128,25 @@ func (e *DreamEngine) RunFullCycle(targetDate string, autoFix bool, dryRun bool)
 		for _, n := range notes {
 			if !strings.HasPrefix(n.RelPath, "notes/") && !strings.HasPrefix(n.RelPath, "public/") {
 				continue
+			}
+
+			if n.Content == "" {
+				hasWikiLink := false
+				for _, link := range n.Links {
+					if link.IsWikiLink {
+						hasWikiLink = true
+						break
+					}
+				}
+				if !hasWikiLink {
+					continue
+				}
+
+				data, err := os.ReadFile(n.AbsPath)
+				if err != nil {
+					continue
+				}
+				n.Content = string(data)
 			}
 
 			modified := false

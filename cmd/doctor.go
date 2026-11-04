@@ -30,14 +30,21 @@ type LintReport struct {
 	Issues            []LintIssue `json:"issues"`
 }
 
+var doctorForce bool
+
 var doctorCmd = &cobra.Command{
 	Use:     "doctor",
 	Aliases: []string{"lint", "check", "diagnostics"},
 	Short:   "Runs Positronic Memory & Synaptic Graph Diagnostics on the Vault",
 	RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive
-		notes, err := vault.ScanVault(cfg.VaultPath, cfg.GetIndexedDirs())
+		notes, err := vault.ScanVaultIncremental(cfg.VaultPath, cfg.GetIndexedDirs(), doctorForce)
 		if err != nil {
 			return fmt.Errorf("failed to scan vault: %w", err)
+		}
+
+		existingFiles := make(map[string]bool, len(notes))
+		for _, n := range notes {
+			existingFiles[n.RelPath] = true
 		}
 
 		totalLinks := 0
@@ -70,13 +77,15 @@ var doctorCmd = &cobra.Command{
 			// 2. Check relative markdown links
 			for _, link := range n.Links {
 				if !link.IsWikiLink {
-					targetAbs := filepath.Join(cfg.VaultPath, link.TargetRelPath)
-					if _, err := os.Stat(targetAbs); os.IsNotExist(err) {
-						report.Issues = append(report.Issues, LintIssue{
-							FilePath: n.RelPath,
-							Severity: "error",
-							Message:  fmt.Sprintf("Broken synaptic pathway: '%s' -> target '%s' does not exist", link.LinkText, link.TargetRelPath),
-						})
+					if !existingFiles[link.TargetRelPath] {
+						targetAbs := filepath.Join(cfg.VaultPath, link.TargetRelPath)
+						if _, err := os.Stat(targetAbs); os.IsNotExist(err) {
+							report.Issues = append(report.Issues, LintIssue{
+								FilePath: n.RelPath,
+								Severity: "error",
+								Message:  fmt.Sprintf("Broken synaptic pathway: '%s' -> target '%s' does not exist", link.LinkText, link.TargetRelPath),
+							})
+						}
 					}
 				}
 			}
@@ -129,5 +138,6 @@ var doctorCmd = &cobra.Command{
 }
 
 func init() {
+	doctorCmd.Flags().BoolVar(&doctorForce, "force", false, "Force full vault scan, bypassing incremental mtime watermarks")
 	RootCmd.AddCommand(doctorCmd)
 }

@@ -16,6 +16,9 @@ func snapshotVault(t *testing.T, root string) map[string]string {
 		if err != nil {
 			return err
 		}
+		if entry.IsDir() && entry.Name() == ".daneel" {
+			return filepath.SkipDir
+		}
 		rel, _ := filepath.Rel(root, path)
 		if entry.IsDir() {
 			result[rel] = "directory"

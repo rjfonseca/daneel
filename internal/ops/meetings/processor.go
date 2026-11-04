@@ -15,6 +15,8 @@ import (
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
+
+	"github.com/rjfonseca/daneel/internal/safefile"
 )
 
 // MeetingNote represents a structured meeting artifact.
@@ -388,7 +390,7 @@ func (p *Processor) parseAndArchive(filename string, rawContent string) (*Meetin
 	destPath := filepath.Join(p.sourcesDir, destFilename)
 	_ = os.MkdirAll(p.sourcesDir, 0750)
 
-	if err := os.WriteFile(destPath, []byte(sb.String()), 0600); err != nil { //nolint:gosec // intentional
+	if err := safefile.WriteFile(p.vaultRoot, destPath, []byte(sb.String()), 0600); err != nil {
 		return nil, err
 	}
 
@@ -419,13 +421,13 @@ func (p *Processor) syncPersonInteraction(slug string, dateStr string, title str
 	entry := fmt.Sprintf("- **%s** - Meeting: %s.\n", dateStr, title)
 	if strings.Contains(content, "## 🤝 Histórico de Interações\n") {
 		content = strings.Replace(content, "## 🤝 Histórico de Interações\n", "## 🤝 Histórico de Interações\n"+entry, 1)
-		_ = os.WriteFile(personFile, []byte(content), 0600) //nolint:gosec // intentional
+		_ = safefile.WriteFile(p.vaultRoot, personFile, []byte(content), 0600)
 	} else if strings.Contains(content, "## 🤝 Recent Interaction History\n") {
 		content = strings.Replace(content, "## 🤝 Recent Interaction History\n", "## 🤝 Recent Interaction History\n"+entry, 1)
-		_ = os.WriteFile(personFile, []byte(content), 0600) //nolint:gosec // intentional
+		_ = safefile.WriteFile(p.vaultRoot, personFile, []byte(content), 0600)
 	} else if strings.Contains(content, "## 🤝 Interactions\n") {
 		content = strings.Replace(content, "## 🤝 Interactions\n", "## 🤝 Interactions\n"+entry, 1)
-		_ = os.WriteFile(personFile, []byte(content), 0600) //nolint:gosec // intentional
+		_ = safefile.WriteFile(p.vaultRoot, personFile, []byte(content), 0600)
 	}
 }
 

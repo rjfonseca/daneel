@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rjfonseca/daneel/internal/config"
@@ -74,68 +76,108 @@ func (h *GitHubHarvester) harvestRepos(repos []ghRepo) (*HarvestStats, error) {
 		TotalProjects: len(repos),
 	}
 
+	const maxRepoWorkers = 8
+	repoCh := make(chan ghRepo, len(repos))
 	for _, repo := range repos {
-		owner := repo.Owner.Login
-		repoName := repo.Name
-		fullName := repo.FullName
-		if fullName == "" {
-			fullName = fmt.Sprintf("%s/%s", owner, repoName)
-		}
-
-		if h.cfg.ShouldSkipArchived() && repo.Archived {
-			stats.SkippedProjects++
-			continue
-		}
-		if h.cfg.IsGroupExcluded(owner) || h.cfg.IsGroupExcluded(fullName) {
-			stats.SkippedProjects++
-			continue
-		}
-		if h.cfg.IsProjectExcluded(repoName, fullName) {
-			stats.SkippedProjects++
-			continue
-		}
-
-		stats.ActiveProjects = append(stats.ActiveProjects, strings.ToLower(fullName))
-
-		defaultBranch := repo.DefaultBranch
-		if defaultBranch == "" {
-			defaultBranch = "main"
-		}
-
-		tree, err := h.getRepoTree(owner, repoName, defaultBranch)
-		if err != nil {
-			continue
-		}
-
-		for _, item := range tree {
-			if item.Type != "blob" || !ShouldHarvest(item.Path, h.cfg) {
-				continue
-			}
-
-			stats.TotalDocsFound++
-			cacheKey := fmt.Sprintf("%s/%s:%s", owner, repoName, item.Path)
-			if cache[cacheKey] == item.SHA {
-				stats.SkippedCount++
-				continue
-			}
-
-			content, err := h.getRawFile(owner, repoName, defaultBranch, item.Path)
-			if err != nil || len(content) == 0 {
-				continue
-			}
-
-			destPath := filepath.Join(outputDir, owner, repoName, filepath.FromSlash(item.Path))
-			_ = os.MkdirAll(filepath.Dir(destPath), 0750)
-			if err := os.WriteFile(destPath, content, 0600); err == nil {
-				cache[cacheKey] = item.SHA
-				stats.DownloadedCount++
-			}
-		}
-
-		// Generate or update repository index MOC
-		repoDir := filepath.Join(outputDir, owner, repoName)
-		_ = EnsureRepositoryIndex(repoDir, repoName, owner, "github", repo.HTMLURL, repo.Description)
+		repoCh <- repo
 	}
+	close(repoCh)
+
+	var mu sync.Mutex
+	var repoWg sync.WaitGroup
+
+	numWorkers := maxRepoWorkers
+	if len(repos) < numWorkers {
+		numWorkers = len(repos)
+	}
+
+	for w := 0; w < numWorkers; w++ {
+		repoWg.Add(1)
+		go func() {
+			defer repoWg.Done()
+			for repo := range repoCh {
+				owner := repo.Owner.Login
+				repoName := repo.Name
+				fullName := repo.FullName
+				if fullName == "" {
+					fullName = fmt.Sprintf("%s/%s", owner, repoName)
+				}
+
+				if h.cfg.ShouldSkipArchived() && repo.Archived {
+					mu.Lock()
+					stats.SkippedProjects++
+					mu.Unlock()
+					continue
+				}
+				if h.cfg.IsGroupExcluded(owner) || h.cfg.IsGroupExcluded(fullName) {
+					mu.Lock()
+					stats.SkippedProjects++
+					mu.Unlock()
+					continue
+				}
+				if h.cfg.IsProjectExcluded(repoName, fullName) {
+					mu.Lock()
+					stats.SkippedProjects++
+					mu.Unlock()
+					continue
+				}
+
+				mu.Lock()
+				stats.ActiveProjects = append(stats.ActiveProjects, strings.ToLower(fullName))
+				mu.Unlock()
+
+				defaultBranch := repo.DefaultBranch
+				if defaultBranch == "" {
+					defaultBranch = "main"
+				}
+
+				tree, err := h.getRepoTree(owner, repoName, defaultBranch)
+				if err != nil {
+					continue
+				}
+
+				for _, item := range tree {
+					if item.Type != "blob" || !ShouldHarvest(item.Path, h.cfg) {
+						continue
+					}
+
+					mu.Lock()
+					stats.TotalDocsFound++
+					cacheKey := fmt.Sprintf("%s/%s:%s", owner, repoName, item.Path)
+					cachedSHA := cache[cacheKey]
+					mu.Unlock()
+
+					if cachedSHA == item.SHA {
+						mu.Lock()
+						stats.SkippedCount++
+						mu.Unlock()
+						continue
+					}
+
+					content, err := h.getRawFile(owner, repoName, defaultBranch, item.Path)
+					if err != nil || len(content) == 0 {
+						continue
+					}
+
+					destPath := filepath.Join(outputDir, owner, repoName, filepath.FromSlash(item.Path))
+					_ = os.MkdirAll(filepath.Dir(destPath), 0750)
+					if err := os.WriteFile(destPath, content, 0600); err == nil {
+						mu.Lock()
+						cache[cacheKey] = item.SHA
+						stats.DownloadedCount++
+						mu.Unlock()
+					}
+				}
+
+				// Generate or update repository index MOC
+				repoDir := filepath.Join(outputDir, owner, repoName)
+				_ = EnsureRepositoryIndex(repoDir, repoName, owner, "github", repo.HTMLURL, repo.Description)
+			}
+		}()
+	}
+
+	repoWg.Wait()
+	sort.Strings(stats.ActiveProjects)
 
 	_, _ = reconcilePlatformDir(outputDir, "github")
 
@@ -309,7 +351,12 @@ func (h *GitHubHarvester) getRepoTree(owner string, repo string, branch string) 
 }
 
 func (h *GitHubHarvester) getRawFile(owner string, repo string, branch string, path string) ([]byte, error) {
-	reqURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
+	var reqURL string
+	if h.baseURL != "" && h.baseURL != "https://api.github.com" {
+		reqURL = fmt.Sprintf("%s/raw/%s/%s/%s/%s", h.baseURL, owner, repo, branch, path)
+	} else {
+		reqURL = fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
+	}
 	req, err := http.NewRequest("GET", reqURL, nil)
 	if err != nil {
 		return nil, err
