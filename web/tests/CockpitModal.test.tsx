@@ -727,11 +727,45 @@ describe('CockpitModal Component', () => {
       fireEvent.change(searchInput, { target: { value: 'Alpha' } });
     });
 
-    // Expect 2 matches badge
-    expect(screen.getByTestId('cockpit-match-count').textContent).toMatch(/2 \/ \d+ matched/);
+    // Expect 2 matches badge with aria-live="polite"
+    const matchCountBadge = screen.getByTestId('cockpit-match-count');
+    expect(matchCountBadge.textContent).toMatch(/2 \/ \d+ matched/);
+    expect(matchCountBadge.getAttribute('aria-live')).toBe('polite');
     expect(screen.getByText('Alpha log message')).toBeDefined();
     expect(screen.getByText('Alpha confirmation')).toBeDefined();
     expect(screen.queryByText('Beta message alert')).toBeNull();
+
+    // Press Escape inside search input to dismiss search
+    await act(async () => {
+      fireEvent.keyDown(searchInput, { key: 'Escape' });
+    });
+
+    expect(screen.queryByTestId('cockpit-search-bar')).toBeNull();
+  });
+
+  it('exposes accessible aria-labels and screen reader copy feedback in CyberTerminal', async () => {
+    render(<CockpitModal isOpen={true} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cockpit-routine-tidy')).toBeDefined();
+    });
+
+    // Check accessible labels on CyberTerminal header buttons
+    const searchToggle = screen.getByTestId('cockpit-search-toggle-btn');
+    expect(searchToggle.getAttribute('aria-label')).toBe('Search terminal logs');
+    expect(searchToggle.getAttribute('aria-expanded')).toBe('false');
+
+    const verboseToggle = screen.getByTestId('cockpit-verbose-toggle');
+    expect(verboseToggle.getAttribute('aria-label')).toBe('Enable verbose output');
+
+    const clearBtn = screen.getByTestId('cockpit-clear-btn');
+    expect(clearBtn.getAttribute('aria-label')).toBe('Clear terminal logs');
+
+    const downloadBtn = screen.getByTestId('cockpit-download-logs-btn');
+    expect(downloadBtn.getAttribute('aria-label')).toBe('Download terminal logs');
+
+    const copyBtn = screen.getByTestId('cockpit-copy-logs-btn');
+    expect(copyBtn.getAttribute('aria-label')).toBe('Copy terminal output to clipboard');
   });
 
   it('downloads terminal logs when download button is clicked', async () => {

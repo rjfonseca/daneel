@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { CommandSearchDialog } from '../src/components/CommandSearchDialog';
 import type { SearchResultItem } from '../src/types/galaxy';
 
@@ -187,6 +187,59 @@ describe('CommandSearchDialog Component', () => {
       <CommandSearchDialog isOpen onClose={vi.fn()} searchQuery="AI" onSearchChange={vi.fn()} activeFilter="All" onSelectFilter={vi.fn()} filteredResults={[]} onSelectResult={vi.fn()} hasSearched />
     );
     expect(screen.getByText('No results found.')).toBeDefined();
+  });
+
+  it('renders a clear button when searchQuery is non-empty and resets search when clicked', () => {
+    const onSearchChange = vi.fn();
+    const { rerender } = render(
+      <CommandSearchDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        searchQuery=""
+        onSearchChange={onSearchChange}
+        activeFilter="All"
+        onSelectFilter={vi.fn()}
+        filteredResults={[]}
+        onSelectResult={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Clear search query' })).toBeNull();
+
+    rerender(
+      <CommandSearchDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        searchQuery="foundation"
+        onSearchChange={onSearchChange}
+        activeFilter="All"
+        onSelectFilter={vi.fn()}
+        filteredResults={mockResults}
+        onSelectResult={vi.fn()}
+      />
+    );
+
+    const clearBtn = screen.getByRole('button', { name: 'Clear search query' });
+    expect(clearBtn).toBeInTheDocument();
+    expect(clearBtn).toHaveAttribute('title', 'Clear search query');
+
+    fireEvent.click(clearBtn);
+    expect(onSearchChange).toHaveBeenCalledWith('');
+  });
+
+  it('does not select a result when Enter activates the clear button', async () => {
+    const onSelectResult = vi.fn();
+    const onSearchChange = vi.fn();
+    render(<CommandSearchDialog isOpen onClose={vi.fn()} searchQuery="foundation" onSearchChange={onSearchChange} activeFilter="All" onSelectFilter={vi.fn()} filteredResults={mockResults} onSelectResult={onSelectResult} />);
+    const input = screen.getByRole('combobox');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    await waitFor(() => expect(document.querySelector('[cmdk-item][data-selected="true"]')).not.toBeNull());
+    const clear = screen.getByRole('button', { name: 'Clear search query' });
+    clear.focus();
+    fireEvent.keyDown(clear, { key: 'Enter' });
+    expect(onSelectResult).not.toHaveBeenCalled();
+    fireEvent.click(clear);
+    expect(onSearchChange).toHaveBeenCalledWith('');
   });
 
   it('reveals more than eight results on demand and has focus-visible accessibility styling', () => {

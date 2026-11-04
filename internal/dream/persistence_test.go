@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func snapshotVault(t *testing.T, root string) map[string]string {
@@ -112,5 +113,82 @@ func TestDreamKeepsLegacyLocalFeedbackCache(t *testing.T) {
 	learnings = LoadLearnings(root)
 	if len(learnings.FeedbackHistory) != 2 {
 		t.Fatalf("feedback history lost: %+v", learnings.FeedbackHistory)
+	}
+}
+
+func TestSyncMOCsAutoCreatesMissingMOC(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "notes", "pessoas")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "jane-doe.md"), []byte("# Jane Doe\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	missing, err := SyncMOCs(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing) != 1 || missing[0] != "notes/pessoas/moc-pessoas.md" {
+		t.Fatalf("expected 1 missing MOC 'notes/pessoas/moc-pessoas.md', got %v", missing)
+	}
+
+	if _, err := SyncMOCs(root, true); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "moc-pessoas.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "jane-doe") {
+		t.Fatalf("expected created MOC to contain jane-doe: %s", data)
+	}
+}
+
+func TestSyncMOCsRequiresExactLinkTarget(t *testing.T) {
+	for _, existing := range []string{"- [Foobar](foobar.md)", "A plain mention of foo", "- [[foo]]", "- [[foo.md#Overview]]", "- [[foo#Overview|Label]]", "- [Foo](foo)", "- [Foo](foo.md)"} {
+		t.Run(existing, func(t *testing.T) {
+			root := t.TempDir()
+			dir := filepath.Join(root, "notes", "topics")
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "foo.md"), []byte("# Foo\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "moc-topics.md"), []byte(existing), 0600); err != nil {
+				t.Fatal(err)
+			}
+			missing, err := SyncMOCs(root, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantMissing := strings.Contains(existing, "Foobar") || strings.Contains(existing, "plain mention")
+			if (len(missing) == 1) != wantMissing {
+				t.Fatalf("missing = %v, want missing %v", missing, wantMissing)
+			}
+		})
+	}
+}
+
+func TestSyncMOCsPreservesUnicodeCategoryTitle(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "notes", "árvore")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "foo.md"), []byte("# Foo\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SyncMOCs(root, true); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "moc-árvore.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !utf8.Valid(data) || !strings.Contains(string(data), "MOC: Árvore") {
+		t.Fatalf("invalid category title: %q", data)
 	}
 }
