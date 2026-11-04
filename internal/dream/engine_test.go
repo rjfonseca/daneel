@@ -179,3 +179,115 @@ func TestFullDreamCycle_MetacognitionHandoffPersistence(t *testing.T) {
 		t.Errorf("persisted metacognition differs from the completed in-memory report")
 	}
 }
+
+func TestDreamEngine_SetForce(t *testing.T) {
+	engine := NewDreamEngine(t.TempDir())
+	if engine.force {
+		t.Errorf("expected force to be false by default")
+	}
+	engine.SetForce(true)
+	if !engine.force {
+		t.Errorf("expected force to be true after SetForce(true)")
+	}
+	engine.SetForce(false)
+	if engine.force {
+		t.Errorf("expected force to be false after SetForce(false)")
+	}
+}
+
+func TestDreamEngine_IncrementalHealsCachedWikiLinks(t *testing.T) {
+	tempDir := t.TempDir()
+
+	engDir := filepath.Join(tempDir, "notes", "eng")
+	if err := os.MkdirAll(engDir, 0750); err != nil {
+		t.Fatalf("failed to create notes/eng: %v", err)
+	}
+
+	targetDoc := filepath.Join(engDir, "target-doc.md")
+	callerDoc := filepath.Join(engDir, "caller.md")
+
+	if err := os.WriteFile(targetDoc, []byte("# Target Doc\n"), 0600); err != nil {
+		t.Fatalf("failed to write target-doc.md: %v", err)
+	}
+	if err := os.WriteFile(callerDoc, []byte("See [[Target Doc]]\n"), 0600); err != nil {
+		t.Fatalf("failed to write caller.md: %v", err)
+	}
+
+	engine := NewDreamEngine(tempDir)
+
+	// Step 1: dryRun=true (autoFix=false), populates file_watermarks while leaving [[Target Doc]] unhealed on disk
+	rep1, err := engine.RunFullCycle("2026-11-04", false, true)
+	if err != nil {
+		t.Fatalf("dry run failed: %v", err)
+	}
+	if rep1.FixedLinksCount != 1 {
+		t.Fatalf("expected dry run to detect 1 fixable link, got %d", rep1.FixedLinksCount)
+	}
+
+	// Verify caller.md is still unhealed on disk
+	dataBefore, err := os.ReadFile(callerDoc)
+	if err != nil {
+		t.Fatalf("failed to read caller doc: %v", err)
+	}
+	if !strings.Contains(string(dataBefore), "[[Target Doc]]") {
+		t.Fatalf("expected caller doc to still contain [[Target Doc]], got: %s", string(dataBefore))
+	}
+
+	// Step 2: Incremental run where both files have unchanged mtime in file_watermarks
+	// caller.md has Content == "" initially, but Links has IsWikiLink: true
+	rep2, err := engine.RunFullCycle("2026-11-04", true, false)
+	if err != nil {
+		t.Fatalf("incremental auto-fix run failed: %v", err)
+	}
+	if rep2.FixedLinksCount != 1 {
+		t.Fatalf("expected incremental run to heal 1 link, got %d", rep2.FixedLinksCount)
+	}
+
+	// Verify caller.md on disk now contains [Target Doc](target-doc.md)
+	dataAfter, err := os.ReadFile(callerDoc)
+	if err != nil {
+		t.Fatalf("failed to read caller doc after heal: %v", err)
+	}
+	expectedLink := "[Target Doc](target-doc.md)"
+	if !strings.Contains(string(dataAfter), expectedLink) {
+		t.Fatalf("expected caller doc to contain %q, got:\n%s", expectedLink, string(dataAfter))
+	}
+}
+
+func TestDreamEngine_AutoIngestsMeetingsFromInbox(t *testing.T) {
+	tmpDir := t.TempDir()
+	inboxDir := filepath.Join(tmpDir, "inbox")
+	if err := os.MkdirAll(inboxDir, 0750); err != nil {
+		t.Fatalf("failed to create inbox directory: %v", err)
+	}
+
+	meetingContent := `Convidados: Ada Lovelace, Alan Turing
+### Resumo
+Alinhamento técnico sobre arquitetura de mensageria.
+### Próximas etapas
+- Documentar contrato de eventos
+`
+	meetingFile := filepath.Join(inboxDir, "Reuniao Arquitetura - 2026-11-04 - Anotações do Gemini.md")
+	if err := os.WriteFile(meetingFile, []byte(meetingContent), 0600); err != nil {
+		t.Fatalf("failed to write meeting draft: %v", err)
+	}
+
+	engine := NewDreamEngine(tmpDir)
+	rep, err := engine.RunFullCycle("2026-11-04", true, false)
+	if err != nil {
+		t.Fatalf("RunFullCycle failed: %v", err)
+	}
+
+	if rep.IngestedMeetingsCount != 1 {
+		t.Errorf("expected IngestedMeetingsCount 1, got %d", rep.IngestedMeetingsCount)
+	}
+
+	if len(rep.InboxTriaged) != 0 {
+		t.Errorf("expected 0 inbox triaged items, got %d", len(rep.InboxTriaged))
+	}
+
+	expectedPath := filepath.Join(tmpDir, "sources", "reunioes", "2026-11-04-reuniao-arquitetura.md")
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Errorf("expected %s to exist on disk", expectedPath)
+	}
+}

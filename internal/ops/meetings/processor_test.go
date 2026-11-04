@@ -20,14 +20,14 @@ func TestMeetingsProcessor(t *testing.T) {
 	_ = os.MkdirAll(peopleDir, 0750)
 
 	// Create a person profile
-	personFile := filepath.Join(peopleDir, "john-doe.md")
+	personFile := filepath.Join(peopleDir, "ada-lovelace.md")
 	personContent := `---
 type: person
 ---
-# 👤 John Doe
+# 👤 Ada Lovelace
 
 **Cargo / Papel:** Staff Engineer
-**Squad / Tribo:** SRE
+**Squad / Tribo:** Core Systems
 
 ## 🤝 Histórico de Interações
 `
@@ -37,7 +37,7 @@ type: person
 	meetFile := filepath.Join(inboxDir, "Alinhamento de Arquitetura - 2026-08-15 - Anotações do Gemini.md")
 	meetContent := `# Alinhamento de Arquitetura
 
-convidados John Doe, Jane Smith
+convidados Ada Lovelace, Alan Turing
 
 ### **Resumo**
 Discutimos a migração do Ingress para Gateway API no GKE e o rollout do cluster de staging.
@@ -73,6 +73,12 @@ Discutimos a migração do Ingress para Gateway API no GKE e o rollout do cluste
 	updatedPersonData, _ := os.ReadFile(personFile) //nolint:gosec // intentional
 	if !strings.Contains(string(updatedPersonData), "2026-08-15") {
 		t.Errorf("expected person profile to contain interaction date 2026-08-15")
+	}
+
+	// Verify safefile backup was created for modified person profile
+	backupDir := filepath.Join(tempDir, ".daneel", "backups")
+	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
+		t.Errorf("expected safefile backup directory %s to exist after modifying person profile", backupDir)
 	}
 
 	// Verify original was cleaned from inbox

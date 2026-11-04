@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+func isIgnoredDir(name string) bool {
+	switch name {
+	case ".git", ".dev", "node_modules", ".obsidian", ".agents", ".daneel", "vendor", "dist", "build":
+		return true
+	default:
+		return false
+	}
+}
+
 // ScanVault traverses the vault directory and parses all markdown files in the specified indexed directories.
 func ScanVault(vaultRoot string, indexedDirs []string) ([]*Note, error) {
 	var notes []*Note
@@ -24,8 +33,7 @@ func ScanVault(vaultRoot string, indexedDirs []string) ([]*Note, error) {
 
 			// Skip ignored directories
 			if info.IsDir() {
-				base := info.Name()
-				if base == ".git" || base == ".dev" || base == "node_modules" || base == ".obsidian" || base == ".agents" {
+				if isIgnoredDir(info.Name()) {
 					return filepath.SkipDir
 				}
 				return nil
@@ -60,7 +68,7 @@ type VaultMetrics struct { //nolint:revive
 func CalculateVaultMetrics(vaultRoot string) VaultMetrics { //nolint:revive
 	// Re-use indexed dirs logic.
 	indexedDirs := []string{"notes", "daily", "meta", "inbox"}
-	notes, err := ScanVault(vaultRoot, indexedDirs)
+	notes, err := ScanVaultIncremental(vaultRoot, indexedDirs, false)
 	if err != nil || len(notes) == 0 {
 		return VaultMetrics{}
 	}

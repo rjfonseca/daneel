@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -82,103 +83,143 @@ func (h *GitLabHarvester) harvestProjects(projects []glProject) (*HarvestStats, 
 		TotalProjects: len(projects),
 	}
 
+	const maxRepoWorkers = 8
+	projCh := make(chan glProject, len(projects))
 	for _, p := range projects {
-		projID := p.ID
-		projPath := p.PathWithNamespace
+		projCh <- p
+	}
+	close(projCh)
 
-		if h.cfg.ShouldSkipArchived() && p.Archived {
-			stats.SkippedProjects++
-			continue
-		}
-		if h.cfg.IsGroupExcluded(projPath) {
-			stats.SkippedProjects++
-			continue
-		}
-		if h.cfg.IsProjectExcluded(p.Name, projPath) {
-			stats.SkippedProjects++
-			continue
-		}
+	var mu sync.Mutex
+	var repoWg sync.WaitGroup
 
-		stats.ActiveProjects = append(stats.ActiveProjects, strings.ToLower(projPath))
+	numWorkers := maxRepoWorkers
+	if len(projects) < numWorkers {
+		numWorkers = len(projects)
+	}
 
-		defaultBranch := p.DefaultBranch
-		if defaultBranch == "" {
-			defaultBranch = "main"
-		}
+	for w := 0; w < numWorkers; w++ {
+		repoWg.Add(1)
+		go func() {
+			defer repoWg.Done()
+			for p := range projCh {
+				projID := p.ID
+				projPath := p.PathWithNamespace
 
-		projCacheKey := fmt.Sprintf("proj:%d", projID)
-		if p.LastActivityAt != "" && cache[projCacheKey] == p.LastActivityAt {
-			stats.SkippedProjects++
-			continue
-		}
+				if h.cfg.ShouldSkipArchived() && p.Archived {
+					mu.Lock()
+					stats.SkippedProjects++
+					mu.Unlock()
+					continue
+				}
+				if h.cfg.IsGroupExcluded(projPath) {
+					mu.Lock()
+					stats.SkippedProjects++
+					mu.Unlock()
+					continue
+				}
+				if h.cfg.IsProjectExcluded(p.Name, projPath) {
+					mu.Lock()
+					stats.SkippedProjects++
+					mu.Unlock()
+					continue
+				}
 
-		tree, err := h.getProjectTree(projID, defaultBranch)
-		if err != nil {
-			continue
-		}
+				mu.Lock()
+				stats.ActiveProjects = append(stats.ActiveProjects, strings.ToLower(projPath))
+				mu.Unlock()
 
-		var wg sync.WaitGroup
-		tasks := make(chan glTreeItem, 100)
-		var mu sync.Mutex
+				defaultBranch := p.DefaultBranch
+				if defaultBranch == "" {
+					defaultBranch = "main"
+				}
 
-		workerCount := 10 // Concurrent downloads per project
-		for w := 0; w < workerCount; w++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for item := range tasks {
-					// Download raw blob
-					content, err := h.getRawFile(projID, item.Path, defaultBranch)
-					if err != nil || len(content) == 0 {
+				projCacheKey := fmt.Sprintf("proj:%d", projID)
+				mu.Lock()
+				cachedActivity := cache[projCacheKey]
+				mu.Unlock()
+
+				if p.LastActivityAt != "" && cachedActivity == p.LastActivityAt {
+					mu.Lock()
+					stats.SkippedProjects++
+					mu.Unlock()
+					continue
+				}
+
+				tree, err := h.getProjectTree(projID, defaultBranch)
+				if err != nil {
+					continue
+				}
+
+				var fileWg sync.WaitGroup
+				tasks := make(chan glTreeItem, 100)
+
+				workerCount := 4 // Concurrent downloads per project
+				for fw := 0; fw < workerCount; fw++ {
+					fileWg.Add(1)
+					go func() {
+						defer fileWg.Done()
+						for item := range tasks {
+							// Download raw blob
+							content, err := h.getRawFile(projID, item.Path, defaultBranch)
+							if err != nil || len(content) == 0 {
+								continue
+							}
+
+							destPath := filepath.Join(outputDir, filepath.FromSlash(projPath), filepath.FromSlash(item.Path))
+							_ = os.MkdirAll(filepath.Dir(destPath), 0750)
+							if err := os.WriteFile(destPath, content, 0600); err == nil {
+								mu.Lock()
+								cacheKey := fmt.Sprintf("%d:%s", projID, item.Path)
+								cache[cacheKey] = item.ID
+								stats.DownloadedCount++
+								mu.Unlock()
+							}
+						}
+					}()
+				}
+
+				for _, item := range tree {
+					if item.Type != "blob" || !ShouldHarvest(item.Path, h.cfg) {
 						continue
 					}
 
-					destPath := filepath.Join(outputDir, filepath.FromSlash(projPath), filepath.FromSlash(item.Path))
-					_ = os.MkdirAll(filepath.Dir(destPath), 0750)
-					if err := os.WriteFile(destPath, content, 0600); err == nil {
+					mu.Lock()
+					stats.TotalDocsFound++
+					cacheKey := fmt.Sprintf("%d:%s", projID, item.Path)
+					cachedID := cache[cacheKey]
+					mu.Unlock()
+
+					if cachedID == item.ID {
 						mu.Lock()
-						cacheKey := fmt.Sprintf("%d:%s", projID, item.Path)
-						cache[cacheKey] = item.ID
-						stats.DownloadedCount++
+						stats.SkippedCount++
 						mu.Unlock()
+						continue
 					}
+
+					tasks <- item
 				}
-			}()
-		}
+				close(tasks)
+				fileWg.Wait()
 
-		for _, item := range tree {
-			if item.Type != "blob" || !ShouldHarvest(item.Path, h.cfg) {
-				continue
+				// Generate or update repository index MOC
+				repoDir := filepath.Join(outputDir, filepath.FromSlash(projPath))
+				repoParts := strings.Split(filepath.ToSlash(projPath), "/")
+				repoName := repoParts[len(repoParts)-1]
+				groupPath := strings.Join(repoParts[:len(repoParts)-1], "/")
+				_ = EnsureRepositoryIndex(repoDir, repoName, groupPath, "gitlab", p.WebURL, p.Description)
+
+				if p.LastActivityAt != "" {
+					mu.Lock()
+					cache[projCacheKey] = p.LastActivityAt
+					mu.Unlock()
+				}
 			}
-
-			stats.TotalDocsFound++
-			cacheKey := fmt.Sprintf("%d:%s", projID, item.Path)
-
-			mu.Lock()
-			cachedID := cache[cacheKey]
-			mu.Unlock()
-
-			if cachedID == item.ID {
-				stats.SkippedCount++
-				continue
-			}
-
-			tasks <- item
-		}
-		close(tasks)
-		wg.Wait()
-
-		// Generate or update repository index MOC
-		repoDir := filepath.Join(outputDir, filepath.FromSlash(projPath))
-		repoParts := strings.Split(filepath.ToSlash(projPath), "/")
-		repoName := repoParts[len(repoParts)-1]
-		groupPath := strings.Join(repoParts[:len(repoParts)-1], "/")
-		_ = EnsureRepositoryIndex(repoDir, repoName, groupPath, "gitlab", p.WebURL, p.Description)
-
-		if p.LastActivityAt != "" {
-			cache[projCacheKey] = p.LastActivityAt
-		}
+		}()
 	}
+
+	repoWg.Wait()
+	sort.Strings(stats.ActiveProjects)
 
 	_, _ = reconcilePlatformDir(outputDir, "gitlab")
 

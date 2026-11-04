@@ -24,6 +24,7 @@ var (
 	tidyTopic  string
 	tidyAction string
 	tidyNote   string
+	tidyForce  bool
 )
 
 var tidyCmd = &cobra.Command{
@@ -53,6 +54,7 @@ Performs ultra-fast local maintenance on the Vault (< 50ms):
 		}
 
 		engine := dream.NewDreamEngine(cfg.VaultPath)
+		engine.SetForce(tidyForce)
 		report, err := engine.RunFullCycle(tidyDate, !tidyNoFix, tidyNoFix)
 		if err != nil {
 			return fmt.Errorf("tidy cycle failed: %w", err)
@@ -65,7 +67,7 @@ Performs ultra-fast local maintenance on the Vault (< 50ms):
 				cmdCtx = context.Background()
 			}
 			if sEngine, err := search.Open(cfg.DBPath, cfg.VaultPath); err == nil {
-				_, _, _ = sEngine.IndexVault(cmdCtx, cfg.GetIndexedDirs(), false)
+				_, _, _ = sEngine.IndexVault(cmdCtx, cfg.GetIndexedDirs(), tidyForce)
 				sEngine.Close() //nolint:errcheck,gosec // fully read or safe to ignore
 			}
 
@@ -268,5 +270,6 @@ func init() {
 	tidyCmd.Flags().StringVar(&tidyTopic, "topic", "", "Learning topic")
 	tidyCmd.Flags().StringVar(&tidyAction, "action", "", "Learned action or category")
 	tidyCmd.Flags().StringVar(&tidyNote, "note", "", "Additional context note")
+	tidyCmd.Flags().BoolVar(&tidyForce, "force", false, "Force full vault scan, bypassing incremental mtime watermarks")
 	RootCmd.AddCommand(tidyCmd)
 }

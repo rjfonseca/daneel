@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -127,6 +128,22 @@ type NoteTaxonomy struct {
 	Category   string `json:"category"`   // Canonical category path: e.g. "sources/gitlab/acme/saas/pocs/my-repo"
 }
 
+type indexMocKind int
+
+const (
+	indexMocUnknown indexMocKind = iota
+	indexMocNone
+	indexMocRepository
+	indexMocGroup
+)
+
+type cachedIndexInfo struct {
+	mtime int64
+	kind  indexMocKind
+}
+
+var indexTypeCache sync.Map // map[string]cachedIndexInfo
+
 // ResolveTaxonomy resolves the domain, group, repository, and category for a relative note path.
 // It prioritizes explicit OKF index.md MOCs on disk, falling back to deterministic path heuristics.
 func ResolveTaxonomy(relPath string, vaultRoot string) NoteTaxonomy {
@@ -185,27 +202,46 @@ func ResolveTaxonomy(relPath string, vaultRoot string) NoteTaxonomy {
 
 			for strings.HasPrefix(curr, domain) && curr != domain {
 				indexFile := filepath.Join(vaultRoot, filepath.FromSlash(curr), "index.md")
-				if data, err := os.ReadFile(indexFile); err == nil {
-					content := string(data)
-					if strings.Contains(content, "type: repository") {
-						repoName := filepath.Base(curr)
-						parentDir := filepath.ToSlash(filepath.Dir(curr))
-						groupRel := strings.TrimPrefix(strings.TrimPrefix(parentDir, domain), "/")
-						return NoteTaxonomy{
-							Domain:     domain,
-							Group:      groupRel,
-							Repository: repoName,
-							Category:   curr,
+				kind := indexMocUnknown
+				if stat, statErr := os.Stat(indexFile); statErr == nil && !stat.IsDir() {
+					mtime := stat.ModTime().UnixNano()
+					if val, ok := indexTypeCache.Load(indexFile); ok {
+						if c, ok := val.(cachedIndexInfo); ok && c.mtime == mtime {
+							kind = c.kind
 						}
 					}
-					if strings.Contains(content, "type: group") && cleanPath == curr+"/index.md" {
-						groupRel := strings.TrimPrefix(strings.TrimPrefix(curr, domain), "/")
-						return NoteTaxonomy{
-							Domain:     domain,
-							Group:      groupRel,
-							Repository: "",
-							Category:   curr,
+					if kind == indexMocUnknown {
+						kind = indexMocNone
+						if data, err := os.ReadFile(indexFile); err == nil { //nolint:gosec // intentional
+							content := string(data)
+							if strings.Contains(content, "type: repository") {
+								kind = indexMocRepository
+							} else if strings.Contains(content, "type: group") {
+								kind = indexMocGroup
+							}
 						}
+						indexTypeCache.Store(indexFile, cachedIndexInfo{mtime: mtime, kind: kind})
+					}
+				}
+
+				if kind == indexMocRepository {
+					repoName := filepath.Base(curr)
+					parentDir := filepath.ToSlash(filepath.Dir(curr))
+					groupRel := strings.TrimPrefix(strings.TrimPrefix(parentDir, domain), "/")
+					return NoteTaxonomy{
+						Domain:     domain,
+						Group:      groupRel,
+						Repository: repoName,
+						Category:   curr,
+					}
+				}
+				if kind == indexMocGroup && cleanPath == curr+"/index.md" {
+					groupRel := strings.TrimPrefix(strings.TrimPrefix(curr, domain), "/")
+					return NoteTaxonomy{
+						Domain:     domain,
+						Group:      groupRel,
+						Repository: "",
+						Category:   curr,
 					}
 				}
 				next := filepath.ToSlash(filepath.Dir(curr))

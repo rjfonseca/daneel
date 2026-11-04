@@ -41,17 +41,19 @@ Available across all commands:
 ### Hygiene, Security & Cognitive Consolidation
 | Command | Summary | Key Flags |
 |---|---|---|
-| `daneel tidy` | Deterministic vault hygiene: link fixes, MOC updates, live reload | `--dry-run`, `--no-agent` |
+| `daneel tidy` | Deterministic vault hygiene: link fixes, MOC updates, live reload | `--dry-run`, `--no-agent`, `--force` |
 | `daneel guard` | Audits public notes against Asimov's Four Laws of Robotics | `--check`, `--file <path>`, `--json` |
 | `daneel dream` | Runs the cognitive REM cycle (hygiene, triage, telemetry, radar, metacognition) | `--date`, `--no-agent`, `--stats`, `--metacognition`, `--synthesize`, `--prompt`, `--interactive`, `--profile`, `--json`, `--learn` |
 | `daneel audit sessions` | Audits agent session transcripts for corrections, skills, and evals | `--since`, `--mine-skills`, `--evals`, `--apply`, `--dry-run` |
 | `daneel audit agents` | Audits agnostic agent sessions for missed opportunities and knowledge gaps | `--since`, `--agent <all\|antigravity\|claude-code\|cursor>`, `--apply`, `--dry-run`, `--json` |
 | `daneel harvest` | Scrapes documentation from GitHub, GitLab, Jira, GDrive | `[catalog]`, `[prune]`, `--prune`, `--dry-run`, `-l, --limit`, `-r, --reindex`, `-t, --token`, `--type <org\|user>` |
-| `daneel doctor` | Diagnostics for vault health, broken links, and metadata | None |
+| `daneel doctor` | Diagnostics for vault health, broken links, and metadata | `--force` |
 
 ### Operations, Telemetry & Copilots
 | Command | Summary | Key Flags |
 |---|---|---|
+| `daneel morning` | Scaffolds the daily log with autonomous Dream Cycle handoff, inbox triage, and active P0/P1 priorities | `--date <YYYY-MM-DD>`, `--json` |
+| `daneel evening` | Reconciles explicit Staff Engineering time annotations from the daily log into YAML frontmatter | `--date <YYYY-MM-DD>`, `--json` |
 | `daneel dossier` | Compiles executive performance review dossier and impact report | `--year`, `--semester`, `-o, --output` |
 | `daneel prep` | Generates an executive briefing for 1:1s and alignments | `<person-slug>` |
 | `daneel log` | Displays activity logs, time tracking, rolling weekly matrix, and monthly trends | `--date <today\|YYYY-MM-DD>`, `--recent <days>`, `--weeks [N]`, `--monthly`, `--json` |

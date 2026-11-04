@@ -52,6 +52,16 @@ func TestTidyCmd_Basic(t *testing.T) {
 	}
 }
 
+func TestTidyCmd_ForceFlag(t *testing.T) {
+	flag := tidyCmd.Flags().Lookup("force")
+	if flag == nil {
+		t.Fatalf("expected tidyCmd to have --force flag")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected default value false, got %s", flag.DefValue)
+	}
+}
+
 func stringContains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || (len(s) > 0 && len(substr) > 0 && filepath.ToSlash(s) != "" && containsHelper(s, substr)))
 }
