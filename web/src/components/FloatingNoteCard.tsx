@@ -53,6 +53,8 @@ export interface FloatingNoteCardProps {
 const MIN_DRAWER_WIDTH = 320;
 const MAX_DRAWER_WIDTH = 800;
 const DRAWER_WIDTH_STEP = 16;
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 20;
 
 function clampDrawerWidth(width: number): number {
   return Math.min(MAX_DRAWER_WIDTH, Math.max(MIN_DRAWER_WIDTH, width));
@@ -168,7 +170,7 @@ export const FloatingNoteCard: React.FC<FloatingNoteCardProps> = ({
     },
   }), [headings, navigateToAnchor, onNavigateInternalLink]);
 
-  const changeFontSize = (delta: number) => setFontSize((current) => Math.min(20, Math.max(12, current + delta)));
+  const changeFontSize = (delta: number) => setFontSize((current) => Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, current + delta)));
   const changeDrawerWidth = (width: number) => onDrawerWidthChange?.(clampDrawerWidth(width));
 
   return (
@@ -317,20 +319,22 @@ export const FloatingNoteCard: React.FC<FloatingNoteCardProps> = ({
             {hasDirectedRelations ? incoming.length + outgoing.length : activeNote.connections ?? 0} links
           </span>
           {activeNote.stellarDesc && <span className="text-gray-500 truncate">• {activeNote.stellarDesc}</span>}
-          <div className="ml-auto flex items-center gap-1" aria-label="Text size controls">
+          <div className="ml-auto flex items-center gap-1" role="group" aria-label="Text size controls">
             <button
               type="button"
               onClick={() => changeFontSize(-2)}
+              disabled={fontSize <= MIN_FONT_SIZE}
               aria-label="Decrease text size"
-              title="Decrease text size"
-              className="p-1 rounded-sm hover:bg-gray-800 text-gray-300 hover:text-white cosmic-focus-visible"
+              title={fontSize <= MIN_FONT_SIZE ? 'Decrease text size (minimum reached)' : 'Decrease text size'}
+              className="p-1 rounded-sm hover:bg-gray-800 text-gray-300 hover:text-white cosmic-focus-visible disabled:opacity-40 disabled:cursor-not-allowed"
             ><Minus className="h-3.5 w-3.5" aria-hidden="true" /></button>
             <button
               type="button"
               onClick={() => changeFontSize(2)}
+              disabled={fontSize >= MAX_FONT_SIZE}
               aria-label="Increase text size"
-              title="Increase text size"
-              className="p-1 rounded-sm hover:bg-gray-800 text-gray-300 hover:text-white cosmic-focus-visible"
+              title={fontSize >= MAX_FONT_SIZE ? 'Increase text size (maximum reached)' : 'Increase text size'}
+              className="p-1 rounded-sm hover:bg-gray-800 text-gray-300 hover:text-white cosmic-focus-visible disabled:opacity-40 disabled:cursor-not-allowed"
             ><Plus className="h-3.5 w-3.5" aria-hidden="true" /></button>
           </div>
         </div>

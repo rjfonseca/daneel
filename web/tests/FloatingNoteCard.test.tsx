@@ -174,4 +174,43 @@ describe('FloatingNoteCard Component', () => {
     fireEvent.keyDown(resizeHandle, { key: 'End' });
     expect(onDrawerWidthChange).toHaveBeenLastCalledWith(800);
   });
+
+  it('handles text size controls and disables buttons at boundary limits', async () => {
+    await renderAsync(
+      <FloatingNoteCard
+        activeNote={mockNote}
+        noteContent="# Content"
+        processedMarkdown="# Content"
+        isMaximized={false}
+        onToggleMaximize={() => {}}
+        onClose={() => {}}
+        onCopy={() => {}}
+        copied={false}
+        onNavigateInternalLink={() => {}}
+        isConstellationActive={false}
+        onResetConstellation={() => {}}
+      />
+    );
+
+    const decreaseBtn = screen.getByRole('button', { name: 'Decrease text size' });
+    const increaseBtn = screen.getByRole('button', { name: 'Increase text size' });
+
+    expect(decreaseBtn).not.toBeDisabled();
+    expect(increaseBtn).not.toBeDisabled();
+
+    // Default font size is 14. Decreasing by 2 brings it to 12 (MIN_FONT_SIZE).
+    fireEvent.click(decreaseBtn);
+    expect(decreaseBtn).toBeDisabled();
+    expect(decreaseBtn.getAttribute('title')).toBe('Decrease text size (minimum reached)');
+
+    // Increase back to 14, 16, 18, 20 (MAX_FONT_SIZE)
+    fireEvent.click(increaseBtn);
+    expect(decreaseBtn).not.toBeDisabled();
+    fireEvent.click(increaseBtn);
+    fireEvent.click(increaseBtn);
+    fireEvent.click(increaseBtn);
+
+    expect(increaseBtn).toBeDisabled();
+    expect(increaseBtn.getAttribute('title')).toBe('Increase text size (maximum reached)');
+  });
 });
