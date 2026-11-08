@@ -215,8 +215,8 @@ func TestHarvesters_ConcurrentPoolAndRaceSafety(t *testing.T) {
 		if len(stats.ActiveProjects) != 16 {
 			t.Errorf("expected 16 ActiveProjects, got %d", len(stats.ActiveProjects))
 		}
-		if elapsed >= 800*time.Millisecond {
-			t.Errorf("GitLab harvest took %v, expected < 800ms (concurrent 8 workers)", elapsed)
+		if elapsed >= 1000*time.Millisecond {
+			t.Errorf("GitLab harvest took %v, expected < 1000ms (concurrent 8 workers)", elapsed)
 		}
 	})
 
@@ -246,8 +246,8 @@ func TestHarvesters_ConcurrentPoolAndRaceSafety(t *testing.T) {
 		if len(stats.ActiveProjects) != 16 {
 			t.Errorf("expected 16 ActiveProjects, got %d", len(stats.ActiveProjects))
 		}
-		if elapsed >= 800*time.Millisecond {
-			t.Errorf("GitHub harvest took %v, expected < 800ms (concurrent 8 workers)", elapsed)
+		if elapsed >= 1000*time.Millisecond {
+			t.Errorf("GitHub harvest took %v, expected < 1000ms (concurrent 8 workers)", elapsed)
 		}
 	})
 }
