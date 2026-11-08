@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { STELLAR_SPECTRUM_LEGEND } from '../lib/stellarClassification';
 import type { EdgeVisibilityMode } from '../lib/edgeFiltering';
+import { MIN_MAX_NEBULAS, MAX_MAX_NEBULAS } from '../lib/nebulas';
 
 interface CosmicControlsPopoverProps {
   isOpen: boolean;
@@ -42,9 +43,6 @@ const EDGE_MODES = [
     desc: 'Full Mesh · Permanently displays all neural connections across the knowledge graph' 
   },
 ];
-
-const MIN_MAX_NEBULAS = 1;
-const MAX_MAX_NEBULAS = 32;
 
 export const CosmicControlsPopover: React.FC<CosmicControlsPopoverProps> = ({
   isOpen,
@@ -94,7 +92,15 @@ export const CosmicControlsPopover: React.FC<CosmicControlsPopoverProps> = ({
           >
             <Minus className="w-3 h-3" aria-hidden="true" />
           </button>
-          <span className="font-mono font-bold text-indigo-300 w-6 text-center text-sm" data-testid="max-nebulas-value">
+          <span
+            data-testid="max-nebulas-value"
+            role="spinbutton"
+            aria-label="Nebula label limit"
+            aria-valuemin={MIN_MAX_NEBULAS}
+            aria-valuemax={MAX_MAX_NEBULAS}
+            aria-valuenow={maxNebulas}
+            className="font-mono font-bold text-indigo-300 w-6 text-center text-sm"
+          >
             {maxNebulas}
           </span>
           <button 
