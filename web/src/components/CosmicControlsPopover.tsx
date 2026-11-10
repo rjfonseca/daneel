@@ -43,6 +43,9 @@ const EDGE_MODES = [
   },
 ];
 
+const MIN_MAX_NEBULAS = 1;
+const MAX_MAX_NEBULAS = 32;
+
 export const CosmicControlsPopover: React.FC<CosmicControlsPopoverProps> = ({
   isOpen,
   onClose,
@@ -79,27 +82,31 @@ export const CosmicControlsPopover: React.FC<CosmicControlsPopoverProps> = ({
           <Layers className="w-3.5 h-3.5 text-indigo-400" />
           Nebula Limit:
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" role="group" aria-label="Nebula label limit controls">
           <button 
+            type="button"
             onClick={() => onUpdateMaxNebulas(maxNebulas - 1)}
+            disabled={maxNebulas <= MIN_MAX_NEBULAS}
             aria-label="Decrease maximum visible nebulas"
-            className="w-6 h-6 flex items-center justify-center rounded-sm bg-gray-800 hover:bg-gray-700 text-slate-300 hover:text-white transition-colors cursor-pointer cosmic-focus-visible"
-            title="Decrease nebula limit"
+            className="w-6 h-6 flex items-center justify-center rounded-sm bg-gray-800 hover:bg-gray-700 text-slate-300 hover:text-white transition-colors cursor-pointer cosmic-focus-visible disabled:opacity-40 disabled:cursor-not-allowed"
+            title={maxNebulas <= MIN_MAX_NEBULAS ? "Decrease maximum visible nebulas (minimum reached)" : "Decrease maximum visible nebulas"}
             data-testid="decrease-max-nebulas"
           >
-            <Minus className="w-3 h-3" />
+            <Minus className="w-3 h-3" aria-hidden="true" />
           </button>
           <span className="font-mono font-bold text-indigo-300 w-6 text-center text-sm" data-testid="max-nebulas-value">
             {maxNebulas}
           </span>
           <button 
+            type="button"
             onClick={() => onUpdateMaxNebulas(maxNebulas + 1)}
+            disabled={maxNebulas >= MAX_MAX_NEBULAS}
             aria-label="Increase maximum visible nebulas"
-            className="w-6 h-6 flex items-center justify-center rounded-sm bg-gray-800 hover:bg-gray-700 text-slate-300 hover:text-white transition-colors cursor-pointer cosmic-focus-visible"
-            title="Increase nebula limit"
+            className="w-6 h-6 flex items-center justify-center rounded-sm bg-gray-800 hover:bg-gray-700 text-slate-300 hover:text-white transition-colors cursor-pointer cosmic-focus-visible disabled:opacity-40 disabled:cursor-not-allowed"
+            title={maxNebulas >= MAX_MAX_NEBULAS ? "Increase maximum visible nebulas (maximum reached)" : "Increase maximum visible nebulas"}
             data-testid="increase-max-nebulas"
           >
-            <Plus className="w-3 h-3" />
+            <Plus className="w-3 h-3" aria-hidden="true" />
           </button>
         </div>
       </div>

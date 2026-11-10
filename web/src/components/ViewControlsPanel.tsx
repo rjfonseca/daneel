@@ -13,6 +13,9 @@ export interface ViewControlsPanelProps {
   onUpdateMaxNebulas: (value: number) => void;
 }
 
+const MIN_MAX_NEBULAS = 1;
+const MAX_MAX_NEBULAS = 32;
+
 const EDGE_MODES: Array<{ id: EdgeVisibilityMode; label: string; description: string }> = [
   { id: 'auto', label: 'Auto', description: 'Automatically adapts edge density to zoom level' },
   { id: 'bridges', label: 'Bridges', description: 'Shows connections between clusters and sectors' },
@@ -90,10 +93,26 @@ export const ViewControlsPanel: React.FC<ViewControlsPanelProps> = ({
 
       <div className="mb-4 flex items-center justify-between rounded-lg border border-white/10 bg-white/3 px-3 py-2">
         <span><span className="block font-semibold">Nebula label limit</span><span className="text-[10px] text-slate-400">Maximum visible category labels</span></span>
-        <span className="flex items-center gap-1.5">
-          <button type="button" data-testid="decrease-max-nebulas" aria-label="Decrease maximum visible nebulas" onClick={() => onUpdateMaxNebulas(maxNebulas - 1)} className="rounded-sm bg-gray-800 p-1 cosmic-focus-visible"><Minus className="h-3 w-3" /></button>
+        <span className="flex items-center gap-1.5" role="group" aria-label="Nebula label limit controls">
+          <button
+            type="button"
+            data-testid="decrease-max-nebulas"
+            aria-label="Decrease maximum visible nebulas"
+            disabled={maxNebulas <= MIN_MAX_NEBULAS}
+            title={maxNebulas <= MIN_MAX_NEBULAS ? 'Decrease maximum visible nebulas (minimum reached)' : 'Decrease maximum visible nebulas'}
+            onClick={() => onUpdateMaxNebulas(maxNebulas - 1)}
+            className="rounded-sm bg-gray-800 p-1 cosmic-focus-visible disabled:opacity-40 disabled:cursor-not-allowed"
+          ><Minus className="h-3 w-3" aria-hidden="true" /></button>
           <span data-testid="max-nebulas-value" className="w-5 text-center font-mono text-indigo-300">{maxNebulas}</span>
-          <button type="button" data-testid="increase-max-nebulas" aria-label="Increase maximum visible nebulas" onClick={() => onUpdateMaxNebulas(maxNebulas + 1)} className="rounded-sm bg-gray-800 p-1 cosmic-focus-visible"><Plus className="h-3 w-3" /></button>
+          <button
+            type="button"
+            data-testid="increase-max-nebulas"
+            aria-label="Increase maximum visible nebulas"
+            disabled={maxNebulas >= MAX_MAX_NEBULAS}
+            title={maxNebulas >= MAX_MAX_NEBULAS ? 'Increase maximum visible nebulas (maximum reached)' : 'Increase maximum visible nebulas'}
+            onClick={() => onUpdateMaxNebulas(maxNebulas + 1)}
+            className="rounded-sm bg-gray-800 p-1 cosmic-focus-visible disabled:opacity-40 disabled:cursor-not-allowed"
+          ><Plus className="h-3 w-3" aria-hidden="true" /></button>
         </span>
       </div>
 
