@@ -42,6 +42,8 @@ const (
 	// GraphServiceCaptureNoteProcedure is the fully-qualified name of the GraphService's CaptureNote
 	// RPC.
 	GraphServiceCaptureNoteProcedure = "/graph.v1.GraphService/CaptureNote"
+	// GraphServiceIngestPathProcedure is the fully-qualified name of the GraphService's IngestPath RPC.
+	GraphServiceIngestPathProcedure = "/graph.v1.GraphService/IngestPath"
 	// GraphServiceSearchNotesProcedure is the fully-qualified name of the GraphService's SearchNotes
 	// RPC.
 	GraphServiceSearchNotesProcedure = "/graph.v1.GraphService/SearchNotes"
@@ -85,6 +87,8 @@ type GraphServiceClient interface {
 	GetNote(context.Context, *connect.Request[v1.GetNoteRequest]) (*connect.Response[v1.GetNoteResponse], error)
 	// Saves an explicitly submitted note in the local inbox.
 	CaptureNote(context.Context, *connect.Request[v1.CaptureNoteRequest]) (*connect.Response[v1.CaptureNoteResponse], error)
+	// Ingests a host file or directory into the vault.
+	IngestPath(context.Context, *connect.Request[v1.IngestPathRequest]) (*connect.Response[v1.IngestPathResponse], error)
 	// Performs full-text search across vault notes (SQLite FTS5)
 	SearchNotes(context.Context, *connect.Request[v1.SearchNotesRequest]) (*connect.Response[v1.SearchNotesResponse], error)
 	// Subscribes to real-time UI events dispatched by Daemon/MCP/CLI
@@ -137,6 +141,12 @@ func NewGraphServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			httpClient,
 			baseURL+GraphServiceCaptureNoteProcedure,
 			connect.WithSchema(graphServiceMethods.ByName("CaptureNote")),
+			connect.WithClientOptions(opts...),
+		),
+		ingestPath: connect.NewClient[v1.IngestPathRequest, v1.IngestPathResponse](
+			httpClient,
+			baseURL+GraphServiceIngestPathProcedure,
+			connect.WithSchema(graphServiceMethods.ByName("IngestPath")),
 			connect.WithClientOptions(opts...),
 		),
 		searchNotes: connect.NewClient[v1.SearchNotesRequest, v1.SearchNotesResponse](
@@ -213,6 +223,7 @@ type graphServiceClient struct {
 	getGalaxy               *connect.Client[v1.GetGalaxyRequest, v1.GetGalaxyResponse]
 	getNote                 *connect.Client[v1.GetNoteRequest, v1.GetNoteResponse]
 	captureNote             *connect.Client[v1.CaptureNoteRequest, v1.CaptureNoteResponse]
+	ingestPath              *connect.Client[v1.IngestPathRequest, v1.IngestPathResponse]
 	searchNotes             *connect.Client[v1.SearchNotesRequest, v1.SearchNotesResponse]
 	subscribeUIEvents       *connect.Client[v1.SubscribeUIEventsRequest, v1.UIEvent]
 	reportActiveContext     *connect.Client[v1.ReportActiveContextRequest, v1.ReportActiveContextResponse]
@@ -239,6 +250,11 @@ func (c *graphServiceClient) GetNote(ctx context.Context, req *connect.Request[v
 // CaptureNote calls graph.v1.GraphService.CaptureNote.
 func (c *graphServiceClient) CaptureNote(ctx context.Context, req *connect.Request[v1.CaptureNoteRequest]) (*connect.Response[v1.CaptureNoteResponse], error) {
 	return c.captureNote.CallUnary(ctx, req)
+}
+
+// IngestPath calls graph.v1.GraphService.IngestPath.
+func (c *graphServiceClient) IngestPath(ctx context.Context, req *connect.Request[v1.IngestPathRequest]) (*connect.Response[v1.IngestPathResponse], error) {
+	return c.ingestPath.CallUnary(ctx, req)
 }
 
 // SearchNotes calls graph.v1.GraphService.SearchNotes.
@@ -304,6 +320,8 @@ type GraphServiceHandler interface {
 	GetNote(context.Context, *connect.Request[v1.GetNoteRequest]) (*connect.Response[v1.GetNoteResponse], error)
 	// Saves an explicitly submitted note in the local inbox.
 	CaptureNote(context.Context, *connect.Request[v1.CaptureNoteRequest]) (*connect.Response[v1.CaptureNoteResponse], error)
+	// Ingests a host file or directory into the vault.
+	IngestPath(context.Context, *connect.Request[v1.IngestPathRequest]) (*connect.Response[v1.IngestPathResponse], error)
 	// Performs full-text search across vault notes (SQLite FTS5)
 	SearchNotes(context.Context, *connect.Request[v1.SearchNotesRequest]) (*connect.Response[v1.SearchNotesResponse], error)
 	// Subscribes to real-time UI events dispatched by Daemon/MCP/CLI
@@ -352,6 +370,12 @@ func NewGraphServiceHandler(svc GraphServiceHandler, opts ...connect.HandlerOpti
 		GraphServiceCaptureNoteProcedure,
 		svc.CaptureNote,
 		connect.WithSchema(graphServiceMethods.ByName("CaptureNote")),
+		connect.WithHandlerOptions(opts...),
+	)
+	graphServiceIngestPathHandler := connect.NewUnaryHandler(
+		GraphServiceIngestPathProcedure,
+		svc.IngestPath,
+		connect.WithSchema(graphServiceMethods.ByName("IngestPath")),
 		connect.WithHandlerOptions(opts...),
 	)
 	graphServiceSearchNotesHandler := connect.NewUnaryHandler(
@@ -428,6 +452,8 @@ func NewGraphServiceHandler(svc GraphServiceHandler, opts ...connect.HandlerOpti
 			graphServiceGetNoteHandler.ServeHTTP(w, r)
 		case GraphServiceCaptureNoteProcedure:
 			graphServiceCaptureNoteHandler.ServeHTTP(w, r)
+		case GraphServiceIngestPathProcedure:
+			graphServiceIngestPathHandler.ServeHTTP(w, r)
 		case GraphServiceSearchNotesProcedure:
 			graphServiceSearchNotesHandler.ServeHTTP(w, r)
 		case GraphServiceSubscribeUIEventsProcedure:
@@ -469,6 +495,10 @@ func (UnimplementedGraphServiceHandler) GetNote(context.Context, *connect.Reques
 
 func (UnimplementedGraphServiceHandler) CaptureNote(context.Context, *connect.Request[v1.CaptureNoteRequest]) (*connect.Response[v1.CaptureNoteResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.CaptureNote is not implemented"))
+}
+
+func (UnimplementedGraphServiceHandler) IngestPath(context.Context, *connect.Request[v1.IngestPathRequest]) (*connect.Response[v1.IngestPathResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.IngestPath is not implemented"))
 }
 
 func (UnimplementedGraphServiceHandler) SearchNotes(context.Context, *connect.Request[v1.SearchNotesRequest]) (*connect.Response[v1.SearchNotesResponse], error) {

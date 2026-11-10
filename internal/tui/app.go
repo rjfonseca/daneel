@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -25,6 +26,7 @@ const (
 	ViewSkills
 	ViewHooks
 	ViewTelemetry
+	ViewIngest
 )
 
 // AppModel is the root BubbleTea application model.
@@ -50,6 +52,7 @@ type AppModel struct {
 	skillsView    *SkillsView
 	hooksView     *HooksView
 	telemetryView *TelemetryView
+	ingestView    *IngestView
 }
 
 // NewAppModel constructs the root TUI application with all sub-views.
@@ -65,6 +68,7 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 	skv := NewSkillsView(vaultRoot, styles)
 	hv := NewHooksView(vaultRoot, styles)
 	tv := NewTelemetryView(vaultRoot, styles)
+	iv := NewIngestView(vaultRoot, engine, styles)
 
 	telemetryTab := tuiCfg.Tabs.Telemetry
 	if telemetryTab == "" {
@@ -79,6 +83,7 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 		tuiCfg.Tabs.Skills,
 		"Agent Activity",
 		telemetryTab,
+		"9: 📥 Ingest",
 	}
 
 	return &AppModel{
@@ -96,6 +101,7 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 		skillsView:    skv,
 		hooksView:     hv,
 		telemetryView: tv,
+		ingestView:    iv,
 	}
 }
 
@@ -105,12 +111,18 @@ func (m *AppModel) Init() tea.Cmd {
 	if m.searchView != nil {
 		cmds = append(cmds, m.searchView.Init())
 	}
+	if m.ingestView != nil {
+		cmds = append(cmds, m.ingestView.Init())
+	}
 	return tea.Batch(cmds...)
 }
 
 func (m *AppModel) isChildInInputMode() bool {
 	if m.activeTab == ViewSearch && m.searchView != nil {
 		return m.searchView.IsInputMode()
+	}
+	if m.activeTab == ViewIngest && m.ingestView != nil {
+		return m.ingestView.IsInputMode()
 	}
 	return false
 }
@@ -140,6 +152,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.telemetryView != nil && !m.telemetryView.loaded {
 						m.telemetryView.Refresh()
 					}
+				case "ingest":
+					m.activeTab = ViewIngest
 				}
 			}
 			return m, nil
@@ -242,6 +256,9 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.telemetryView != nil {
 			m.telemetryView.SetSize(msg.Width, contentHeight)
 		}
+		if m.ingestView != nil {
+			m.ingestView.SetSize(msg.Width, contentHeight)
+		}
 		return m, nil
 
 	case tea.MouseMsg:
@@ -276,8 +293,20 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// 3. If child view is in text input mode (e.g. typing in search box):
 		if m.isChildInInputMode() {
 			var childCmd tea.Cmd
-			m.searchView, childCmd = m.searchView.Update(msg)
-			return m, childCmd
+			if m.activeTab == ViewSearch && m.searchView != nil {
+				m.searchView, childCmd = m.searchView.Update(msg)
+				return m, childCmd
+			}
+			if m.activeTab == ViewIngest && m.ingestView != nil {
+				m.ingestView, childCmd = m.ingestView.Update(msg)
+				return m, childCmd
+			}
+		}
+
+		// Handle Tab9 (9 or i)
+		if key.Matches(msg, m.keyMap.Tab9) {
+			m.activeTab = ViewIngest
+			return m, nil
 		}
 
 		// 4. Normal Mode commands
@@ -291,6 +320,11 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "tab":
+			if m.activeTab == ViewIngest {
+				var childCmd tea.Cmd
+				m.ingestView, childCmd = m.ingestView.Update(msg)
+				return m, childCmd
+			}
 			m.activeTab = (m.activeTab + 1) % ViewType(len(m.tabs))
 			if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
 				m.telemetryView.Refresh()
@@ -370,6 +404,11 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.telemetryView, childCmd = m.telemetryView.Update(msg)
 			cmds = append(cmds, childCmd)
 		}
+	case ViewIngest:
+		if m.ingestView != nil {
+			m.ingestView, childCmd = m.ingestView.Update(msg)
+			cmds = append(cmds, childCmd)
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -432,6 +471,10 @@ func (m *AppModel) View() string {
 		if m.telemetryView != nil {
 			content = m.telemetryView.View()
 		}
+	case ViewIngest:
+		if m.ingestView != nil {
+			content = m.ingestView.View()
+		}
 	}
 
 	// 4. Status / Help Bar
@@ -488,7 +531,8 @@ func (m *AppModel) renderStatusBar() string {
 			d string
 		}{
 			{"/", "Query"},
-			{"1-8 / Tab", "Sectors"},
+			{"1-9 / Tab", "Sectors"},
+			{"i", "Ingest"},
 			{"T", "Telemetry"},
 			{"j/k", "Scan"},
 			{"h/l", "Pane"},
@@ -516,8 +560,9 @@ func (m *AppModel) renderHelpOverlay(background string) string { //nolint:revive
 	helpSB.WriteString(m.styles.HelpTitle.Render("📖 R. Daneel Olivaw — Positronic Engine Directives") + "\n\n")
 
 	shortcuts := [][]string{
-		{"Tab / Shift+Tab", "Cycle through the 8 Galactic Sectors"},
-		{"1 .. 8", "Jump to Sector (1: Search, 2: Dashboard, ..., 8: Telemetry)"},
+		{"Tab / Shift+Tab", "Cycle through Galactic Sectors"},
+		{"1 .. 9", "Jump to Sector (1: Search, 2: Dashboard, ..., 8: Telemetry, 9: Ingest)"},
+		{"i", "Jump directly to Universal Ingestion Sector"},
 		{"T", "Jump directly to Telemetry & AI FinOps Sector"},
 		{"/", "Activate Positronic Query Mode (type search freely)"},
 		{"Esc", "Deactivate Query Mode and return to Zeroth Law normal scan"},

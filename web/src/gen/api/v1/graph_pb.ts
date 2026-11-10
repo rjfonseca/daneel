@@ -2629,6 +2629,11 @@ export class CaptureNoteRequest extends Message<CaptureNoteRequest> {
    */
   sourceUrl = "";
 
+  /**
+   * @generated from field: string destination = 4;
+   */
+  destination = "";
+
   constructor(data?: PartialMessage<CaptureNoteRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2640,6 +2645,7 @@ export class CaptureNoteRequest extends Message<CaptureNoteRequest> {
     { no: 1, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "content_markdown", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "source_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "destination", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CaptureNoteRequest {
@@ -2699,6 +2705,173 @@ export class CaptureNoteResponse extends Message<CaptureNoteResponse> {
 
   static equals(a: CaptureNoteResponse | PlainMessage<CaptureNoteResponse> | undefined, b: CaptureNoteResponse | PlainMessage<CaptureNoteResponse> | undefined): boolean {
     return proto3.util.equals(CaptureNoteResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.IngestPathRequest
+ */
+export class IngestPathRequest extends Message<IngestPathRequest> {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path = "";
+
+  /**
+   * optional, default: "inbox"
+   *
+   * @generated from field: string destination = 2;
+   */
+  destination = "";
+
+  /**
+   * @generated from field: bool recursive = 3;
+   */
+  recursive = false;
+
+  /**
+   * @generated from field: bool move = 4;
+   */
+  move = false;
+
+  constructor(data?: PartialMessage<IngestPathRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.IngestPathRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "destination", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "move", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): IngestPathRequest {
+    return new IngestPathRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): IngestPathRequest {
+    return new IngestPathRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): IngestPathRequest {
+    return new IngestPathRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: IngestPathRequest | PlainMessage<IngestPathRequest> | undefined, b: IngestPathRequest | PlainMessage<IngestPathRequest> | undefined): boolean {
+    return proto3.util.equals(IngestPathRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.IngestedItem
+ */
+export class IngestedItem extends Message<IngestedItem> {
+  /**
+   * @generated from field: string source_path = 1;
+   */
+  sourcePath = "";
+
+  /**
+   * @generated from field: string rel_path = 2;
+   */
+  relPath = "";
+
+  /**
+   * @generated from field: string title = 3;
+   */
+  title = "";
+
+  /**
+   * @generated from field: int64 size_bytes = 4;
+   */
+  sizeBytes = protoInt64.zero;
+
+  /**
+   * @generated from field: string warning = 5;
+   */
+  warning = "";
+
+  constructor(data?: PartialMessage<IngestedItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.IngestedItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "source_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "rel_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "size_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 5, name: "warning", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): IngestedItem {
+    return new IngestedItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): IngestedItem {
+    return new IngestedItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): IngestedItem {
+    return new IngestedItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: IngestedItem | PlainMessage<IngestedItem> | undefined, b: IngestedItem | PlainMessage<IngestedItem> | undefined): boolean {
+    return proto3.util.equals(IngestedItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.IngestPathResponse
+ */
+export class IngestPathResponse extends Message<IngestPathResponse> {
+  /**
+   * @generated from field: repeated graph.v1.IngestedItem items = 1;
+   */
+  items: IngestedItem[] = [];
+
+  /**
+   * @generated from field: int32 total_processed = 2;
+   */
+  totalProcessed = 0;
+
+  /**
+   * @generated from field: string warning = 3;
+   */
+  warning = "";
+
+  constructor(data?: PartialMessage<IngestPathResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.IngestPathResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "items", kind: "message", T: IngestedItem, repeated: true },
+    { no: 2, name: "total_processed", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "warning", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): IngestPathResponse {
+    return new IngestPathResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): IngestPathResponse {
+    return new IngestPathResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): IngestPathResponse {
+    return new IngestPathResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: IngestPathResponse | PlainMessage<IngestPathResponse> | undefined, b: IngestPathResponse | PlainMessage<IngestPathResponse> | undefined): boolean {
+    return proto3.util.equals(IngestPathResponse, a, b);
   }
 }
 

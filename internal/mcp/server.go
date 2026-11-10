@@ -20,6 +20,7 @@ import (
 	"github.com/rjfonseca/daneel/internal/daemon"
 	"github.com/rjfonseca/daneel/internal/dream"
 	"github.com/rjfonseca/daneel/internal/guard"
+	"github.com/rjfonseca/daneel/internal/ingest"
 	"github.com/rjfonseca/daneel/internal/ops/backlog"
 	"github.com/rjfonseca/daneel/internal/ops/briefing"
 	"github.com/rjfonseca/daneel/internal/ops/clone"
@@ -403,6 +404,65 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"description": "Deletes raw files from inbox/ after successful processing (default: true).",
 						},
 					},
+				},
+			},
+			{
+				Name:        "ingest_note",
+				Description: "Ingests raw markdown note content directly into the Vault, synthesizing YAML frontmatter and indexing in SQLite FTS5.",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"title": map[string]interface{}{
+							"type":        "string",
+							"description": "Title of the note",
+						},
+						"content": map[string]interface{}{
+							"type":        "string",
+							"description": "Markdown body content",
+						},
+						"destination": map[string]interface{}{
+							"type":        "string",
+							"description": "Vault destination directory (default: 'inbox')",
+						},
+						"tags": map[string]interface{}{
+							"type": "array",
+							"items": map[string]interface{}{
+								"type": "string",
+							},
+							"description": "Optional tags to attach",
+						},
+						"source_url": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional source reference URL",
+						},
+					},
+					"required": []string{"title", "content"},
+				},
+			},
+			{
+				Name:        "ingest_path",
+				Description: "Ingests an arbitrary file or directory from the host filesystem into the Vault, supporting recursive scans, frontmatter synthesis, and FTS5 indexing.",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"path": map[string]interface{}{
+							"type":        "string",
+							"description": "Absolute or relative host path to file or directory",
+						},
+						"destination": map[string]interface{}{
+							"type":        "string",
+							"description": "Vault destination directory (default: 'inbox')",
+						},
+						"recursive": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Recursively scan directories (default: true)",
+						},
+						"move": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Delete source file after ingestion (default: false)",
+						},
+					},
+					"required": []string{"path"},
 				},
 			},
 			{
@@ -1056,6 +1116,90 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		}
 		bytes, _ := json.MarshalIndent(rep, "", "  ")
 		return string(bytes), false
+
+	case "ingest_note":
+		title, _ := args["title"].(string)
+		title = strings.TrimSpace(title)
+		if title == "" {
+			return "Parameter 'title' is required.", true
+		}
+
+		content, _ := args["content"].(string)
+		content = strings.TrimSpace(content)
+		if content == "" {
+			return "Parameter 'content' is required.", true
+		}
+
+		dest := "inbox"
+		if d, ok := args["destination"].(string); ok && strings.TrimSpace(d) != "" {
+			dest = strings.TrimSpace(d)
+		}
+
+		sourceURL, _ := args["source_url"].(string)
+		var tags []string
+		if rawTags, ok := args["tags"].([]interface{}); ok {
+			for _, t := range rawTags {
+				if s, ok := t.(string); ok && strings.TrimSpace(s) != "" {
+					tags = append(tags, strings.TrimSpace(s))
+				}
+			}
+		} else if strTags, ok := args["tags"].([]string); ok {
+			tags = strTags
+		}
+
+		eng := ingest.NewEngine(s.vaultRoot, s.engine, daemon.GetDefaultHub())
+		note, err := eng.IngestContent(context.Background(), title, []byte(content), ingest.IngestOptions{
+			Destination: dest,
+			SourceURL:   sourceURL,
+			Tags:        tags,
+		})
+		if err != nil {
+			return fmt.Sprintf("Failed to ingest note: %v", err), true
+		}
+
+		resBytes, _ := json.MarshalIndent(map[string]interface{}{
+			"status":     "success",
+			"rel_path":   note.RelPath,
+			"title":      note.Title,
+			"size_bytes": note.SizeBytes,
+			"warning":    note.Warning,
+		}, "", "  ")
+		return string(resBytes), false
+
+	case "ingest_path":
+		path, _ := args["path"].(string)
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return "Parameter 'path' is required.", true
+		}
+
+		dest := "inbox"
+		if d, ok := args["destination"].(string); ok && strings.TrimSpace(d) != "" {
+			dest = strings.TrimSpace(d)
+		}
+
+		recursive := true
+		if r, ok := args["recursive"].(bool); ok {
+			recursive = r
+		}
+
+		move := false
+		if m, ok := args["move"].(bool); ok {
+			move = m
+		}
+
+		eng := ingest.NewEngine(s.vaultRoot, s.engine, daemon.GetDefaultHub())
+		rep, err := eng.IngestPath(context.Background(), path, ingest.IngestOptions{
+			Destination: dest,
+			Recursive:   recursive,
+			Move:        move,
+		})
+		if err != nil {
+			return fmt.Sprintf("Failed to ingest path: %v", err), true
+		}
+
+		resBytes, _ := json.MarshalIndent(rep, "", "  ")
+		return string(resBytes), false
 
 	case "ui_get_active_context":
 		client, err := daemon.NewClient()

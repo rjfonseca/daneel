@@ -44,12 +44,15 @@ daneel prep "jane-doe"
 
 ---
 
-## 3. Meeting Notes Ingestion Engine (`daneel ingest`)
+## 3. Universal Note & Meeting Ingestion Engine (`daneel ingest`)
 
-Batch processes raw meeting notes and transcripts (such as Google Meet or Gemini outputs) dropped into `inbox/`:
+Batch processes arbitrary external markdown files, directories, and raw meeting notes or transcripts (such as Google Meet or Gemini outputs):
 
 ```bash
-# Ingest all candidate meeting notes in inbox/
+# Ingest external files or directories into the vault
+daneel ingest ~/Downloads/research-notes.md --dest notes/research
+
+# Batch ingest all candidate meeting notes in inbox/ (legacy mode)
 daneel ingest
 
 # Ingest from an archived zip file

@@ -1,4 +1,4 @@
-import { createPromiseClient } from '@connectrpc/connect';
+import { createPromiseClient, type PromiseClient } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { GraphService } from '../gen/api/v1/graph_connect';
 
@@ -9,3 +9,4 @@ export const transport = createConnectTransport({
 });
 
 export const client = createPromiseClient(GraphService, transport);
+export type ApiClient = PromiseClient<typeof GraphService>;

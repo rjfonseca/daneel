@@ -58,7 +58,7 @@ Available across all commands:
 | `daneel prep` | Generates an executive briefing for 1:1s and alignments | `<person-slug>` |
 | `daneel log` | Displays activity logs, time tracking, rolling weekly matrix, and monthly trends | `--date <today\|YYYY-MM-DD>`, `--recent <days>`, `--weeks [N]`, `--monthly`, `--json` |
 | `daneel inbox` | Lists and inspects pending items in `inbox/` | None |
-| `daneel ingest` | Batch ingests Google Meet / Gemini meeting transcripts | `--zip <path>`, `--dry-run` |
+| `daneel ingest` | Ingests arbitrary files, directories, or meeting transcripts into the vault with collision safety and FTS5 indexing | `[paths...]`, `-d, --dest <dir>`, `-r, --recursive`, `-m, --move`, `--reindex`, `-z, --zip <path>`, `-c, --clean`, `--json` |
 | `daneel workspace` | Scans local development directory (`~/Work`), prunes merged/pushed branches and worktrees, resets stale feature branches, and updates MOC | `--sync-clean`, `--inactivity-threshold <48h>`, `--write`, `-o` |
 | `daneel clone` | Clones a repository, inspects stack, and creates a system note | `--dream`, `--fetch` |
 | `daneel chat` | Silent pre-indexing (<5ms) and exec passthrough to AI agents | `-p, --profile` (`agy`, `claude`), prompt string |
@@ -70,3 +70,39 @@ Available across all commands:
 | `daneel config` | Displays active config and sets the global vault path | `set-vault <path>` |
 | `daneel version` | Displays version, build metadata, and positronic core lore | None |
 | `daneel completion` | Generates shell autocomplete scripts (bash, zsh, fish) | Shell argument |
+
+---
+
+## 3. Universal Note Ingestion (`daneel ingest`)
+
+The `daneel ingest` command provides universal file and directory ingestion into your Second Brain with frontmatter synthesis, collision-safe writing, symlink traversal guards, and automatic SQLite FTS5 reindexing:
+
+```bash
+# Ingest one or more external files into the default destination (inbox/)
+daneel ingest ~/Downloads/design-spec.md ~/Downloads/research.md
+
+# Ingest an entire directory recursively into a specific vault destination
+daneel ingest ~/Downloads/project-docs/ --dest notes/architecture
+
+# Ingest and move source files (deletes original files upon success)
+daneel ingest ~/Downloads/incoming.md --move
+
+# Ingest without recursive sub-directory scanning
+daneel ingest ~/Downloads/notes/ --recursive=false
+
+# Ingest without immediate SQLite reindexing
+daneel ingest ~/Downloads/batch-docs/ --reindex=false
+
+# Machine-readable JSON summary output
+daneel ingest ~/Downloads/rfc.md --json
+```
+
+### Backwards Compatibility for Meeting Transcripts
+
+When invoked **without positional arguments**, `daneel ingest` maintains full backwards compatibility:
+- Scans `inbox/` for candidate meeting draft notes (e.g. Google Meet or Gemini transcripts).
+- Resolves attendee tokens to people notes in `notes/people/` and updates interaction timelines.
+- Sanitizes and archives processed notes into `sources/reunioes/` (or configured meetings directory).
+- Supports `--zip <path>` to process an exported Google Meet zip archive directly.
+- Supports `--clean` (default: true) to remove original raw drafts after processing.
+
