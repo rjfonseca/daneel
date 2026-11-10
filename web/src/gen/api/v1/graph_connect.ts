@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CaptureNoteRequest, CaptureNoteResponse, DeleteRoutineRequest, DeleteRoutineResponse, ExecuteRoutineRequest, GetCognitiveTelemetryRequest, GetCognitiveTelemetryResponse, GetGalaxyRequest, GetGalaxyResponse, GetNoteRequest, GetNoteResponse, GetOperationalTelemetryRequest, GetOperationalTelemetryResponse, GetRoutineHistoryRequest, GetRoutineHistoryResponse, GetRoutinesOverviewRequest, GetRoutinesOverviewResponse, GetStaffTelemetryRequest, GetStaffTelemetryResponse, ReportActiveContextRequest, ReportActiveContextResponse, RoutineOutputEvent, SearchNotesRequest, SearchNotesResponse, SubscribeUIEventsRequest, UIEvent, UpsertRoutineRequest, UpsertRoutineResponse } from "./graph_pb.js";
+import { CaptureNoteRequest, CaptureNoteResponse, DeleteRoutineRequest, DeleteRoutineResponse, ExecuteRoutineRequest, GetCognitiveTelemetryRequest, GetCognitiveTelemetryResponse, GetGalaxyRequest, GetGalaxyResponse, GetNoteRequest, GetNoteResponse, GetOperationalTelemetryRequest, GetOperationalTelemetryResponse, GetRoutineHistoryRequest, GetRoutineHistoryResponse, GetRoutinesOverviewRequest, GetRoutinesOverviewResponse, GetStaffTelemetryRequest, GetStaffTelemetryResponse, IngestPathRequest, IngestPathResponse, ReportActiveContextRequest, ReportActiveContextResponse, RoutineOutputEvent, SearchNotesRequest, SearchNotesResponse, SubscribeUIEventsRequest, UIEvent, UpsertRoutineRequest, UpsertRoutineResponse } from "./graph_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -43,6 +43,17 @@ export const GraphService = {
       name: "CaptureNote",
       I: CaptureNoteRequest,
       O: CaptureNoteResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Ingests a host file or directory into the vault.
+     *
+     * @generated from rpc graph.v1.GraphService.IngestPath
+     */
+    ingestPath: {
+      name: "IngestPath",
+      I: IngestPathRequest,
+      O: IngestPathResponse,
       kind: MethodKind.Unary,
     },
     /**

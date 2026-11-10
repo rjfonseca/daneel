@@ -13,6 +13,9 @@ service GraphService {
 
   // Saves an explicitly submitted note in the local inbox.
   rpc CaptureNote(CaptureNoteRequest) returns (CaptureNoteResponse);
+
+  // Ingests a host file or directory into the vault.
+  rpc IngestPath(IngestPathRequest) returns (IngestPathResponse);
   
   // Performs full-text search across vault notes (SQLite FTS5)
   rpc SearchNotes(SearchNotesRequest) returns (SearchNotesResponse);
@@ -391,9 +394,31 @@ message CaptureNoteRequest {
   string title = 1;
   string content_markdown = 2;
   string source_url = 3;
+  string destination = 4;
 }
 
 message CaptureNoteResponse {
   string rel_path = 1;
   string warning = 2;
+}
+
+message IngestPathRequest {
+  string path = 1;
+  string destination = 2; // optional, default: "inbox"
+  bool recursive = 3;
+  bool move = 4;
+}
+
+message IngestedItem {
+  string source_path = 1;
+  string rel_path = 2;
+  string title = 3;
+  int64 size_bytes = 4;
+  string warning = 5;
+}
+
+message IngestPathResponse {
+  repeated IngestedItem items = 1;
+  int32 total_processed = 2;
+  string warning = 3;
 }

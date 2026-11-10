@@ -46,6 +46,7 @@ This directory contains the **Architectural Decision Records (ADRs)** for the Da
 | [ADR 0036](0036-workspace-worktree-and-stale-dirty-cleanup.md) | Workspace Worktree Pruning, Pushed Branch Cleanup, and Stale Dirty Checkout | Accepted | 2026-10-27 |
 | [ADR 0037](0037-finops-cost-and-operational-telemetry.md) | FinOps Token Cost Attribution and Multi-Surface Operational Telemetry | Accepted | 2026-10-28 |
 | [ADR 0038](0038-incremental-watermark-cache-and-copilot-primitives.md) | Incremental Watermark Cache and Copilot Primitives | Accepted | 2026-11-04 |
+| [ADR 0039](0039-universal-note-ingestion-engine.md) | Universal Note Ingestion Engine | Accepted | 2026-11-09 |
 
 ## Mandatory ADR Invariant
 

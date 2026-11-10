@@ -3203,6 +3203,7 @@ type CaptureNoteRequest struct {
 	Title           string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	ContentMarkdown string                 `protobuf:"bytes,2,opt,name=content_markdown,json=contentMarkdown,proto3" json:"content_markdown,omitempty"`
 	SourceUrl       string                 `protobuf:"bytes,3,opt,name=source_url,json=sourceUrl,proto3" json:"source_url,omitempty"`
+	Destination     string                 `protobuf:"bytes,4,opt,name=destination,proto3" json:"destination,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -3258,6 +3259,13 @@ func (x *CaptureNoteRequest) GetSourceUrl() string {
 	return ""
 }
 
+func (x *CaptureNoteRequest) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
 type CaptureNoteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RelPath       string                 `protobuf:"bytes,1,opt,name=rel_path,json=relPath,proto3" json:"rel_path,omitempty"`
@@ -3304,6 +3312,210 @@ func (x *CaptureNoteResponse) GetRelPath() string {
 }
 
 func (x *CaptureNoteResponse) GetWarning() string {
+	if x != nil {
+		return x.Warning
+	}
+	return ""
+}
+
+type IngestPathRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Destination   string                 `protobuf:"bytes,2,opt,name=destination,proto3" json:"destination,omitempty"` // optional, default: "inbox"
+	Recursive     bool                   `protobuf:"varint,3,opt,name=recursive,proto3" json:"recursive,omitempty"`
+	Move          bool                   `protobuf:"varint,4,opt,name=move,proto3" json:"move,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IngestPathRequest) Reset() {
+	*x = IngestPathRequest{}
+	mi := &file_api_v1_graph_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngestPathRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngestPathRequest) ProtoMessage() {}
+
+func (x *IngestPathRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngestPathRequest.ProtoReflect.Descriptor instead.
+func (*IngestPathRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *IngestPathRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *IngestPathRequest) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
+func (x *IngestPathRequest) GetRecursive() bool {
+	if x != nil {
+		return x.Recursive
+	}
+	return false
+}
+
+func (x *IngestPathRequest) GetMove() bool {
+	if x != nil {
+		return x.Move
+	}
+	return false
+}
+
+type IngestedItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SourcePath    string                 `protobuf:"bytes,1,opt,name=source_path,json=sourcePath,proto3" json:"source_path,omitempty"`
+	RelPath       string                 `protobuf:"bytes,2,opt,name=rel_path,json=relPath,proto3" json:"rel_path,omitempty"`
+	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	SizeBytes     int64                  `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	Warning       string                 `protobuf:"bytes,5,opt,name=warning,proto3" json:"warning,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IngestedItem) Reset() {
+	*x = IngestedItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngestedItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngestedItem) ProtoMessage() {}
+
+func (x *IngestedItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngestedItem.ProtoReflect.Descriptor instead.
+func (*IngestedItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *IngestedItem) GetSourcePath() string {
+	if x != nil {
+		return x.SourcePath
+	}
+	return ""
+}
+
+func (x *IngestedItem) GetRelPath() string {
+	if x != nil {
+		return x.RelPath
+	}
+	return ""
+}
+
+func (x *IngestedItem) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *IngestedItem) GetSizeBytes() int64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *IngestedItem) GetWarning() string {
+	if x != nil {
+		return x.Warning
+	}
+	return ""
+}
+
+type IngestPathResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Items          []*IngestedItem        `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	TotalProcessed int32                  `protobuf:"varint,2,opt,name=total_processed,json=totalProcessed,proto3" json:"total_processed,omitempty"`
+	Warning        string                 `protobuf:"bytes,3,opt,name=warning,proto3" json:"warning,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *IngestPathResponse) Reset() {
+	*x = IngestPathResponse{}
+	mi := &file_api_v1_graph_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngestPathResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngestPathResponse) ProtoMessage() {}
+
+func (x *IngestPathResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngestPathResponse.ProtoReflect.Descriptor instead.
+func (*IngestPathResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *IngestPathResponse) GetItems() []*IngestedItem {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *IngestPathResponse) GetTotalProcessed() int32 {
+	if x != nil {
+		return x.TotalProcessed
+	}
+	return 0
+}
+
+func (x *IngestPathResponse) GetWarning() string {
 	if x != nil {
 		return x.Warning
 	}
@@ -3604,15 +3816,33 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"modelUsage\x12D\n" +
 	"\x0froutine_weights\x18\f \x03(\v2\x1b.graph.v1.RoutineWeightItemR\x0eroutineWeights\x12G\n" +
 	"\x0frecent_sessions\x18\r \x03(\v2\x1e.graph.v1.SessionTelemetryItemR\x0erecentSessions\x12D\n" +
-	"\x0fcommand_metrics\x18\x0e \x03(\v2\x1b.graph.v1.CommandMetricItemR\x0ecommandMetrics\"t\n" +
+	"\x0fcommand_metrics\x18\x0e \x03(\v2\x1b.graph.v1.CommandMetricItemR\x0ecommandMetrics\"\x96\x01\n" +
 	"\x12CaptureNoteRequest\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12)\n" +
 	"\x10content_markdown\x18\x02 \x01(\tR\x0fcontentMarkdown\x12\x1d\n" +
 	"\n" +
-	"source_url\x18\x03 \x01(\tR\tsourceUrl\"J\n" +
+	"source_url\x18\x03 \x01(\tR\tsourceUrl\x12 \n" +
+	"\vdestination\x18\x04 \x01(\tR\vdestination\"J\n" +
 	"\x13CaptureNoteResponse\x12\x19\n" +
 	"\brel_path\x18\x01 \x01(\tR\arelPath\x12\x18\n" +
-	"\awarning\x18\x02 \x01(\tR\awarning*\xd7\x01\n" +
+	"\awarning\x18\x02 \x01(\tR\awarning\"{\n" +
+	"\x11IngestPathRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12 \n" +
+	"\vdestination\x18\x02 \x01(\tR\vdestination\x12\x1c\n" +
+	"\trecursive\x18\x03 \x01(\bR\trecursive\x12\x12\n" +
+	"\x04move\x18\x04 \x01(\bR\x04move\"\x99\x01\n" +
+	"\fIngestedItem\x12\x1f\n" +
+	"\vsource_path\x18\x01 \x01(\tR\n" +
+	"sourcePath\x12\x19\n" +
+	"\brel_path\x18\x02 \x01(\tR\arelPath\x12\x14\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x04 \x01(\x03R\tsizeBytes\x12\x18\n" +
+	"\awarning\x18\x05 \x01(\tR\awarning\"\x85\x01\n" +
+	"\x12IngestPathResponse\x12,\n" +
+	"\x05items\x18\x01 \x03(\v2\x16.graph.v1.IngestedItemR\x05items\x12'\n" +
+	"\x0ftotal_processed\x18\x02 \x01(\x05R\x0etotalProcessed\x12\x18\n" +
+	"\awarning\x18\x03 \x01(\tR\awarning*\xd7\x01\n" +
 	"\fUIActionType\x12\x16\n" +
 	"\x12ACTION_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10ACTION_OPEN_NOTE\x10\x01\x12\x17\n" +
@@ -3621,11 +3851,14 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x19ACTION_FLASH_NOTIFICATION\x10\x03\x12\x18\n" +
 	"\x14ACTION_GALAXY_RELOAD\x10\x04\x12\x13\n" +
 	"\x0fACTION_PIN_NOTE\x10\x05\x12\x15\n" +
-	"\x11ACTION_UNPIN_NOTE\x10\x06\x1a\x02\x10\x012\xcf\t\n" +
+	"\x11ACTION_UNPIN_NOTE\x10\x06\x1a\x02\x10\x012\x98\n" +
+	"\n" +
 	"\fGraphService\x12D\n" +
 	"\tGetGalaxy\x12\x1a.graph.v1.GetGalaxyRequest\x1a\x1b.graph.v1.GetGalaxyResponse\x12>\n" +
 	"\aGetNote\x12\x18.graph.v1.GetNoteRequest\x1a\x19.graph.v1.GetNoteResponse\x12J\n" +
-	"\vCaptureNote\x12\x1c.graph.v1.CaptureNoteRequest\x1a\x1d.graph.v1.CaptureNoteResponse\x12J\n" +
+	"\vCaptureNote\x12\x1c.graph.v1.CaptureNoteRequest\x1a\x1d.graph.v1.CaptureNoteResponse\x12G\n" +
+	"\n" +
+	"IngestPath\x12\x1b.graph.v1.IngestPathRequest\x1a\x1c.graph.v1.IngestPathResponse\x12J\n" +
 	"\vSearchNotes\x12\x1c.graph.v1.SearchNotesRequest\x1a\x1d.graph.v1.SearchNotesResponse\x12L\n" +
 	"\x11SubscribeUIEvents\x12\".graph.v1.SubscribeUIEventsRequest\x1a\x11.graph.v1.UIEvent0\x01\x12b\n" +
 	"\x13ReportActiveContext\x12$.graph.v1.ReportActiveContextRequest\x1a%.graph.v1.ReportActiveContextResponse\x12Q\n" +
@@ -3651,7 +3884,7 @@ func file_api_v1_graph_proto_rawDescGZIP() []byte {
 }
 
 var file_api_v1_graph_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_v1_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_api_v1_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
 var file_api_v1_graph_proto_goTypes = []any{
 	(UIActionType)(0),                       // 0: graph.v1.UIActionType
 	(*UIEvent)(nil),                         // 1: graph.v1.UIEvent
@@ -3696,7 +3929,10 @@ var file_api_v1_graph_proto_goTypes = []any{
 	(*GetOperationalTelemetryResponse)(nil), // 40: graph.v1.GetOperationalTelemetryResponse
 	(*CaptureNoteRequest)(nil),              // 41: graph.v1.CaptureNoteRequest
 	(*CaptureNoteResponse)(nil),             // 42: graph.v1.CaptureNoteResponse
-	nil,                                     // 43: graph.v1.ExecuteRoutineRequest.ParamsEntry
+	(*IngestPathRequest)(nil),               // 43: graph.v1.IngestPathRequest
+	(*IngestedItem)(nil),                    // 44: graph.v1.IngestedItem
+	(*IngestPathResponse)(nil),              // 45: graph.v1.IngestPathResponse
+	nil,                                     // 46: graph.v1.ExecuteRoutineRequest.ParamsEntry
 }
 var file_api_v1_graph_proto_depIdxs = []int32{
 	0,  // 0: graph.v1.UIEvent.action:type_name -> graph.v1.UIActionType
@@ -3705,7 +3941,7 @@ var file_api_v1_graph_proto_depIdxs = []int32{
 	6,  // 3: graph.v1.GetGalaxyResponse.stats:type_name -> graph.v1.GalaxyStats
 	7,  // 4: graph.v1.GetGalaxyResponse.pinned_anchors:type_name -> graph.v1.PinnedAnchor
 	15, // 5: graph.v1.SearchNotesResponse.results:type_name -> graph.v1.SearchResult
-	43, // 6: graph.v1.ExecuteRoutineRequest.params:type_name -> graph.v1.ExecuteRoutineRequest.ParamsEntry
+	46, // 6: graph.v1.ExecuteRoutineRequest.params:type_name -> graph.v1.ExecuteRoutineRequest.ParamsEntry
 	19, // 7: graph.v1.GetRoutinesOverviewResponse.routines:type_name -> graph.v1.RoutineStatusItem
 	21, // 8: graph.v1.GetRoutineHistoryResponse.runs:type_name -> graph.v1.RoutineRunItem
 	29, // 9: graph.v1.GetStaffTelemetryResponse.rolling_weeks:type_name -> graph.v1.StaffPeriodSummary
@@ -3716,39 +3952,42 @@ var file_api_v1_graph_proto_depIdxs = []int32{
 	37, // 14: graph.v1.GetOperationalTelemetryResponse.routine_weights:type_name -> graph.v1.RoutineWeightItem
 	38, // 15: graph.v1.GetOperationalTelemetryResponse.recent_sessions:type_name -> graph.v1.SessionTelemetryItem
 	39, // 16: graph.v1.GetOperationalTelemetryResponse.command_metrics:type_name -> graph.v1.CommandMetricItem
-	5,  // 17: graph.v1.GraphService.GetGalaxy:input_type -> graph.v1.GetGalaxyRequest
-	11, // 18: graph.v1.GraphService.GetNote:input_type -> graph.v1.GetNoteRequest
-	41, // 19: graph.v1.GraphService.CaptureNote:input_type -> graph.v1.CaptureNoteRequest
-	13, // 20: graph.v1.GraphService.SearchNotes:input_type -> graph.v1.SearchNotesRequest
-	2,  // 21: graph.v1.GraphService.SubscribeUIEvents:input_type -> graph.v1.SubscribeUIEventsRequest
-	3,  // 22: graph.v1.GraphService.ReportActiveContext:input_type -> graph.v1.ReportActiveContextRequest
-	16, // 23: graph.v1.GraphService.ExecuteRoutine:input_type -> graph.v1.ExecuteRoutineRequest
-	18, // 24: graph.v1.GraphService.GetRoutinesOverview:input_type -> graph.v1.GetRoutinesOverviewRequest
-	28, // 25: graph.v1.GraphService.GetStaffTelemetry:input_type -> graph.v1.GetStaffTelemetryRequest
-	31, // 26: graph.v1.GraphService.GetCognitiveTelemetry:input_type -> graph.v1.GetCognitiveTelemetryRequest
-	24, // 27: graph.v1.GraphService.UpsertRoutine:input_type -> graph.v1.UpsertRoutineRequest
-	26, // 28: graph.v1.GraphService.DeleteRoutine:input_type -> graph.v1.DeleteRoutineRequest
-	22, // 29: graph.v1.GraphService.GetRoutineHistory:input_type -> graph.v1.GetRoutineHistoryRequest
-	35, // 30: graph.v1.GraphService.GetOperationalTelemetry:input_type -> graph.v1.GetOperationalTelemetryRequest
-	8,  // 31: graph.v1.GraphService.GetGalaxy:output_type -> graph.v1.GetGalaxyResponse
-	12, // 32: graph.v1.GraphService.GetNote:output_type -> graph.v1.GetNoteResponse
-	42, // 33: graph.v1.GraphService.CaptureNote:output_type -> graph.v1.CaptureNoteResponse
-	14, // 34: graph.v1.GraphService.SearchNotes:output_type -> graph.v1.SearchNotesResponse
-	1,  // 35: graph.v1.GraphService.SubscribeUIEvents:output_type -> graph.v1.UIEvent
-	4,  // 36: graph.v1.GraphService.ReportActiveContext:output_type -> graph.v1.ReportActiveContextResponse
-	17, // 37: graph.v1.GraphService.ExecuteRoutine:output_type -> graph.v1.RoutineOutputEvent
-	20, // 38: graph.v1.GraphService.GetRoutinesOverview:output_type -> graph.v1.GetRoutinesOverviewResponse
-	30, // 39: graph.v1.GraphService.GetStaffTelemetry:output_type -> graph.v1.GetStaffTelemetryResponse
-	34, // 40: graph.v1.GraphService.GetCognitiveTelemetry:output_type -> graph.v1.GetCognitiveTelemetryResponse
-	25, // 41: graph.v1.GraphService.UpsertRoutine:output_type -> graph.v1.UpsertRoutineResponse
-	27, // 42: graph.v1.GraphService.DeleteRoutine:output_type -> graph.v1.DeleteRoutineResponse
-	23, // 43: graph.v1.GraphService.GetRoutineHistory:output_type -> graph.v1.GetRoutineHistoryResponse
-	40, // 44: graph.v1.GraphService.GetOperationalTelemetry:output_type -> graph.v1.GetOperationalTelemetryResponse
-	31, // [31:45] is the sub-list for method output_type
-	17, // [17:31] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	44, // 17: graph.v1.IngestPathResponse.items:type_name -> graph.v1.IngestedItem
+	5,  // 18: graph.v1.GraphService.GetGalaxy:input_type -> graph.v1.GetGalaxyRequest
+	11, // 19: graph.v1.GraphService.GetNote:input_type -> graph.v1.GetNoteRequest
+	41, // 20: graph.v1.GraphService.CaptureNote:input_type -> graph.v1.CaptureNoteRequest
+	43, // 21: graph.v1.GraphService.IngestPath:input_type -> graph.v1.IngestPathRequest
+	13, // 22: graph.v1.GraphService.SearchNotes:input_type -> graph.v1.SearchNotesRequest
+	2,  // 23: graph.v1.GraphService.SubscribeUIEvents:input_type -> graph.v1.SubscribeUIEventsRequest
+	3,  // 24: graph.v1.GraphService.ReportActiveContext:input_type -> graph.v1.ReportActiveContextRequest
+	16, // 25: graph.v1.GraphService.ExecuteRoutine:input_type -> graph.v1.ExecuteRoutineRequest
+	18, // 26: graph.v1.GraphService.GetRoutinesOverview:input_type -> graph.v1.GetRoutinesOverviewRequest
+	28, // 27: graph.v1.GraphService.GetStaffTelemetry:input_type -> graph.v1.GetStaffTelemetryRequest
+	31, // 28: graph.v1.GraphService.GetCognitiveTelemetry:input_type -> graph.v1.GetCognitiveTelemetryRequest
+	24, // 29: graph.v1.GraphService.UpsertRoutine:input_type -> graph.v1.UpsertRoutineRequest
+	26, // 30: graph.v1.GraphService.DeleteRoutine:input_type -> graph.v1.DeleteRoutineRequest
+	22, // 31: graph.v1.GraphService.GetRoutineHistory:input_type -> graph.v1.GetRoutineHistoryRequest
+	35, // 32: graph.v1.GraphService.GetOperationalTelemetry:input_type -> graph.v1.GetOperationalTelemetryRequest
+	8,  // 33: graph.v1.GraphService.GetGalaxy:output_type -> graph.v1.GetGalaxyResponse
+	12, // 34: graph.v1.GraphService.GetNote:output_type -> graph.v1.GetNoteResponse
+	42, // 35: graph.v1.GraphService.CaptureNote:output_type -> graph.v1.CaptureNoteResponse
+	45, // 36: graph.v1.GraphService.IngestPath:output_type -> graph.v1.IngestPathResponse
+	14, // 37: graph.v1.GraphService.SearchNotes:output_type -> graph.v1.SearchNotesResponse
+	1,  // 38: graph.v1.GraphService.SubscribeUIEvents:output_type -> graph.v1.UIEvent
+	4,  // 39: graph.v1.GraphService.ReportActiveContext:output_type -> graph.v1.ReportActiveContextResponse
+	17, // 40: graph.v1.GraphService.ExecuteRoutine:output_type -> graph.v1.RoutineOutputEvent
+	20, // 41: graph.v1.GraphService.GetRoutinesOverview:output_type -> graph.v1.GetRoutinesOverviewResponse
+	30, // 42: graph.v1.GraphService.GetStaffTelemetry:output_type -> graph.v1.GetStaffTelemetryResponse
+	34, // 43: graph.v1.GraphService.GetCognitiveTelemetry:output_type -> graph.v1.GetCognitiveTelemetryResponse
+	25, // 44: graph.v1.GraphService.UpsertRoutine:output_type -> graph.v1.UpsertRoutineResponse
+	27, // 45: graph.v1.GraphService.DeleteRoutine:output_type -> graph.v1.DeleteRoutineResponse
+	23, // 46: graph.v1.GraphService.GetRoutineHistory:output_type -> graph.v1.GetRoutineHistoryResponse
+	40, // 47: graph.v1.GraphService.GetOperationalTelemetry:output_type -> graph.v1.GetOperationalTelemetryResponse
+	33, // [33:48] is the sub-list for method output_type
+	18, // [18:33] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_graph_proto_init() }
@@ -3762,7 +4001,7 @@ func file_api_v1_graph_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_graph_proto_rawDesc), len(file_api_v1_graph_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   43,
+			NumMessages:   46,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

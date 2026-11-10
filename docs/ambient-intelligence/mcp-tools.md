@@ -96,7 +96,79 @@ Instant search across all repositories in `~/Work` without filesystem traversal 
   - `clean_only` (boolean, optional): Filter only clean repositories.
   - `stack` (string, optional): Filter by primary language (e.g. `'go'`, `'python'`, `'typescript'`).
 
-## 3. Cognitive Telemetry & Agent Evals Tools
+## 3. Universal Note Ingestion & Capture Tools
+
+Tools for autonomous AI agents to capture structured research, documentation, or host files directly into the Second Brain without shell execution privileges.
+
+### `ingest_note`
+Ingests raw markdown content directly into the Vault, synthesizing YAML frontmatter and immediately indexing in SQLite FTS5.
+- **Input**:
+  - `title` (string, required): Title of the note.
+  - `content` (string, required): Markdown body content.
+  - `destination` (string, optional): Vault destination directory (default: `'inbox'`).
+  - `tags` (array of strings, optional): Tags to attach in frontmatter.
+  - `source_url` (string, optional): Source reference URL.
+- **Output**: JSON payload with ingestion status, relative path, title, and byte size:
+  ```json
+  {
+    "status": "success",
+    "rel_path": "inbox/distributed-consensus-notes.md",
+    "title": "Distributed Consensus Notes",
+    "size_bytes": 1024,
+    "warning": ""
+  }
+  ```
+- **Example Call**:
+  ```json
+  {
+    "name": "ingest_note",
+    "arguments": {
+      "title": "Distributed Consensus Notes",
+      "content": "## Raft Invariants\n- Leader election safety\n- Log matching property",
+      "destination": "notes/systems",
+      "tags": ["distributed-systems", "consensus"],
+      "source_url": "https://example.com/raft-paper"
+    }
+  }
+  ```
+
+### `ingest_path`
+Ingests an arbitrary file or directory from the host filesystem into the Vault, supporting recursive scans, frontmatter synthesis, and FTS5 indexing.
+- **Input**:
+  - `path` (string, required): Absolute or relative host path to file or directory.
+  - `destination` (string, optional): Vault destination directory (default: `'inbox'`).
+  - `recursive` (boolean, optional): Recursively scan directories (default: `true`).
+  - `move` (boolean, optional): Delete source file after successful ingestion (default: `false`).
+- **Output**: JSON payload reporting processed notes and any non-fatal warnings:
+  ```json
+  {
+    "total_processed": 1,
+    "items": [
+      {
+        "source_path": "/home/developer/Downloads/architecture-decision.md",
+        "rel_path": "notes/architecture/architecture-decision.md",
+        "title": "Architecture Decision Record",
+        "size_bytes": 2048,
+        "warning": ""
+      }
+    ],
+    "errors": []
+  }
+  ```
+- **Example Call**:
+  ```json
+  {
+    "name": "ingest_path",
+    "arguments": {
+      "path": "/home/developer/Downloads/architecture-decision.md",
+      "destination": "notes/architecture",
+      "recursive": true,
+      "move": false
+    }
+  }
+  ```
+
+## 4. Cognitive Telemetry & Agent Evals Tools
 
 Autonomous self-evaluation and telemetry tools for analyzing agent interactions and detecting knowledge gaps.
 
@@ -108,7 +180,7 @@ Audits recent AI agent session history (Antigravity, Claude Code, Cursor) to det
   - `apply` (boolean, optional): When true, persists discovered learnings to `meta/guias/aprendizados-agente.md` and updates `meta/dashboard-metricas.md`. Defaults to `false`.
 - **Output**: Formatted Markdown report detailing scanned interactions, suspicious deltas, missed opportunities with vault notes, and knowledge gaps with recommendations.
 
-## 4. Legacy Aliases
+## 5. Legacy Aliases
 
 For backward compatibility with earlier scripts and prompts, the following aliases remain supported:
 - `tui_get_current_state` $\rightarrow$ `ui_get_active_context`

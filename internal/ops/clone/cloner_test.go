@@ -114,6 +114,7 @@ func TestClonerPipeline(t *testing.T) {
 	_ = exec.Command("git", "-C", mockRemote, "init").Run()                                  //nolint:gosec // intentional
 	_ = exec.Command("git", "-C", mockRemote, "config", "user.email", "test@test.com").Run() //nolint:gosec // intentional
 	_ = exec.Command("git", "-C", mockRemote, "config", "user.name", "Test").Run()           //nolint:gosec // intentional
+	_ = exec.Command("git", "-C", mockRemote, "config", "commit.gpgsign", "false").Run()     //nolint:gosec // intentional
 
 	readmeContent := "# Awesome Service\n\nHigh performance event processing microservice written in Go.\n"
 	_ = os.WriteFile(filepath.Join(mockRemote, "README.md"), []byte(readmeContent), 0600)

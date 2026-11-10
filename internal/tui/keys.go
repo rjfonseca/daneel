@@ -19,6 +19,7 @@ type KeyMap struct {
 	Tab3     key.Binding
 	Tab4     key.Binding
 	Tab5     key.Binding
+	Tab9     key.Binding
 
 	// Actions
 	Search     key.Binding
@@ -86,6 +87,10 @@ func DefaultKeyMap() KeyMap {
 		Tab5: key.NewBinding(
 			key.WithKeys("5"),
 			key.WithHelp("5", "dream handoff"),
+		),
+		Tab9: key.NewBinding(
+			key.WithKeys("9", "i"),
+			key.WithHelp("9/i", "ingest"),
 		),
 		Search: key.NewBinding(
 			key.WithKeys("/"),
