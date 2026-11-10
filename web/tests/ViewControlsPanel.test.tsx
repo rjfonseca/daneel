@@ -40,11 +40,16 @@ describe('ViewControlsPanel', () => {
 
     const decreaseBtn = screen.getByTestId('decrease-max-nebulas');
     const increaseBtn = screen.getByTestId('increase-max-nebulas');
+    const spinbutton = screen.getByTestId('max-nebulas-value');
 
     expect(decreaseBtn).toBeDisabled();
     expect(decreaseBtn).toHaveAttribute('title', 'Decrease maximum visible nebulas (minimum reached)');
     expect(increaseBtn).not.toBeDisabled();
     expect(increaseBtn).toHaveAttribute('title', 'Increase maximum visible nebulas');
+    expect(spinbutton).toHaveAttribute('role', 'spinbutton');
+    expect(spinbutton).toHaveAttribute('aria-valuenow', '1');
+    expect(spinbutton).toHaveAttribute('aria-valuemin', '1');
+    expect(spinbutton).toHaveAttribute('aria-valuemax', '32');
 
     rerender(
       <ViewControlsPanel
@@ -61,6 +66,7 @@ describe('ViewControlsPanel', () => {
     expect(decreaseBtn).toHaveAttribute('title', 'Decrease maximum visible nebulas');
     expect(increaseBtn).toBeDisabled();
     expect(increaseBtn).toHaveAttribute('title', 'Increase maximum visible nebulas (maximum reached)');
+    expect(spinbutton).toHaveAttribute('aria-valuenow', '32');
 
     rerender(
       <ViewControlsPanel

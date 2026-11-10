@@ -1,4 +1,6 @@
 export const DEFAULT_MAX_NEBULAS = 6;
+export const MIN_MAX_NEBULAS = 1;
+export const MAX_MAX_NEBULAS = 32;
 export const STORAGE_KEY_MAX_NEBULAS = 'daneel_max_nebulas';
 
 /**
@@ -500,8 +502,8 @@ export function loadMaxNebulas(): number {
     const raw = localStorage.getItem(STORAGE_KEY_MAX_NEBULAS);
     if (!raw) return DEFAULT_MAX_NEBULAS;
     const parsed = parseInt(raw, 10);
-    if (isNaN(parsed) || parsed < 1) return DEFAULT_MAX_NEBULAS;
-    return Math.min(32, Math.max(1, parsed));
+    if (isNaN(parsed) || parsed < MIN_MAX_NEBULAS) return DEFAULT_MAX_NEBULAS;
+    return Math.min(MAX_MAX_NEBULAS, Math.max(MIN_MAX_NEBULAS, parsed));
   } catch {
     return DEFAULT_MAX_NEBULAS;
   }
@@ -509,7 +511,7 @@ export function loadMaxNebulas(): number {
 
 export function saveMaxNebulas(value: number): void {
   try {
-    const clamped = Math.min(32, Math.max(1, value));
+    const clamped = Math.min(MAX_MAX_NEBULAS, Math.max(MIN_MAX_NEBULAS, value));
     localStorage.setItem(STORAGE_KEY_MAX_NEBULAS, String(clamped));
   } catch (e) {
     console.error('Failed to save max nebulas to localStorage', e);

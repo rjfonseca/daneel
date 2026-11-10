@@ -3,6 +3,7 @@ import { X, Minus, Plus } from 'lucide-react';
 import { STELLAR_SPECTRUM_LEGEND } from '../lib/stellarClassification';
 import type { EdgeVisibilityMode } from '../lib/edgeFiltering';
 import { activeViewPreset, applyViewPreset, type GalaxyViewPreset, type GalaxyViewState } from '../lib/galaxyView';
+import { MIN_MAX_NEBULAS, MAX_MAX_NEBULAS } from '../lib/nebulas';
 
 export interface ViewControlsPanelProps {
   isOpen: boolean;
@@ -12,9 +13,6 @@ export interface ViewControlsPanelProps {
   maxNebulas: number;
   onUpdateMaxNebulas: (value: number) => void;
 }
-
-const MIN_MAX_NEBULAS = 1;
-const MAX_MAX_NEBULAS = 32;
 
 const EDGE_MODES: Array<{ id: EdgeVisibilityMode; label: string; description: string }> = [
   { id: 'auto', label: 'Auto', description: 'Automatically adapts edge density to zoom level' },
@@ -93,7 +91,7 @@ export const ViewControlsPanel: React.FC<ViewControlsPanelProps> = ({
 
       <div className="mb-4 flex items-center justify-between rounded-lg border border-white/10 bg-white/3 px-3 py-2">
         <span><span className="block font-semibold">Nebula label limit</span><span className="text-[10px] text-slate-400">Maximum visible category labels</span></span>
-        <span className="flex items-center gap-1.5" role="group" aria-label="Nebula label limit controls">
+        <div className="flex items-center gap-1.5" role="group" aria-label="Nebula label limit controls">
           <button
             type="button"
             data-testid="decrease-max-nebulas"
@@ -102,8 +100,20 @@ export const ViewControlsPanel: React.FC<ViewControlsPanelProps> = ({
             title={maxNebulas <= MIN_MAX_NEBULAS ? 'Decrease maximum visible nebulas (minimum reached)' : 'Decrease maximum visible nebulas'}
             onClick={() => onUpdateMaxNebulas(maxNebulas - 1)}
             className="rounded-sm bg-gray-800 p-1 cosmic-focus-visible disabled:opacity-40 disabled:cursor-not-allowed"
-          ><Minus className="h-3 w-3" aria-hidden="true" /></button>
-          <span data-testid="max-nebulas-value" className="w-5 text-center font-mono text-indigo-300">{maxNebulas}</span>
+          >
+            <Minus className="h-3 w-3" aria-hidden="true" />
+          </button>
+          <span
+            data-testid="max-nebulas-value"
+            role="spinbutton"
+            aria-label="Nebula label limit"
+            aria-valuemin={MIN_MAX_NEBULAS}
+            aria-valuemax={MAX_MAX_NEBULAS}
+            aria-valuenow={maxNebulas}
+            className="w-5 text-center font-mono text-indigo-300"
+          >
+            {maxNebulas}
+          </span>
           <button
             type="button"
             data-testid="increase-max-nebulas"
@@ -112,8 +122,10 @@ export const ViewControlsPanel: React.FC<ViewControlsPanelProps> = ({
             title={maxNebulas >= MAX_MAX_NEBULAS ? 'Increase maximum visible nebulas (maximum reached)' : 'Increase maximum visible nebulas'}
             onClick={() => onUpdateMaxNebulas(maxNebulas + 1)}
             className="rounded-sm bg-gray-800 p-1 cosmic-focus-visible disabled:opacity-40 disabled:cursor-not-allowed"
-          ><Plus className="h-3 w-3" aria-hidden="true" /></button>
-        </span>
+          >
+            <Plus className="h-3 w-3" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <button type="button" aria-label="Reduce motion" aria-pressed={view.reducedMotion} onClick={() => update('reducedMotion', !view.reducedMotion)} className="mb-4 flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-left hover:bg-white/10 cosmic-focus-visible"><span><span className="block font-semibold">Reduce motion</span><span className="text-[10px] text-slate-400">Pause photons and shorten camera movement</span></span><span aria-hidden="true" className="text-indigo-300">{view.reducedMotion ? 'On' : 'Off'}</span></button>
