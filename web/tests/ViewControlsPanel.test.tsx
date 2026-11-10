@@ -24,4 +24,60 @@ describe('ViewControlsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reduce motion' }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ reducedMotion: true }));
   });
+
+  it('disables stepper buttons and sets informative titles at lower and upper bounds', () => {
+    const onUpdateMaxNebulas = vi.fn();
+    const { rerender } = render(
+      <ViewControlsPanel
+        isOpen
+        onClose={vi.fn()}
+        view={DEFAULT_GALAXY_VIEW}
+        onChange={vi.fn()}
+        maxNebulas={1}
+        onUpdateMaxNebulas={onUpdateMaxNebulas}
+      />
+    );
+
+    const decreaseBtn = screen.getByTestId('decrease-max-nebulas');
+    const increaseBtn = screen.getByTestId('increase-max-nebulas');
+
+    expect(decreaseBtn).toBeDisabled();
+    expect(decreaseBtn).toHaveAttribute('title', 'Decrease maximum visible nebulas (minimum reached)');
+    expect(increaseBtn).not.toBeDisabled();
+    expect(increaseBtn).toHaveAttribute('title', 'Increase maximum visible nebulas');
+
+    rerender(
+      <ViewControlsPanel
+        isOpen
+        onClose={vi.fn()}
+        view={DEFAULT_GALAXY_VIEW}
+        onChange={vi.fn()}
+        maxNebulas={32}
+        onUpdateMaxNebulas={onUpdateMaxNebulas}
+      />
+    );
+
+    expect(decreaseBtn).not.toBeDisabled();
+    expect(decreaseBtn).toHaveAttribute('title', 'Decrease maximum visible nebulas');
+    expect(increaseBtn).toBeDisabled();
+    expect(increaseBtn).toHaveAttribute('title', 'Increase maximum visible nebulas (maximum reached)');
+
+    rerender(
+      <ViewControlsPanel
+        isOpen
+        onClose={vi.fn()}
+        view={DEFAULT_GALAXY_VIEW}
+        onChange={vi.fn()}
+        maxNebulas={6}
+        onUpdateMaxNebulas={onUpdateMaxNebulas}
+      />
+    );
+
+    expect(decreaseBtn).not.toBeDisabled();
+    expect(increaseBtn).not.toBeDisabled();
+    fireEvent.click(decreaseBtn);
+    expect(onUpdateMaxNebulas).toHaveBeenCalledWith(5);
+    fireEvent.click(increaseBtn);
+    expect(onUpdateMaxNebulas).toHaveBeenCalledWith(7);
+  });
 });
