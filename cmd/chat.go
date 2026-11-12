@@ -16,12 +16,14 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/rjfonseca/daneel/internal/config"
+	"github.com/rjfonseca/daneel/internal/router"
 	"github.com/rjfonseca/daneel/internal/search"
 )
 
 var (
-	chatProfile string
-	chatNoIndex bool
+	chatProfile    string
+	chatNoIndex    bool
+	chatNoFastPath bool
 )
 
 var chatCmd = &cobra.Command{
@@ -55,7 +57,35 @@ Usage Examples:
 			cancel()
 		}
 
-		// 2. Resolve or Configure Chat Profile
+		// 2. CPU Fast-Path Intent Routing (< 2ms)
+		if !chatNoFastPath && len(args) > 0 {
+			query := strings.Join(args, " ")
+			r := router.New()
+			match := r.Evaluate(query)
+			if match.Confidence >= 0.85 {
+				fastStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("82"))
+				fmt.Printf("%s Routing '%s' via Fast-Path (intent: %s, confidence: %.2f)...\n\n",
+					fastStyle.Render("⚡ [FAST-PATH]"), query, match.Intent, match.Confidence)
+
+				switch match.Intent {
+				case router.IntentRoutineMorning:
+					return morningCmd.RunE(morningCmd, nil)
+				case router.IntentRoutineEvening:
+					return eveningCmd.RunE(eveningCmd, nil)
+				case router.IntentVaultHealth:
+					return doctorCmd.RunE(doctorCmd, nil)
+				case router.IntentWorkspace:
+					return workspaceCmd.RunE(workspaceCmd, nil)
+				case router.IntentPeopleBriefing:
+					target := match.Params["name"]
+					if target != "" {
+						return prepCmd.RunE(prepCmd, []string{target})
+					}
+				}
+			}
+		}
+
+		// 3. Resolve or Configure Chat Profile
 		if len(cfg.Chat.Profiles) == 0 && len(cfg.LegacyAssistant.Profiles) == 0 {
 			if isTerminal(os.Stdin) {
 				if err := runChatSetupWizard(); err != nil {
@@ -379,5 +409,6 @@ func prepareGitHubSandboxAuth(envMap map[string]string, commandTokens []string, 
 func init() {
 	chatCmd.Flags().StringVarP(&chatProfile, "profile", "p", "", "Name of the chat profile to execute (e.g. agy, claude, plain_agy)")
 	chatCmd.Flags().BoolVar(&chatNoIndex, "no-index", false, "Skip instant SQLite pre-indexing before launching chat")
+	chatCmd.Flags().BoolVar(&chatNoFastPath, "no-fast-path", false, "Skip CPU Semantic Router fast-path interception")
 	RootCmd.AddCommand(chatCmd)
 }
