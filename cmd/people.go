@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/search"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 var (
@@ -34,6 +35,22 @@ var peopleCmd = &cobra.Command{
 		results, err := engine.SearchPeople(cmd.Context(), query, peopleSquad, peopleRole, peopleEmail)
 		if err != nil {
 			return fmt.Errorf("people search failed: %w", err)
+		}
+
+		if toonOut {
+			headers := []string{"name", "role", "squad", "email", "path"}
+			rows := make([][]string, len(results))
+			for i, p := range results {
+				rows[i] = []string{
+					p.Name,
+					p.Role,
+					p.Squad,
+					p.Email,
+					p.RelPath,
+				}
+			}
+			fmt.Print(toon.EncodeTabular("people", headers, rows))
+			return nil
 		}
 
 		if jsonOut {

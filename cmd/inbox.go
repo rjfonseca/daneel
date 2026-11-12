@@ -9,6 +9,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 // InboxItem represents an unprocessed file in the inbox directory.
@@ -48,6 +50,20 @@ var inboxCmd = &cobra.Command{
 				SizeBytes: info.Size(),
 				IsDir:     e.IsDir(),
 			})
+		}
+
+		if toonOut {
+			headers := []string{"name", "size_bytes", "is_dir"}
+			rows := make([][]string, len(items))
+			for i, item := range items {
+				isDir := "false"
+				if item.IsDir {
+					isDir = "true"
+				}
+				rows[i] = []string{item.Name, fmt.Sprintf("%d", item.SizeBytes), isDir}
+			}
+			fmt.Print(toon.EncodeTabular("inbox_items", headers, rows))
+			return nil
 		}
 
 		if jsonOut {

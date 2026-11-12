@@ -25,6 +25,8 @@ build-errors.log
 .serena/
 .playwright-mcp/
 .Jules/
+.ai-jail/
+.ai-jail
 
 # Lockfiles de gerenciadores não suportados (usar exclusivamente npm)
 pnpm-lock.yaml

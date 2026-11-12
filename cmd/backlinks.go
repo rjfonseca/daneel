@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/search"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 var backlinksCmd = &cobra.Command{
@@ -29,6 +30,16 @@ var backlinksCmd = &cobra.Command{
 		links, err := engine.GetBacklinks(target)
 		if err != nil {
 			return fmt.Errorf("error fetching backlinks: %w", err)
+		}
+
+		if toonOut {
+			headers := []string{"source_path", "link_text"}
+			rows := make([][]string, len(links))
+			for i, l := range links {
+				rows[i] = []string{l.SourceRelPath, l.LinkText}
+			}
+			fmt.Print(toon.EncodeTabular("backlinks", headers, rows))
+			return nil
 		}
 
 		if jsonOut {

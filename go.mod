@@ -60,6 +60,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sahilm/fuzzy v0.1.3 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/toon-format/toon-go v1.0.1 // indirect
 	github.com/xo/terminfo v1.3.0 // indirect
 	github.com/yuin/goldmark v1.8.7 // indirect
 	github.com/yuin/goldmark-emoji v1.0.6 // indirect

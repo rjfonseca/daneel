@@ -16,6 +16,90 @@ import (
 	"github.com/rjfonseca/daneel/internal/search"
 )
 
+func TestMCPToonFormat(t *testing.T) {
+	tempDir := t.TempDir()
+
+	notesDir := filepath.Join(tempDir, "notes")
+	_ = os.MkdirAll(notesDir, 0750)
+	testNote := filepath.Join(notesDir, "arch.md")
+	_ = os.WriteFile(testNote, []byte("# Architecture Decision\n\nLink to [[other]]"), 0600)
+	otherNote := filepath.Join(notesDir, "other.md")
+	_ = os.WriteFile(otherNote, []byte("# Other Note\n\nBacklink target"), 0600)
+
+	dbPath := filepath.Join(tempDir, "cache.db")
+	engine, err := search.Open(dbPath, tempDir)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer engine.Close() //nolint:errcheck,gosec
+
+	_, _, _ = engine.IndexVault(context.Background(), []string{"notes"}, true)
+
+	// 1. tools/list
+	// 2. search_vault (default -> TOON)
+	// 3. search_vault (explicit markdown -> Markdown)
+	// 4. get_backlinks (default -> TOON)
+	listReq := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}` + "\n"
+	searchToonReq := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_vault","arguments":{"query":"Architecture"}}}` + "\n"
+	searchMdReq := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_vault","arguments":{"query":"Architecture","format":"markdown"}}}` + "\n"
+	backlinksToonReq := `{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_backlinks","arguments":{"rel_path":"notes/other.md"}}}` + "\n"
+
+	inBuf := bytes.NewBufferString(listReq + searchToonReq + searchMdReq + backlinksToonReq)
+	outBuf := &bytes.Buffer{}
+
+	server := &Server{
+		vaultRoot: tempDir,
+		engine:    engine,
+		in:        inBuf,
+		out:       outBuf,
+	}
+
+	err = server.Serve()
+	if err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(outBuf.String()), "\n")
+	if len(lines) < 4 {
+		t.Fatalf("expected 4 responses, got %d: %s", len(lines), outBuf.String())
+	}
+
+	// 1. Verify tools/list schema contains "format"
+	var listResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[0]), &listResp)
+	listBytes, _ := json.Marshal(listResp.Result)
+	if !strings.Contains(string(listBytes), `"format"`) {
+		t.Errorf("tools/list does not declare format parameter: %s", string(listBytes))
+	}
+
+	// 2. Verify search_vault default is TOON
+	var searchToonResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[1]), &searchToonResp)
+	searchToonBytes, _ := json.Marshal(searchToonResp.Result)
+	searchToonStr := string(searchToonBytes)
+	if !strings.Contains(searchToonStr, "results[") || !strings.Contains(searchToonStr, "Architecture Decision") {
+		t.Errorf("expected TOON format with results[...], got: %s", searchToonStr)
+	}
+
+	// 3. Verify search_vault with format: markdown returns Markdown
+	var searchMdResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[2]), &searchMdResp)
+	searchMdBytes, _ := json.Marshal(searchMdResp.Result)
+	searchMdStr := string(searchMdBytes)
+	if !strings.Contains(searchMdStr, "# 🔍 Search Results") {
+		t.Errorf("expected Markdown header '# 🔍 Search Results', got: %s", searchMdStr)
+	}
+
+	// 4. Verify get_backlinks default is TOON
+	var backlinksToonResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[3]), &backlinksToonResp)
+	backlinksBytes, _ := json.Marshal(backlinksToonResp.Result)
+	backlinksStr := string(backlinksBytes)
+	if !strings.Contains(backlinksStr, "backlinks[") {
+		t.Errorf("expected TOON format with backlinks[...], got: %s", backlinksStr)
+	}
+}
+
 func TestMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 

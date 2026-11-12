@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/lore"
+	"github.com/rjfonseca/daneel/internal/toon"
 	"github.com/rjfonseca/daneel/internal/vault"
 )
 
@@ -93,6 +94,16 @@ var doctorCmd = &cobra.Command{
 
 		report.TotalConnections = totalLinks
 		report.IssuesCount = len(report.Issues)
+
+		if toonOut {
+			headers := []string{"file", "severity", "message"}
+			rows := make([][]string, len(report.Issues))
+			for i, iss := range report.Issues {
+				rows[i] = []string{iss.FilePath, iss.Severity, iss.Message}
+			}
+			fmt.Print(toon.EncodeTabular("diagnostics", headers, rows))
+			return nil
+		}
 
 		if jsonOut {
 			bytes, err := json.MarshalIndent(report, "", "  ")

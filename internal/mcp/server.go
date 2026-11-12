@@ -30,6 +30,7 @@ import (
 	"github.com/rjfonseca/daneel/internal/routine"
 	"github.com/rjfonseca/daneel/internal/safefile"
 	"github.com/rjfonseca/daneel/internal/search"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 // JSONRPCRequest represents an incoming JSON-RPC 2.0 message.
@@ -143,6 +144,12 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 		s.sendResult(req.ID, map[string]interface{}{})
 
 	case "tools/list":
+		formatProp := map[string]interface{}{
+			"type":        "string",
+			"enum":        []string{"toon", "markdown"},
+			"description": "Output serialization format: 'toon' (compact Token-Oriented Object Notation, default) or 'markdown'.",
+		}
+
 		tools := []Tool{
 			{
 				Name:        "search_vault",
@@ -171,6 +178,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"type":        "integer",
 							"description": "Maximum number of results to return (default: 10).",
 						},
+						"format": formatProp,
 					},
 				},
 			},
@@ -210,6 +218,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"type":        "string",
 							"description": "Optional email filter.",
 						},
+						"format": formatProp,
 					},
 				},
 			},
@@ -235,6 +244,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"type":        "string",
 							"description": "Filter by primary language (e.g. 'go', 'python', 'typescript').",
 						},
+						"format": formatProp,
 					},
 				},
 			},
@@ -263,6 +273,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"enum":        []string{"all", "P0", "P1", "P2"},
 							"description": "Priority filter level (default: all).",
 						},
+						"format": formatProp,
 					},
 				},
 			},
@@ -290,6 +301,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"type":        "string",
 							"description": "Relative path or name of the target note (e.g. 'notes/go/arenas.md').",
 						},
+						"format": formatProp,
 					},
 					"required": []string{"rel_path"},
 				},
@@ -347,6 +359,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"type":        "string",
 							"description": "Inactivity duration before resetting clean feature branches to main/master (e.g. '48h', '2d'). Default is 48h.",
 						},
+						"format": formatProp,
 					},
 				},
 			},
@@ -679,6 +692,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"type":        "boolean",
 							"description": "Persist discovered learnings to meta/guias/aprendizados-agente.md and dashboard metrics (default: false).",
 						},
+						"format": formatProp,
 					},
 				},
 			},
@@ -730,6 +744,16 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 	}
 }
 
+func (s *Server) resolveFormat(args map[string]interface{}) string {
+	if f, ok := args["format"].(string); ok && f != "" {
+		return strings.ToLower(strings.TrimSpace(f))
+	}
+	if s.cfg != nil && s.cfg.MCP.DefaultFormat != "" {
+		return strings.ToLower(strings.TrimSpace(s.cfg.MCP.DefaultFormat))
+	}
+	return "toon"
+}
+
 func (s *Server) executeTool(name string, args map[string]interface{}) (string, bool) {
 	switch name {
 	case "search_vault":
@@ -757,6 +781,26 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		})
 		if err != nil {
 			return fmt.Sprintf("Failed to execute search: %v", err), true
+		}
+
+		format := s.resolveFormat(args)
+		if format == "toon" {
+			headers := []string{"title", "path", "scope", "type", "snippet", "score"}
+			rows := make([][]string, len(results))
+			for i, r := range results {
+				cleanSnippet := strings.ReplaceAll(r.Snippet, "<mark>", "")
+				cleanSnippet = strings.ReplaceAll(cleanSnippet, "</mark>", "")
+				cleanSnippet = strings.ReplaceAll(cleanSnippet, "==", "")
+				rows[i] = []string{
+					r.Title,
+					r.RelPath,
+					r.Scope,
+					r.Type,
+					cleanSnippet,
+					fmt.Sprintf("%.2f", r.Score),
+				}
+			}
+			return toon.EncodeTabular("results", headers, rows), false
 		}
 
 		if len(results) == 0 {
@@ -816,6 +860,24 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		if err != nil {
 			return fmt.Sprintf("Failed to search people: %v", err), true
 		}
+
+		format := s.resolveFormat(args)
+		if format == "toon" {
+			headers := []string{"name", "role", "squad", "email", "path", "aliases"}
+			rows := make([][]string, len(results))
+			for i, p := range results {
+				rows[i] = []string{
+					p.Name,
+					p.Role,
+					p.Squad,
+					p.Email,
+					p.RelPath,
+					strings.Join(p.Aliases, " "),
+				}
+			}
+			return toon.EncodeTabular("people", headers, rows), false
+		}
+
 		if len(results) == 0 {
 			return "No colleague profiles found matching criteria.", false
 		}
@@ -853,6 +915,27 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		if err != nil {
 			return fmt.Sprintf("Failed to search projects: %v", err), true
 		}
+
+		format := s.resolveFormat(args)
+		if format == "toon" {
+			headers := []string{"name", "path", "branch", "status", "stack"}
+			rows := make([][]string, len(results))
+			for i, r := range results {
+				st := "clean"
+				if r.Dirty {
+					st = "dirty"
+				}
+				rows[i] = []string{
+					r.Name,
+					r.RelPath,
+					r.Branch,
+					st,
+					r.Stack,
+				}
+			}
+			return toon.EncodeTabular("projects", headers, rows), false
+		}
+
 		if len(results) == 0 {
 			return "No repositories found matching criteria in ~/Work.", false
 		}
@@ -929,6 +1012,23 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 			return fmt.Sprintf("Failed to retrieve active backlog: %v", err), true
 		}
 
+		format := s.resolveFormat(args)
+		if format == "toon" {
+			headers := []string{"status", "priority", "title", "description"}
+			var rows [][]string
+			for _, item := range rep.Items {
+				if prioFilter != "" && prioFilter != "all" && item.Priority != prioFilter {
+					continue
+				}
+				st := "pending"
+				if item.Completed {
+					st = "completed"
+				}
+				rows = append(rows, []string{st, item.Priority, item.Title, item.Description})
+			}
+			return toon.EncodeTabular("tasks", headers, rows), false
+		}
+
 		var sb strings.Builder
 		sb.WriteString("# 📌 Active Engineering Backlog\n\n")
 		count := 0
@@ -971,6 +1071,17 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		if err != nil {
 			return fmt.Sprintf("Failed to retrieve backlinks: %v", err), true
 		}
+
+		format := s.resolveFormat(args)
+		if format == "toon" {
+			headers := []string{"source_path", "link_text"}
+			rows := make([][]string, len(links))
+			for i, l := range links {
+				rows[i] = []string{l.SourceRelPath, l.LinkText}
+			}
+			return toon.EncodeTabular("backlinks", headers, rows), false
+		}
+
 		if len(links) == 0 {
 			return fmt.Sprintf("No backlinks found for '%s'.", relPath), false
 		}
@@ -1052,6 +1163,24 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		if err != nil {
 			return fmt.Sprintf("Failed to scan workspace: %v", err), true
 		}
+
+		format := s.resolveFormat(args)
+		if format == "toon" {
+			headers := []string{"name", "path", "branch", "status", "last_commit_date"}
+			var rows [][]string
+			for _, r := range rep.DirtyRepos {
+				rows = append(rows, []string{r.Name, r.Path, r.Branch, "dirty", r.LastCommitDate})
+			}
+			for _, catRepos := range rep.Categories {
+				for _, r := range catRepos {
+					if !r.Dirty {
+						rows = append(rows, []string{r.Name, r.Path, r.Branch, "clean", r.LastCommitDate})
+					}
+				}
+			}
+			return toon.EncodeTabular("workspace_repos", headers, rows), false
+		}
+
 		bytes, _ := json.MarshalIndent(rep, "", "  ")
 		return string(bytes), false
 

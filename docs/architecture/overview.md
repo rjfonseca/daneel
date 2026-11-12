@@ -43,3 +43,10 @@ External documentation ingested into `sources/` (from GitLab, GitHub, Jira, etc.
 - **Group MOC (`type: group`)**: Resides at intermediate organizational namespaces (e.g. `sources/gitlab/acme/edge/index.md`), linking sub-groups and repositories.
 - **Local Reconciliation**: Run `daneel harvest catalog` to automatically generate or repair MOCs across all existing harvested repositories without network downloads.
 
+## Token-Oriented Object Notation (TOON) & LLM Efficiency
+
+Daneel adopts TOON (Token-Oriented Object Notation, [ADR 0040](../adr/0040-token-oriented-object-notation-toon.md)) across its primary sensory interfaces (MCP server `daneel mcp`, CLI `--toon`, and Cognitive Dream Cycle `daneel dream`):
+- **40% to 65% Token Savings**: Compact tabular collections with single-declaration headers (`results[N]{field1,field2}:`) eliminate redundant JSON keys and Markdown link boilerplate.
+- **Deterministic Truncation Guardrail**: Explicit `[N]` headers allow LLMs to detect partial/truncated responses immediately.
+- **Surface Parity**: Enabled by default on MCP retrieval tools, available across CLI subcommands via `--toon` / `-T`, and integrated into Dream Cycle prompt generation.
+

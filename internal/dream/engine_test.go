@@ -10,6 +10,42 @@ import (
 	"testing"
 )
 
+func TestFormatReportTOON(t *testing.T) {
+	rep := &FullDreamReport{
+		Date:              "2026-11-12",
+		TotalFilesScanned: 42,
+		FixedLinksCount:   3,
+		BrokenLinksCount:  1,
+		DenseCategories: []DenseCategory{
+			{Category: "notes/ia", Count: 15, Suggestion: "Split into subcategories"},
+		},
+		InboxTriaged: []InboxTriageItem{
+			{File: "scratch.md", Score: 85, SuggestedCategory: "notes/architecture"},
+		},
+		EmergingConcepts: []EmergingConcept{
+			{Title: "TOON Notation", Context: "Efficient LLM serialization"},
+		},
+		BacklogP0: []string{"Refactor MCP tools to TOON"},
+		HandoffQuestions: []HandoffQuestion{
+			{Topic: "TOON", Type: "architecture", Question: "Use TOON as default format?"},
+		},
+	}
+
+	out := FormatReportTOON(rep)
+	if !strings.Contains(out, "dense_categories[") || !strings.Contains(out, "notes/ia") {
+		t.Errorf("expected dense_categories in TOON, got: %s", out)
+	}
+	if !strings.Contains(out, "inbox_triaged[") || !strings.Contains(out, "scratch.md") {
+		t.Errorf("expected inbox_triaged in TOON, got: %s", out)
+	}
+	if !strings.Contains(out, "emerging_concepts[") || !strings.Contains(out, "TOON Notation") {
+		t.Errorf("expected emerging_concepts in TOON, got: %s", out)
+	}
+	if !strings.Contains(out, "handoff_questions[") {
+		t.Errorf("expected handoff_questions in TOON, got: %s", out)
+	}
+}
+
 func TestFullDreamCycle(t *testing.T) {
 	tempDir := t.TempDir()
 

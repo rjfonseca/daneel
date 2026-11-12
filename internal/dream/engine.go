@@ -21,6 +21,7 @@ import (
 	"github.com/rjfonseca/daneel/internal/ops/workspace"
 	"github.com/rjfonseca/daneel/internal/routine"
 	"github.com/rjfonseca/daneel/internal/telemetry"
+	"github.com/rjfonseca/daneel/internal/toon"
 	"github.com/rjfonseca/daneel/internal/vault"
 )
 
@@ -54,6 +55,68 @@ type FullDreamReport struct {
 	BacklogP1             []string                   `json:"backlog_p1"`
 	HandoffQuestions      []HandoffQuestion          `json:"handoff_questions"`
 	Metacognition         *MetacognitiveReport       `json:"metacognition,omitempty"`
+}
+
+// FormatReportTOON serializes key cognitive dream triage layers into compact TOON tables.
+func FormatReportTOON(rep *FullDreamReport) string {
+	if rep == nil {
+		return ""
+	}
+	var sb strings.Builder
+
+	summaryHeaders := []string{"date", "files_scanned", "fixed_links", "broken_links", "ingested_meetings"}
+	summaryRows := [][]string{
+		{
+			rep.Date,
+			strconv.Itoa(rep.TotalFilesScanned),
+			strconv.Itoa(rep.FixedLinksCount),
+			strconv.Itoa(rep.BrokenLinksCount),
+			strconv.Itoa(rep.IngestedMeetingsCount),
+		},
+	}
+	sb.WriteString(toon.EncodeTabular("dream_summary", summaryHeaders, summaryRows))
+	sb.WriteString("\n")
+
+	if len(rep.DenseCategories) > 0 {
+		catHeaders := []string{"category", "count", "suggestion"}
+		catRows := make([][]string, len(rep.DenseCategories))
+		for i, c := range rep.DenseCategories {
+			catRows[i] = []string{c.Category, strconv.Itoa(c.Count), c.Suggestion}
+		}
+		sb.WriteString(toon.EncodeTabular("dense_categories", catHeaders, catRows))
+		sb.WriteString("\n")
+	}
+
+	if len(rep.InboxTriaged) > 0 {
+		inboxHeaders := []string{"file", "score", "suggested_category"}
+		inboxRows := make([][]string, len(rep.InboxTriaged))
+		for i, item := range rep.InboxTriaged {
+			inboxRows[i] = []string{item.File, strconv.Itoa(item.Score), item.SuggestedCategory}
+		}
+		sb.WriteString(toon.EncodeTabular("inbox_triaged", inboxHeaders, inboxRows))
+		sb.WriteString("\n")
+	}
+
+	if len(rep.EmergingConcepts) > 0 {
+		conceptHeaders := []string{"title", "context"}
+		conceptRows := make([][]string, len(rep.EmergingConcepts))
+		for i, c := range rep.EmergingConcepts {
+			conceptRows[i] = []string{c.Title, c.Context}
+		}
+		sb.WriteString(toon.EncodeTabular("emerging_concepts", conceptHeaders, conceptRows))
+		sb.WriteString("\n")
+	}
+
+	if len(rep.HandoffQuestions) > 0 {
+		qHeaders := []string{"topic", "type", "question"}
+		qRows := make([][]string, len(rep.HandoffQuestions))
+		for i, q := range rep.HandoffQuestions {
+			qRows[i] = []string{q.Topic, q.Type, q.Question}
+		}
+		sb.WriteString(toon.EncodeTabular("handoff_questions", qHeaders, qRows))
+	}
+
+	return strings.TrimSpace(sb.String()) + "\n"
 }
 
 // DreamEngine coordinates the 5-layer cognitive REM cycle.
