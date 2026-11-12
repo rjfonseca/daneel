@@ -446,4 +446,21 @@ func (c *ToolCatalog) registerDefaultTools() {
 			},
 		},
 	})
+
+	c.Register(ToolDescriptor{
+		Name:        "codeact_execute",
+		Category:    "codeact",
+		Description: "Executes ephemeral WebAssembly (Wasm) bytecode in a capability-bounded sandbox (< 1ms spin-up, 16MB memory limit, pure Go wazero, zero CGO).",
+		Keywords:    []string{"codeact", "wasm", "execute", "sandbox", "transform", "script"},
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"wasm_bytes_base64": map[string]interface{}{"type": "string", "description": "Base64-encoded Wasm binary module."},
+				"wasm_path":         map[string]interface{}{"type": "string", "description": "Relative path to Wasm binary."},
+				"stdin":             map[string]interface{}{"type": "string", "description": "Standard input payload."},
+				"timeout_ms":        map[string]interface{}{"type": "integer", "description": "Execution timeout in ms."},
+				"format":            formatProp,
+			},
+		},
+	})
 }

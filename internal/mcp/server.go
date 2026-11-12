@@ -16,6 +16,7 @@ import (
 
 	graphv1 "github.com/rjfonseca/daneel/api/v1"
 	"github.com/rjfonseca/daneel/internal/auditor"
+	"github.com/rjfonseca/daneel/internal/codeact"
 	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/daemon"
 	"github.com/rjfonseca/daneel/internal/dream"
@@ -730,6 +731,32 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 					},
 				},
 			},
+			{
+				Name:        "codeact_execute",
+				Description: "Executes ephemeral WebAssembly (Wasm) bytecode in a capability-bounded sandbox (< 1ms spin-up, 16MB memory limit, pure Go wazero, zero CGO).",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"wasm_bytes_base64": map[string]interface{}{
+							"type":        "string",
+							"description": "Base64-encoded Wasm binary module.",
+						},
+						"wasm_path": map[string]interface{}{
+							"type":        "string",
+							"description": "Relative path to a compiled Wasm binary in the vault or workspace.",
+						},
+						"stdin": map[string]interface{}{
+							"type":        "string",
+							"description": "Standard input payload (text, TOON, or JSON) to feed into the Wasm module.",
+						},
+						"timeout_ms": map[string]interface{}{
+							"type":        "integer",
+							"description": "Execution deadline in milliseconds (default 5000ms, max 10000ms).",
+						},
+						"format": formatProp,
+					},
+				},
+			},
 		}
 
 		if s.dynamicTools {
@@ -833,6 +860,56 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 			return string(data), false
 		}
 		return s.catalog.FormatTOON(results), false
+
+	case "codeact_execute":
+		b64, _ := args["wasm_bytes_base64"].(string)
+		path, _ := args["wasm_path"].(string)
+		stdin, _ := args["stdin"].(string)
+		if b64 == "" && path == "" {
+			return "Either 'wasm_bytes_base64' or 'wasm_path' must be provided.", true
+		}
+
+		timeoutMs := 5000
+		if t, ok := args["timeout_ms"].(float64); ok && t > 0 {
+			if t > 10000 {
+				t = 10000
+			}
+			timeoutMs = int(t)
+		}
+
+		runner := codeact.NewRunner(codeact.Config{
+			MaxMemoryMB: 16,
+			Timeout:     time.Duration(timeoutMs) * time.Millisecond,
+		})
+
+		var res *codeact.Result
+		var err error
+		if b64 != "" {
+			res, err = runner.ExecuteBase64(context.Background(), b64, stdin)
+		} else {
+			targetPath := path
+			if !filepath.IsAbs(targetPath) && s.vaultRoot != "" {
+				targetPath = filepath.Join(s.vaultRoot, targetPath)
+			}
+			res, err = runner.ExecuteFile(context.Background(), targetPath, stdin)
+		}
+		if err != nil {
+			return fmt.Sprintf("Wasm execution error: %v", err), true
+		}
+
+		format := s.resolveFormat(args)
+		if format == "json" {
+			data, err := json.MarshalIndent(res, "", "  ")
+			if err != nil {
+				return fmt.Sprintf("Failed to marshal result: %v", err), true
+			}
+			return string(data), false
+		}
+		out, err := toon.MarshalString(res)
+		if err != nil {
+			return res.Stdout, false
+		}
+		return out, false
 
 	case "search_vault":
 		query, _ := args["query"].(string)

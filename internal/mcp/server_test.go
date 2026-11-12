@@ -227,6 +227,38 @@ func TestMCP_DynamicToolsAndResolveTools(t *testing.T) {
 	}
 }
 
+func TestMCP_CodeActExecute(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "cache.db")
+	engine, err := search.Open(dbPath, tempDir)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer engine.Close() //nolint:errcheck,gosec
+
+	// Minimal wasm module in base64 (\x00asm\x01\x00\x00\x00) -> AGFzbQEAAAA=
+	req := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"codeact_execute","arguments":{"wasm_bytes_base64":"AGFzbQEAAAA=","stdin":"hello world"}}}` + "\n"
+	inBuf := bytes.NewBufferString(req)
+	outBuf := &bytes.Buffer{}
+
+	server := NewServer(tempDir, engine)
+	server.in = inBuf
+	server.out = outBuf
+
+	err = server.Serve()
+	if err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	var resp JSONRPCResponse
+	_ = json.Unmarshal(outBuf.Bytes(), &resp)
+	respBytes, _ := json.Marshal(resp.Result)
+	respStr := string(respBytes)
+	if !strings.Contains(respStr, "exit_code:") || resp.Error != nil {
+		t.Errorf("expected successful wasm execution result in TOON, got: %s (err: %v)", respStr, resp.Error)
+	}
+}
+
 func TestMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 
