@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/ops/dossier"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 var (
@@ -31,6 +32,15 @@ var dossierCmd = &cobra.Command{
 		dossierOutputData, err := compiler.Compile(dossierYear, dossierSemester, dossierOutput)
 		if err != nil {
 			return fmt.Errorf("failed to compile dossier: %w", err)
+		}
+
+		if toonOut {
+			out, err := toon.MarshalString(dossierOutputData)
+			if err != nil {
+				return err
+			}
+			fmt.Println(out)
+			return nil
 		}
 
 		if jsonOut {

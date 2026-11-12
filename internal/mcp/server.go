@@ -258,6 +258,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"type":        "string",
 							"description": "Name or slug of the person (e.g. 'jane-doe', 'alex-smith').",
 						},
+						"format": formatProp,
 					},
 					"required": []string{"name"},
 				},
@@ -971,6 +972,14 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		b, err := service.GenerateBriefing(personName)
 		if err != nil {
 			return fmt.Sprintf("Failed to generate briefing: %v", err), true
+		}
+
+		format := s.resolveFormat(args)
+		if format == "toon" {
+			out, err := toon.MarshalString(b)
+			if err == nil {
+				return out, false
+			}
 		}
 
 		var sb strings.Builder

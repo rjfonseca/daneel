@@ -100,6 +100,65 @@ func TestMCPToonFormat(t *testing.T) {
 	}
 }
 
+func TestMCPToonFormat_PersonBriefing(t *testing.T) {
+	tempDir := t.TempDir()
+	peopleDir := filepath.Join(tempDir, "notes", "pessoas")
+	_ = os.MkdirAll(peopleDir, 0750)
+	adaNote := filepath.Join(peopleDir, "ada.md")
+	content := "---\ntype: person\ncargo: Staff Engineer\nsquad: Platform\nemail: ada@example.com\n---\n# Ada Lovelace\n"
+	_ = os.WriteFile(adaNote, []byte(content), 0600)
+
+	dbPath := filepath.Join(tempDir, "cache.db")
+	engine, err := search.Open(dbPath, tempDir)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer engine.Close() //nolint:errcheck,gosec
+
+	_, _, _ = engine.IndexVault(context.Background(), []string{"notes"}, true)
+
+	briefingToonReq := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"person_briefing","arguments":{"name":"Ada Lovelace"}}}` + "\n"
+	briefingMdReq := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"person_briefing","arguments":{"name":"Ada Lovelace","format":"markdown"}}}` + "\n"
+
+	inBuf := bytes.NewBufferString(briefingToonReq + briefingMdReq)
+	outBuf := &bytes.Buffer{}
+
+	server := &Server{
+		vaultRoot: tempDir,
+		engine:    engine,
+		in:        inBuf,
+		out:       outBuf,
+	}
+
+	err = server.Serve()
+	if err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(outBuf.String()), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected 2 responses, got %d: %s", len(lines), outBuf.String())
+	}
+
+	// 1. Verify default is TOON
+	var toonResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[0]), &toonResp)
+	toonBytes, _ := json.Marshal(toonResp.Result)
+	toonStr := string(toonBytes)
+	if !strings.Contains(toonStr, "name: Ada Lovelace") || strings.Contains(toonStr, "# 👤 1:1 Briefing:") {
+		t.Errorf("expected TOON format for person_briefing, got: %s", toonStr)
+	}
+
+	// 2. Verify explicit markdown returns Markdown header
+	var mdResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[1]), &mdResp)
+	mdBytes, _ := json.Marshal(mdResp.Result)
+	mdStr := string(mdBytes)
+	if !strings.Contains(mdStr, "# 👤 1:1 Briefing: Ada Lovelace") {
+		t.Errorf("expected Markdown format for person_briefing, got: %s", mdStr)
+	}
+}
+
 func TestMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 
