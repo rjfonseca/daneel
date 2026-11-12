@@ -50,3 +50,11 @@ Daneel adopts TOON (Token-Oriented Object Notation, [ADR 0040](../adr/0040-token
 - **Deterministic Truncation Guardrail**: Explicit `[N]` headers allow LLMs to detect partial/truncated responses immediately.
 - **Surface Parity**: Enabled by default on MCP retrieval tools, available across CLI subcommands via `--toon` / `-T`, and integrated into Dream Cycle prompt generation.
 
+## Agent Engine Architecture: Tool-as-RAG, Semantic Router & Wazero Sandboxing
+
+To eliminate context saturation, multi-turn latency, and unsandboxed script risks in autonomous agent workflows ([ADR 0041](../adr/0041-agent-engine-optimization-toolrag-router-wazero.md)):
+- **Dynamic Tool Retrieval (Tool-as-RAG)**: The MCP tool registry is indexed via SQLite FTS5/BM25. Instead of injecting all 30+ tools on every handshake, agents use `resolve_tools` to dynamically retrieve only the tools relevant to the active task, saving over 70% in handshake prompt tokens.
+- **Fast-Path Semantic Router (< 2ms)**: A pure Go CPU-based intent classifier intercepts deterministic commands (routines, doctor diagnostics, colleague lookups, workspace status) directly in `daneel chat` and CLI entrypoints, responding in < 2ms without invoking remote LLM APIs.
+- **Wazero WebAssembly Sandboxing (CodeAct)**: An embedded, pure Go WebAssembly runtime (`tetratelabs/wazero`, 100% CGO-free) allows agents to execute data transformation and filtering scripts in a memory-bounded (16MB), time-bounded (5s) isolated sandbox.
+
+

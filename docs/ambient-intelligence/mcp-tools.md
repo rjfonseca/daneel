@@ -180,9 +180,33 @@ Audits recent AI agent session history (Antigravity, Claude Code, Cursor) to det
   - `apply` (boolean, optional): When true, persists discovered learnings to `meta/guias/aprendizados-agente.md` and updates `meta/dashboard-metricas.md`. Defaults to `false`.
 - **Output**: Formatted Markdown report detailing scanned interactions, suspicious deltas, missed opportunities with vault notes, and knowledge gaps with recommendations.
 
-## 5. Token-Oriented Object Notation (TOON) Serialization
+## 5. Agent Optimization & Dynamic Execution Tools
 
-All collection retrieval and discovery tools (`search_vault`, `search_people`, `search_projects`, `get_active_backlog`, `get_backlinks`, `scan_workspace_repos`, `audit_agent_missed_opportunities`) serialize tabular collections in **TOON (Token-Oriented Object Notation)** by default.
+### `resolve_tools`
+Dynamic Tool Retrieval (Tool-as-RAG) primitive. Resolves and returns matching MCP tool definitions and schemas based on user task intent or keyword queries, preventing context window saturation.
+- **Input**:
+  - `query` (string, required): Search query or capability description (e.g. `'execute code'`, `'manage workspace'`, `'read colleague'`).
+  - `category` (string, optional): Filter by tool domain (`'vault'`, `'people'`, `'workspace'`, `'ui'`, `'tui'`, `'routines'`, `'ingest'`, `'guard'`, `'codeact'`).
+  - `limit` (integer, optional): Maximum matching tools to return (defaults to `5`).
+  - `format` (string, optional): `'toon'` (default) or `'json'`.
+- **Output**: Compact list of matching tool schemas and parameter descriptions.
+
+### `codeact_execute`
+Ephemeral, capability-bounded WebAssembly (Wasm) execution sandbox powered by pure Go `wazero` (zero CGO). Executes data transformations, batch filters, and calculations in a single turn.
+- **Input**:
+  - `wasm_bytes_base64` (string, optional): Base64-encoded Wasm binary module.
+  - `wasm_path` (string, optional): Relative path to a pre-compiled Wasm binary module in the vault or workspace.
+  - `stdin` (string, optional): Standard input payload (TOON, JSON, or text) fed to the module.
+  - `timeout_ms` (integer, optional): Execution deadline in milliseconds (maximum 10000ms, defaults to 5000ms).
+- **Behavior**:
+  - Runs in a memory-bounded sandbox (16MB linear memory).
+  - Isolated from host network and restricted to an ephemeral scratch directory.
+  - Audited against the Four Laws of Robotics (ADR 0005).
+- **Output**: Standard output and execution summary in TOON or text.
+
+## 6. Token-Oriented Object Notation (TOON) Serialization
+
+All collection retrieval and discovery tools (`search_vault`, `search_people`, `search_projects`, `person_briefing`, `get_active_backlog`, `get_backlinks`, `scan_workspace_repos`, `audit_agent_missed_opportunities`) serialize tabular collections in **TOON (Token-Oriented Object Notation)** by default.
 
 TOON saves 40% to 65% of context window tokens compared to Markdown and JSON by declaring the schema once in the collection header (`results[N]{field1,field2}:`) and transmitting compact delimited rows. It also provides an explicit `[N]` size guardrail against LLM truncation hallucinations.
 
@@ -198,7 +222,7 @@ results[2]{title,path,scope,type,snippet,score}:
   API Gateway,notes/gateway.md,all,rfc,Reverse proxy routing,8.20
 ```
 
-## 6. Legacy Aliases
+## 7. Legacy Aliases
 
 For backward compatibility with earlier scripts and prompts, the following aliases remain supported:
 - `tui_get_current_state` $\rightarrow$ `ui_get_active_context`
