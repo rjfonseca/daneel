@@ -8,6 +8,31 @@ import (
 	"time"
 )
 
+func TestLoadConfig_MCPConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	cfgFile := filepath.Join(tempDir, ".daneel.yaml")
+
+	// 1. Explicit TOON
+	_ = os.WriteFile(cfgFile, []byte("mcp:\n  default_format: toon\n"), 0600)
+	cfg, err := LoadConfig(tempDir, cfgFile, false)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.MCP.DefaultFormat != "toon" {
+		t.Errorf("expected mcp.default_format to be 'toon', got %q", cfg.MCP.DefaultFormat)
+	}
+
+	// 2. Default when unspecified should be "toon"
+	_ = os.WriteFile(cfgFile, []byte("vault:\n  title: Test\n"), 0600)
+	cfg, err = LoadConfig(tempDir, cfgFile, false)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.MCP.DefaultFormat != "toon" {
+		t.Errorf("expected default format to be 'toon', got %q", cfg.MCP.DefaultFormat)
+	}
+}
+
 func TestFindLocalVault(t *testing.T) {
 	tempDir := t.TempDir()
 

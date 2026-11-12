@@ -14,6 +14,7 @@ import (
 	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/ops/workspace"
 	"github.com/rjfonseca/daneel/internal/search"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 var (
@@ -72,6 +73,23 @@ var workspaceCmd = &cobra.Command{
 			if err := os.WriteFile(targetMOC, []byte(mocContent), 0600); err != nil {
 				return fmt.Errorf("failed to save workspace MOC: %w", err)
 			}
+		}
+
+		if toonOut {
+			headers := []string{"name", "path", "branch", "status", "last_commit_date"}
+			var rows [][]string
+			for _, r := range rep.DirtyRepos {
+				rows = append(rows, []string{r.Name, r.Path, r.Branch, "dirty", r.LastCommitDate})
+			}
+			for _, catRepos := range rep.Categories {
+				for _, r := range catRepos {
+					if !r.Dirty {
+						rows = append(rows, []string{r.Name, r.Path, r.Branch, "clean", r.LastCommitDate})
+					}
+				}
+			}
+			fmt.Print(toon.EncodeTabular("workspace_repos", headers, rows))
+			return nil
 		}
 
 		if jsonOut {

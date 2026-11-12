@@ -251,6 +251,18 @@ func (c HarvesterConfig) IsProjectExcluded(projectName string, fullPath string) 
 	return false
 }
 
+// MCPConfig defines Model Context Protocol server configuration.
+type MCPConfig struct {
+	DefaultFormat string `yaml:"default_format,omitempty" json:"default_format,omitempty"`
+}
+
+// DefaultMCPConfig returns the default configuration for MCP server.
+func DefaultMCPConfig() MCPConfig {
+	return MCPConfig{
+		DefaultFormat: "toon",
+	}
+}
+
 // EvaluationConfig defines rules for generating performance review dossiers.
 type EvaluationConfig struct {
 	DossierTitle        string   `yaml:"dossier_title,omitempty" json:"dossier_title,omitempty"`
@@ -331,6 +343,7 @@ type Config struct {
 	Hotbar     HotbarConfig     `yaml:"hotbar,omitempty" json:"hotbar,omitempty"`
 	Daemon     DaemonConfig     `yaml:"daemon,omitempty" json:"daemon,omitempty"`
 	Routines   RoutinesConfig   `yaml:"routines,omitempty" json:"routines,omitempty"`
+	MCP        MCPConfig        `yaml:"mcp,omitempty" json:"mcp,omitempty"`
 
 	// Legacy Top-Level Fields (Mapped automatically for backward compatibility)
 	LegacyAssistant   ChatConfig          `yaml:"assistant,omitempty" json:"-"`
@@ -1268,6 +1281,7 @@ func LoadConfig(customVaultPath string, customConfigPath string, forceGlobal boo
 		Tui:          DefaultTuiConfig(),
 		Daemon:       DefaultDaemonConfig(),
 		Routines:     DefaultRoutinesConfig(),
+		MCP:          DefaultMCPConfig(),
 		Mode:         mode,
 		VaultSource:  vaultSource,
 		ConfigSource: configSource,
@@ -1328,6 +1342,9 @@ func LoadConfig(customVaultPath string, customConfigPath string, forceGlobal boo
 				}
 				if fileCfg.Routines.Driver != "" || len(fileCfg.Routines.Items) > 0 {
 					cfg.Routines = fileCfg.Routines
+				}
+				if fileCfg.MCP.DefaultFormat != "" {
+					cfg.MCP = fileCfg.MCP
 				}
 				if len(fileCfg.LegacyAssistant.Profiles) > 0 || fileCfg.LegacyAssistant.Default != "" {
 					cfg.LegacyAssistant = fileCfg.LegacyAssistant

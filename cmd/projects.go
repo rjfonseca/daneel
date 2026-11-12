@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/search"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 var (
@@ -35,6 +36,26 @@ var projectsCmd = &cobra.Command{
 		repos, err := engine.SearchProjects(cmd.Context(), query, projectsDirty, projectsClean, projectsStack, projectsLimit)
 		if err != nil {
 			return fmt.Errorf("projects search failed: %w", err)
+		}
+
+		if toonOut {
+			headers := []string{"name", "path", "branch", "status", "stack"}
+			rows := make([][]string, len(repos))
+			for i, r := range repos {
+				status := "clean"
+				if r.Dirty {
+					status = "dirty"
+				}
+				rows[i] = []string{
+					r.Name,
+					r.RelPath,
+					r.Branch,
+					status,
+					r.Stack,
+				}
+			}
+			fmt.Print(toon.EncodeTabular("projects", headers, rows))
+			return nil
 		}
 
 		if jsonOut {

@@ -71,6 +71,16 @@ Available across all commands:
 | `daneel version` | Displays version, build metadata, and positronic core lore | None |
 | `daneel completion` | Generates shell autocomplete scripts (bash, zsh, fish) | Shell argument |
 
+### Global Persistent Flags
+| Flag | Shorthand | Description | Default |
+|---|---|---|---|
+| `--toon` | `-T` | Output results in compact Token-Oriented Object Notation (TOON) for LLM efficiency | `false` |
+| `--json` | | Output results in standard JSON format | `false` |
+| `--config` | | Custom path to `.daneel.yaml` or `config.yaml` | `""` |
+| `--vault-path` | | Explicit path to the Vault root directory | `""` |
+| `--global` | `-g` | Force global vault mode, ignoring local vaults | `false` |
+| `--verbose` | `-v` | Enable verbose / debug output | `false` |
+
 ---
 
 ## 3. Universal Note Ingestion (`daneel ingest`)

@@ -180,7 +180,25 @@ Audits recent AI agent session history (Antigravity, Claude Code, Cursor) to det
   - `apply` (boolean, optional): When true, persists discovered learnings to `meta/guias/aprendizados-agente.md` and updates `meta/dashboard-metricas.md`. Defaults to `false`.
 - **Output**: Formatted Markdown report detailing scanned interactions, suspicious deltas, missed opportunities with vault notes, and knowledge gaps with recommendations.
 
-## 5. Legacy Aliases
+## 5. Token-Oriented Object Notation (TOON) Serialization
+
+All collection retrieval and discovery tools (`search_vault`, `search_people`, `search_projects`, `get_active_backlog`, `get_backlinks`, `scan_workspace_repos`, `audit_agent_missed_opportunities`) serialize tabular collections in **TOON (Token-Oriented Object Notation)** by default.
+
+TOON saves 40% to 65% of context window tokens compared to Markdown and JSON by declaring the schema once in the collection header (`results[N]{field1,field2}:`) and transmitting compact delimited rows. It also provides an explicit `[N]` size guardrail against LLM truncation hallucinations.
+
+### Format Parameter
+Every retrieval tool accepts an optional `format` parameter:
+- `format: "toon"` (**default**): Compact tabular TOON notation.
+- `format: "markdown"`: Legacy human-oriented Markdown bullet lists and headers.
+
+Example TOON response for `search_vault`:
+```text
+results[2]{title,path,scope,type,snippet,score}:
+  Architecture Decision,notes/arch.md,all,tecnologia,Distributed service patterns,9.50
+  API Gateway,notes/gateway.md,all,rfc,Reverse proxy routing,8.20
+```
+
+## 6. Legacy Aliases
 
 For backward compatibility with earlier scripts and prompts, the following aliases remain supported:
 - `tui_get_current_state` $\rightarrow$ `ui_get_active_context`

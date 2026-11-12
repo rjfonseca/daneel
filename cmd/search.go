@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/search"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 var (
@@ -66,6 +67,22 @@ var searchCmd = &cobra.Command{
 			return fmt.Errorf("search error: %w", err)
 		}
 		elapsed := time.Since(start)
+
+		if toonOut {
+			headers := []string{"title", "path", "scope", "type", "score"}
+			rows := make([][]string, len(results))
+			for i, r := range results {
+				rows[i] = []string{
+					r.Title,
+					r.RelPath,
+					r.Scope,
+					r.Type,
+					fmt.Sprintf("%.2f", r.Score),
+				}
+			}
+			fmt.Print(toon.EncodeTabular("results", headers, rows))
+			return nil
+		}
 
 		if jsonOut {
 			bytes, err := json.MarshalIndent(results, "", "  ")

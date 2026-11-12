@@ -84,7 +84,7 @@ Orchestrates the complete overnight consolidation:
 		passStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("82"))
 		metaStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 
-		if !jsonOut {
+		if !jsonOut && !toonOut {
 			fmt.Println(titleStyle.Render(fmt.Sprintf("🌙 Hypnagogic Cognitive REM Dream Cycle [%s] — %s", dreamDate, partnerName)))
 			fmt.Println(strings.Repeat("─", 80))
 			// 1. Pre-flight Deterministic Hygiene
@@ -111,6 +111,11 @@ Orchestrates the complete overnight consolidation:
 
 		// Finalize Phase 1 FinOps and update metrics dashboard
 		finalizeDreamFinOps(cmdCtx, cfg.VaultPath, dreamStartTime, report, 0, "")
+
+		if toonOut {
+			fmt.Print(dream.FormatReportTOON(report))
+			return nil
+		}
 
 		if jsonOut {
 			data, err := json.MarshalIndent(report, "", "  ")

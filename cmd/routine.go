@@ -20,6 +20,7 @@ import (
 
 	"github.com/rjfonseca/daneel/internal/routine"
 	"github.com/rjfonseca/daneel/internal/telemetry"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 var (
@@ -56,6 +57,24 @@ var routineListCmd = &cobra.Command{
 			} else {
 				statuses = append(statuses, *st)
 			}
+		}
+
+		if toonOut {
+			headers := []string{"name", "schedule", "enabled", "active", "last_result"}
+			rows := make([][]string, 0, len(statuses))
+			for _, s := range statuses {
+				en := "no"
+				if s.Enabled {
+					en = "yes"
+				}
+				act := "no"
+				if s.Active {
+					act = "yes"
+				}
+				rows = append(rows, []string{s.Name, s.Schedule, en, act, s.LastResult})
+			}
+			fmt.Print(toon.EncodeTabular("routines", headers, rows))
+			return nil
 		}
 
 		if jsonOut {
@@ -246,6 +265,21 @@ var routineStatusCmd = &cobra.Command{
 			st, err := adapter.Status(cmd.Context(), name)
 			if err != nil {
 				fmt.Printf("Routine %q: %v\n", name, err)
+				continue
+			}
+
+			if toonOut {
+				headers := []string{"name", "schedule", "enabled", "active", "last_result"}
+				en := "no"
+				if st.Enabled {
+					en = "yes"
+				}
+				act := "no"
+				if st.Active {
+					act = "yes"
+				}
+				row := []string{st.Name, st.Schedule, en, act, st.LastResult}
+				fmt.Print(toon.EncodeTabular("routine", headers, [][]string{row}))
 				continue
 			}
 

@@ -20,6 +20,7 @@ var (
 	vaultPath    string
 	globalFlag   bool
 	jsonOut      bool
+	toonOut      bool
 	verbose      bool
 	cfg          *config.Config
 	cmdStartTime time.Time
@@ -110,5 +111,6 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&vaultPath, "vault-path", "", "Explicit path to the Vault root directory")
 	RootCmd.PersistentFlags().BoolVarP(&globalFlag, "global", "g", false, "Force global vault mode (~/.config/daneel/config.yaml), ignoring local vaults")
 	RootCmd.PersistentFlags().BoolVar(&jsonOut, "json", false, "Output results in JSON format")
+	RootCmd.PersistentFlags().BoolVarP(&toonOut, "toon", "T", false, "Output results in TOON (Token-Oriented Object Notation) format")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose / debug output")
 }
