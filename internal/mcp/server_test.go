@@ -159,6 +159,74 @@ func TestMCPToonFormat_PersonBriefing(t *testing.T) {
 	}
 }
 
+func TestMCP_DynamicToolsAndResolveTools(t *testing.T) {
+	tempDir := t.TempDir()
+	notesDir := filepath.Join(tempDir, "notes")
+	_ = os.MkdirAll(notesDir, 0750)
+	testNote := filepath.Join(notesDir, "test.md")
+	_ = os.WriteFile(testNote, []byte("# Microservices\n\nDiscussion."), 0600)
+
+	dbPath := filepath.Join(tempDir, "cache.db")
+	engine, err := search.Open(dbPath, tempDir)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer engine.Close() //nolint:errcheck,gosec
+
+	// 1. Test resolve_tools tool execution
+	resolveReq := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"resolve_tools","arguments":{"query":"workspace git"}}}` + "\n"
+	inBuf := bytes.NewBufferString(resolveReq)
+	outBuf := &bytes.Buffer{}
+
+	server := NewServer(tempDir, engine)
+	server.in = inBuf
+	server.out = outBuf
+
+	err = server.Serve()
+	if err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	var resResp JSONRPCResponse
+	_ = json.Unmarshal(outBuf.Bytes(), &resResp)
+	resBytes, _ := json.Marshal(resResp.Result)
+	resStr := string(resBytes)
+	if !strings.Contains(resStr, "workspace") {
+		t.Errorf("expected workspace tools from resolve_tools, got: %s", resStr)
+	}
+
+	// 2. Test Dynamic Tools mode pruning on tools/list
+	listReq := `{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}` + "\n"
+	inBuf2 := bytes.NewBufferString(listReq)
+	outBuf2 := &bytes.Buffer{}
+
+	dynamicServer := NewServer(tempDir, engine)
+	dynamicServer.SetDynamicTools(true)
+	dynamicServer.in = inBuf2
+	dynamicServer.out = outBuf2
+
+	err = dynamicServer.Serve()
+	if err != nil {
+		t.Fatalf("Dynamic Serve failed: %v", err)
+	}
+
+	var listResp JSONRPCResponse
+	_ = json.Unmarshal(outBuf2.Bytes(), &listResp)
+	m, ok := listResp.Result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result from tools/list, got: %T", listResp.Result)
+	}
+	toolsSlice, ok := m["tools"].([]interface{})
+	if !ok {
+		t.Fatalf("expected tools array, got: %T", m["tools"])
+	}
+
+	// Core tools manifest should be small (<= 6 tools)
+	if len(toolsSlice) > 6 {
+		t.Errorf("expected pruned tool list in dynamic mode (<= 6), got %d tools", len(toolsSlice))
+	}
+}
+
 func TestMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 

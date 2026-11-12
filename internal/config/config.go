@@ -254,12 +254,14 @@ func (c HarvesterConfig) IsProjectExcluded(projectName string, fullPath string) 
 // MCPConfig defines Model Context Protocol server configuration.
 type MCPConfig struct {
 	DefaultFormat string `yaml:"default_format,omitempty" json:"default_format,omitempty"`
+	ToolExposure  string `yaml:"tool_exposure,omitempty" json:"tool_exposure,omitempty"`
 }
 
 // DefaultMCPConfig returns the default configuration for MCP server.
 func DefaultMCPConfig() MCPConfig {
 	return MCPConfig{
 		DefaultFormat: "toon",
+		ToolExposure:  "full",
 	}
 }
 

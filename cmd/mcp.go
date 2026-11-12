@@ -11,6 +11,10 @@ import (
 	"github.com/rjfonseca/daneel/internal/search"
 )
 
+var (
+	mcpDynamicTools bool
+)
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Launches the native Model Context Protocol (MCP) server via stdio",
@@ -29,6 +33,9 @@ integration with AI agents such as Antigravity, Claude Code, Cursor, Gemini, and
 		}()
 
 		server := mcp.NewServer(cfg.VaultPath, engine, cfg)
+		if mcpDynamicTools {
+			server.SetDynamicTools(true)
+		}
 		if err := server.Serve(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error in MCP server: %v\n", err)
 			return err
@@ -38,5 +45,6 @@ integration with AI agents such as Antigravity, Claude Code, Cursor, Gemini, and
 }
 
 func init() {
+	mcpCmd.Flags().BoolVar(&mcpDynamicTools, "dynamic-tools", false, "Prune tools/list to core tools and enable dynamic tool discovery (Tool-as-RAG)")
 	RootCmd.AddCommand(mcpCmd)
 }
