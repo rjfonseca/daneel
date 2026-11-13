@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/ops/briefing"
+	"github.com/rjfonseca/daneel/internal/toon"
 )
 
 var prepCmd = &cobra.Command{
@@ -24,6 +25,15 @@ var prepCmd = &cobra.Command{
 		profile, err := svc.GenerateBriefing(query)
 		if err != nil {
 			return err
+		}
+
+		if toonOut {
+			out, err := toon.MarshalString(profile)
+			if err != nil {
+				return err
+			}
+			fmt.Println(out)
+			return nil
 		}
 
 		if jsonOut {

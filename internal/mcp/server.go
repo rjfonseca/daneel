@@ -16,6 +16,7 @@ import (
 
 	graphv1 "github.com/rjfonseca/daneel/api/v1"
 	"github.com/rjfonseca/daneel/internal/auditor"
+	"github.com/rjfonseca/daneel/internal/codeact"
 	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/daemon"
 	"github.com/rjfonseca/daneel/internal/dream"
@@ -77,11 +78,13 @@ type ToolCallResult struct {
 
 // Server is the Daneel MCP server instance.
 type Server struct {
-	vaultRoot string
-	engine    *search.Engine
-	cfg       *config.Config
-	in        io.Reader
-	out       io.Writer
+	vaultRoot    string
+	engine       *search.Engine
+	cfg          *config.Config
+	catalog      *ToolCatalog
+	dynamicTools bool
+	in           io.Reader
+	out          io.Writer
 }
 
 // NewServer creates a new MCP server.
@@ -90,13 +93,21 @@ func NewServer(vaultRoot string, engine *search.Engine, cfg ...*config.Config) *
 	if len(cfg) > 0 {
 		c = cfg[0]
 	}
+	dynamic := c != nil && strings.EqualFold(c.MCP.ToolExposure, "dynamic")
 	return &Server{
-		vaultRoot: vaultRoot,
-		engine:    engine,
-		cfg:       c,
-		in:        os.Stdin,
-		out:       os.Stdout,
+		vaultRoot:    vaultRoot,
+		engine:       engine,
+		cfg:          c,
+		catalog:      NewToolCatalog(),
+		dynamicTools: dynamic,
+		in:           os.Stdin,
+		out:          os.Stdout,
 	}
+}
+
+// SetDynamicTools enables or disables dynamic tool exposure (Tool-as-RAG).
+func (s *Server) SetDynamicTools(enabled bool) {
+	s.dynamicTools = enabled
 }
 
 // Serve runs the stdio JSON-RPC loop.
@@ -151,6 +162,29 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 		}
 
 		tools := []Tool{
+			{
+				Name:        "resolve_tools",
+				Description: "Dynamically discovers and retrieves matching MCP tool definitions based on intent or query (Tool-as-RAG).",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "Search query or task intent (e.g. 'workspace git', 'briefing', 'read note').",
+						},
+						"category": map[string]interface{}{
+							"type":        "string",
+							"description": "Filter by tool domain (vault, people, workspace, routines, ingest, guard, ui, tui, codeact).",
+						},
+						"limit": map[string]interface{}{
+							"type":        "integer",
+							"description": "Maximum number of tools to return (default 5).",
+						},
+						"format": formatProp,
+					},
+					"required": []string{"query"},
+				},
+			},
 			{
 				Name:        "search_vault",
 				Description: "Instant (< 3ms) full-text search across the Second Brain using SQLite FTS5, BM25 ranking, and faceted metadata filters.",
@@ -258,6 +292,7 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 							"type":        "string",
 							"description": "Name or slug of the person (e.g. 'jane-doe', 'alex-smith').",
 						},
+						"format": formatProp,
 					},
 					"required": []string{"name"},
 				},
@@ -696,6 +731,49 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 					},
 				},
 			},
+			{
+				Name:        "codeact_execute",
+				Description: "Executes ephemeral WebAssembly (Wasm) bytecode in a capability-bounded sandbox (< 1ms spin-up, 16MB memory limit, pure Go wazero, zero CGO).",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"wasm_bytes_base64": map[string]interface{}{
+							"type":        "string",
+							"description": "Base64-encoded Wasm binary module.",
+						},
+						"wasm_path": map[string]interface{}{
+							"type":        "string",
+							"description": "Relative path to a compiled Wasm binary in the vault or workspace.",
+						},
+						"stdin": map[string]interface{}{
+							"type":        "string",
+							"description": "Standard input payload (text, TOON, or JSON) to feed into the Wasm module.",
+						},
+						"timeout_ms": map[string]interface{}{
+							"type":        "integer",
+							"description": "Execution deadline in milliseconds (default 5000ms, max 10000ms).",
+						},
+						"format": formatProp,
+					},
+				},
+			},
+		}
+
+		if s.dynamicTools {
+			coreMap := map[string]bool{
+				"resolve_tools":         true,
+				"search_vault":          true,
+				"get_note_content":      true,
+				"ui_get_active_context": true,
+				"vault_health":          true,
+			}
+			var pruned []Tool
+			for _, t := range tools {
+				if coreMap[t.Name] {
+					pruned = append(pruned, t)
+				}
+			}
+			tools = pruned
 		}
 
 		s.sendResult(req.ID, map[string]interface{}{
@@ -756,6 +834,83 @@ func (s *Server) resolveFormat(args map[string]interface{}) string {
 
 func (s *Server) executeTool(name string, args map[string]interface{}) (string, bool) {
 	switch name {
+	case "resolve_tools":
+		query, _ := args["query"].(string)
+		if query == "" {
+			return "Parameter 'query' is required.", true
+		}
+		category, _ := args["category"].(string)
+		limit := 5
+		if l, ok := args["limit"].(float64); ok && l > 0 {
+			limit = int(l)
+		}
+		if s.catalog == nil {
+			s.catalog = NewToolCatalog()
+		}
+		results := s.catalog.Search(query, category, limit)
+		if len(results) == 0 {
+			return fmt.Sprintf("No tools found matching query '%s'", query), false
+		}
+		format := s.resolveFormat(args)
+		if format == "json" {
+			data, err := json.MarshalIndent(results, "", "  ")
+			if err != nil {
+				return fmt.Sprintf("Failed to marshal tools: %v", err), true
+			}
+			return string(data), false
+		}
+		return s.catalog.FormatTOON(results), false
+
+	case "codeact_execute":
+		b64, _ := args["wasm_bytes_base64"].(string)
+		path, _ := args["wasm_path"].(string)
+		stdin, _ := args["stdin"].(string)
+		if b64 == "" && path == "" {
+			return "Either 'wasm_bytes_base64' or 'wasm_path' must be provided.", true
+		}
+
+		timeoutMs := 5000
+		if t, ok := args["timeout_ms"].(float64); ok && t > 0 {
+			if t > 10000 {
+				t = 10000
+			}
+			timeoutMs = int(t)
+		}
+
+		runner := codeact.NewRunner(codeact.Config{
+			MaxMemoryMB: 16,
+			Timeout:     time.Duration(timeoutMs) * time.Millisecond,
+		})
+
+		var res *codeact.Result
+		var err error
+		if b64 != "" {
+			res, err = runner.ExecuteBase64(context.Background(), b64, stdin)
+		} else {
+			targetPath := path
+			if !filepath.IsAbs(targetPath) && s.vaultRoot != "" {
+				targetPath = filepath.Join(s.vaultRoot, targetPath)
+			}
+			res, err = runner.ExecuteFile(context.Background(), targetPath, stdin)
+		}
+		if err != nil {
+			return fmt.Sprintf("Wasm execution error: %v", err), true
+		}
+
+		format := s.resolveFormat(args)
+		if format == "json" {
+			data, err := json.MarshalIndent(res, "", "  ")
+			if err != nil {
+				return fmt.Sprintf("Failed to marshal result: %v", err), true
+			}
+			return string(data), false
+		}
+		out, err := toon.MarshalString(res)
+		if err != nil {
+			return res.Stdout, false
+		}
+		return out, false
+
 	case "search_vault":
 		query, _ := args["query"].(string)
 		scope, _ := args["scope"].(string)
@@ -971,6 +1126,14 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		b, err := service.GenerateBriefing(personName)
 		if err != nil {
 			return fmt.Sprintf("Failed to generate briefing: %v", err), true
+		}
+
+		format := s.resolveFormat(args)
+		if format == "toon" {
+			out, err := toon.MarshalString(b)
+			if err == nil {
+				return out, false
+			}
 		}
 
 		var sb strings.Builder

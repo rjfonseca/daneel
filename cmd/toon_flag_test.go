@@ -223,3 +223,53 @@ func TestToonFlag_Dream(t *testing.T) {
 		t.Errorf("expected TOON format with dream_summary[...], got: %s", out)
 	}
 }
+
+func TestToonFlag_Prep(t *testing.T) {
+	c, engine := setupToonTestVault(t)
+	defer engine.Close() //nolint:errcheck,gosec
+
+	origCfg := cfg
+	origToon := toonOut
+	cfg = c
+	toonOut = true
+	defer func() {
+		cfg = origCfg
+		toonOut = origToon
+	}()
+
+	out, err := captureStdout(t, func() error {
+		return prepCmd.RunE(prepCmd, []string{"Ada Lovelace"})
+	})
+	if err != nil {
+		t.Fatalf("prepCmd failed: %v", err)
+	}
+
+	if !strings.Contains(out, "name: Ada Lovelace") || strings.Contains(out, "👤 1:1 Briefing:") {
+		t.Errorf("expected TOON format for prep, got: %s", out)
+	}
+}
+
+func TestToonFlag_Dossier(t *testing.T) {
+	c, engine := setupToonTestVault(t)
+	defer engine.Close() //nolint:errcheck,gosec
+
+	origCfg := cfg
+	origToon := toonOut
+	cfg = c
+	toonOut = true
+	defer func() {
+		cfg = origCfg
+		toonOut = origToon
+	}()
+
+	out, err := captureStdout(t, func() error {
+		return dossierCmd.RunE(dossierCmd, []string{})
+	})
+	if err != nil {
+		t.Fatalf("dossierCmd failed: %v", err)
+	}
+
+	if !strings.Contains(out, "output_file:") || strings.Contains(out, "🏆") {
+		t.Errorf("expected TOON format for dossier, got: %s", out)
+	}
+}

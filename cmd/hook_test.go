@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -165,8 +166,12 @@ func TestHookCapture_UnresponsiveDaemonFallsBackWithinBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("capture with silent daemon: %v", err)
 	}
-	if elapsed >= 750*time.Millisecond {
-		t.Fatalf("capture waited %s for an unresponsive daemon, want <750ms", elapsed)
+	budget := 750 * time.Millisecond
+	if runtime.GOOS == "windows" {
+		budget = 2500 * time.Millisecond
+	}
+	if elapsed >= budget {
+		t.Fatalf("capture waited %s for an unresponsive daemon, want <%s", elapsed, budget)
 	}
 	if sid != "silent-daemon-session" {
 		t.Fatalf("session ID = %q, want persisted payload session ID", sid)

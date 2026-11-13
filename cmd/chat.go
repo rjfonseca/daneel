@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -16,12 +17,14 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/rjfonseca/daneel/internal/config"
+	"github.com/rjfonseca/daneel/internal/router"
 	"github.com/rjfonseca/daneel/internal/search"
 )
 
 var (
-	chatProfile string
-	chatNoIndex bool
+	chatProfile    string
+	chatNoIndex    bool
+	chatNoFastPath bool
 )
 
 var chatCmd = &cobra.Command{
@@ -55,8 +58,38 @@ Usage Examples:
 			cancel()
 		}
 
-		// 2. Resolve or Configure Chat Profile
-		if len(cfg.Chat.Profiles) == 0 && len(cfg.LegacyAssistant.Profiles) == 0 {
+		// 2. CPU Fast-Path Intent Routing (< 2ms)
+		if !chatNoFastPath && len(args) > 0 {
+			query := strings.Join(args, " ")
+			r := router.New()
+			match := r.Evaluate(query)
+			if match.Confidence >= 0.85 {
+				fastStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("82"))
+				fmt.Printf("%s Routing '%s' via Fast-Path (intent: %s, confidence: %.2f)...\n\n",
+					fastStyle.Render("⚡ [FAST-PATH]"), query, match.Intent, match.Confidence)
+
+				switch match.Intent {
+				case router.IntentRoutineMorning:
+					return morningCmd.RunE(morningCmd, nil)
+				case router.IntentRoutineEvening:
+					return eveningCmd.RunE(eveningCmd, nil)
+				case router.IntentVaultHealth:
+					return doctorCmd.RunE(doctorCmd, nil)
+				case router.IntentWorkspace:
+					return workspaceCmd.RunE(workspaceCmd, nil)
+				case router.IntentPeopleBriefing:
+					target := match.Params["name"]
+					if target != "" {
+						return prepCmd.RunE(prepCmd, []string{target})
+					}
+				}
+			}
+		}
+
+		// 3. Resolve or Configure Chat Profile
+		needsSetup := (len(cfg.Chat.Profiles) == 0 && len(cfg.LegacyAssistant.Profiles) == 0) ||
+			(chatProfile == "" && cfg.Chat.Default == "" && cfg.LegacyAssistant.Default == "" && len(cfg.Chat.Profiles) > 1)
+		if needsSetup {
 			if isTerminal(os.Stdin) {
 				if err := runChatSetupWizard(); err != nil {
 					return err
@@ -158,64 +191,38 @@ Usage Examples:
 
 func runChatSetupWizard() error {
 	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
-	accentStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))
 	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	successStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("82"))
 
 	fmt.Println()
 	fmt.Println(headerStyle.Render("🤖 Daneel Chat Setup Wizard"))
-	fmt.Println(mutedStyle.Render("No chat profile configured in .daneel.yaml. Setting up default assistant profile..."))
+	fmt.Println(mutedStyle.Render("Configure an explicit AI agent profile in your Daneel configuration."))
 	fmt.Println()
 
-	detected := detectInstalledAgents()
-	defaultProfile := config.DefaultChatConfig()
-
-	if len(detected) > 0 {
-		fmt.Printf("%s Detected AI agents on your system:\n", accentStyle.Render("🔍"))
-		for _, ag := range detected {
-			fmt.Printf("   • %s\n", ag)
-		}
-		fmt.Println()
+	selectedCfg := promptChatConfig(bufio.NewReader(os.Stdin), true)
+	if len(selectedCfg.Profiles) == 0 {
+		return nil
 	}
 
-	// Write default configuration into .daneel.yaml if present
-	if cfg.ConfigFile != "" {
-		data, err := os.ReadFile(cfg.ConfigFile)
-		if err == nil {
-			var rawMap map[string]interface{}
-			if err := yaml.Unmarshal(data, &rawMap); err == nil {
-				rawMap["chat"] = defaultProfile
-				if out, err := yaml.Marshal(rawMap); err == nil {
-					_ = os.WriteFile(cfg.ConfigFile, out, 0600)
-					fmt.Println(successStyle.Render("✅ Chat configuration saved successfully to .daneel.yaml!"))
-					fmt.Println()
-				}
+	targetCfgFile := cfg.ConfigFile
+	if targetCfgFile == "" {
+		targetCfgFile = config.GlobalConfigFile()
+	}
+
+	rawMap := make(map[string]interface{})
+	if data, err := os.ReadFile(targetCfgFile); err == nil { //nolint:gosec // intentional config path
+		_ = yaml.Unmarshal(data, &rawMap)
+	}
+	rawMap["chat"] = selectedCfg
+	if out, err := yaml.Marshal(rawMap); err == nil {
+		if err := os.MkdirAll(filepath.Dir(targetCfgFile), 0750); err == nil {
+			if err := os.WriteFile(targetCfgFile, out, 0600); err == nil {
+				fmt.Printf("%s Chat configuration saved to %s\n\n", successStyle.Render("✅"), targetCfgFile)
 			}
 		}
 	}
 
 	return nil
-}
-
-func detectInstalledAgents() []string {
-	var found []string
-	candidates := []struct {
-		name string
-		desc string
-	}{
-		{"agy", "Antigravity CLI (agy)"},
-		{"claude", "Claude Code CLI"},
-		{"codex", "OpenAI Codex CLI"},
-		{"aider", "Aider AI Pair Programming"},
-		{"gh", "GitHub Copilot CLI"},
-	}
-
-	for _, c := range candidates {
-		if _, err := exec.LookPath(c.name); err == nil {
-			found = append(found, c.desc)
-		}
-	}
-	return found
 }
 
 func splitCommand(s string) ([]string, error) {
@@ -379,5 +386,6 @@ func prepareGitHubSandboxAuth(envMap map[string]string, commandTokens []string, 
 func init() {
 	chatCmd.Flags().StringVarP(&chatProfile, "profile", "p", "", "Name of the chat profile to execute (e.g. agy, claude, plain_agy)")
 	chatCmd.Flags().BoolVar(&chatNoIndex, "no-index", false, "Skip instant SQLite pre-indexing before launching chat")
+	chatCmd.Flags().BoolVar(&chatNoFastPath, "no-fast-path", false, "Skip CPU Semantic Router fast-path interception")
 	RootCmd.AddCommand(chatCmd)
 }

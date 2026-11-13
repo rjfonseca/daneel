@@ -100,6 +100,165 @@ func TestMCPToonFormat(t *testing.T) {
 	}
 }
 
+func TestMCPToonFormat_PersonBriefing(t *testing.T) {
+	tempDir := t.TempDir()
+	peopleDir := filepath.Join(tempDir, "notes", "pessoas")
+	_ = os.MkdirAll(peopleDir, 0750)
+	adaNote := filepath.Join(peopleDir, "ada.md")
+	content := "---\ntype: person\ncargo: Staff Engineer\nsquad: Platform\nemail: ada@example.com\n---\n# Ada Lovelace\n"
+	_ = os.WriteFile(adaNote, []byte(content), 0600)
+
+	dbPath := filepath.Join(tempDir, "cache.db")
+	engine, err := search.Open(dbPath, tempDir)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer engine.Close() //nolint:errcheck,gosec
+
+	_, _, _ = engine.IndexVault(context.Background(), []string{"notes"}, true)
+
+	briefingToonReq := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"person_briefing","arguments":{"name":"Ada Lovelace"}}}` + "\n"
+	briefingMdReq := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"person_briefing","arguments":{"name":"Ada Lovelace","format":"markdown"}}}` + "\n"
+
+	inBuf := bytes.NewBufferString(briefingToonReq + briefingMdReq)
+	outBuf := &bytes.Buffer{}
+
+	server := &Server{
+		vaultRoot: tempDir,
+		engine:    engine,
+		in:        inBuf,
+		out:       outBuf,
+	}
+
+	err = server.Serve()
+	if err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(outBuf.String()), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected 2 responses, got %d: %s", len(lines), outBuf.String())
+	}
+
+	// 1. Verify default is TOON
+	var toonResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[0]), &toonResp)
+	toonBytes, _ := json.Marshal(toonResp.Result)
+	toonStr := string(toonBytes)
+	if !strings.Contains(toonStr, "name: Ada Lovelace") || strings.Contains(toonStr, "# 👤 1:1 Briefing:") {
+		t.Errorf("expected TOON format for person_briefing, got: %s", toonStr)
+	}
+
+	// 2. Verify explicit markdown returns Markdown header
+	var mdResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[1]), &mdResp)
+	mdBytes, _ := json.Marshal(mdResp.Result)
+	mdStr := string(mdBytes)
+	if !strings.Contains(mdStr, "# 👤 1:1 Briefing: Ada Lovelace") {
+		t.Errorf("expected Markdown format for person_briefing, got: %s", mdStr)
+	}
+}
+
+func TestMCP_DynamicToolsAndResolveTools(t *testing.T) {
+	tempDir := t.TempDir()
+	notesDir := filepath.Join(tempDir, "notes")
+	_ = os.MkdirAll(notesDir, 0750)
+	testNote := filepath.Join(notesDir, "test.md")
+	_ = os.WriteFile(testNote, []byte("# Microservices\n\nDiscussion."), 0600)
+
+	dbPath := filepath.Join(tempDir, "cache.db")
+	engine, err := search.Open(dbPath, tempDir)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer engine.Close() //nolint:errcheck,gosec
+
+	// 1. Test resolve_tools tool execution
+	resolveReq := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"resolve_tools","arguments":{"query":"workspace git"}}}` + "\n"
+	inBuf := bytes.NewBufferString(resolveReq)
+	outBuf := &bytes.Buffer{}
+
+	server := NewServer(tempDir, engine)
+	server.in = inBuf
+	server.out = outBuf
+
+	err = server.Serve()
+	if err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	var resResp JSONRPCResponse
+	_ = json.Unmarshal(outBuf.Bytes(), &resResp)
+	resBytes, _ := json.Marshal(resResp.Result)
+	resStr := string(resBytes)
+	if !strings.Contains(resStr, "workspace") {
+		t.Errorf("expected workspace tools from resolve_tools, got: %s", resStr)
+	}
+
+	// 2. Test Dynamic Tools mode pruning on tools/list
+	listReq := `{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}` + "\n"
+	inBuf2 := bytes.NewBufferString(listReq)
+	outBuf2 := &bytes.Buffer{}
+
+	dynamicServer := NewServer(tempDir, engine)
+	dynamicServer.SetDynamicTools(true)
+	dynamicServer.in = inBuf2
+	dynamicServer.out = outBuf2
+
+	err = dynamicServer.Serve()
+	if err != nil {
+		t.Fatalf("Dynamic Serve failed: %v", err)
+	}
+
+	var listResp JSONRPCResponse
+	_ = json.Unmarshal(outBuf2.Bytes(), &listResp)
+	m, ok := listResp.Result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result from tools/list, got: %T", listResp.Result)
+	}
+	toolsSlice, ok := m["tools"].([]interface{})
+	if !ok {
+		t.Fatalf("expected tools array, got: %T", m["tools"])
+	}
+
+	// Core tools manifest should be small (<= 6 tools)
+	if len(toolsSlice) > 6 {
+		t.Errorf("expected pruned tool list in dynamic mode (<= 6), got %d tools", len(toolsSlice))
+	}
+}
+
+func TestMCP_CodeActExecute(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "cache.db")
+	engine, err := search.Open(dbPath, tempDir)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer engine.Close() //nolint:errcheck,gosec
+
+	// Minimal wasm module in base64 (\x00asm\x01\x00\x00\x00) -> AGFzbQEAAAA=
+	req := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"codeact_execute","arguments":{"wasm_bytes_base64":"AGFzbQEAAAA=","stdin":"hello world"}}}` + "\n"
+	inBuf := bytes.NewBufferString(req)
+	outBuf := &bytes.Buffer{}
+
+	server := NewServer(tempDir, engine)
+	server.in = inBuf
+	server.out = outBuf
+
+	err = server.Serve()
+	if err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	var resp JSONRPCResponse
+	_ = json.Unmarshal(outBuf.Bytes(), &resp)
+	respBytes, _ := json.Marshal(resp.Result)
+	respStr := string(respBytes)
+	if !strings.Contains(respStr, "exit_code:") || resp.Error != nil {
+		t.Errorf("expected successful wasm execution result in TOON, got: %s (err: %v)", respStr, resp.Error)
+	}
+}
+
 func TestMCPServer(t *testing.T) {
 	tempDir := t.TempDir()
 

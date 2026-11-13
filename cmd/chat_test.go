@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -135,4 +136,32 @@ func TestPrepareGitHubSandboxAuth(t *testing.T) {
 			t.Errorf("expected tokens unchanged when no token available, got %v", gotTokens)
 		}
 	})
+}
+
+func TestChat_FastPath(t *testing.T) {
+	c, engine := setupToonTestVault(t)
+	defer engine.Close() //nolint:errcheck,gosec
+
+	origCfg := cfg
+	origNoIndex := chatNoIndex
+	origNoFast := chatNoFastPath
+	cfg = c
+	chatNoIndex = true
+	chatNoFastPath = false
+	defer func() {
+		cfg = origCfg
+		chatNoIndex = origNoIndex
+		chatNoFastPath = origNoFast
+	}()
+
+	out, err := captureStdout(t, func() error {
+		return chatCmd.RunE(chatCmd, []string{"doctor"})
+	})
+	if err != nil {
+		t.Fatalf("chatCmd failed: %v", err)
+	}
+
+	if !strings.Contains(out, "[FAST-PATH]") || !strings.Contains(out, "vault_health") {
+		t.Errorf("expected fast-path routing output, got: %s", out)
+	}
 }
