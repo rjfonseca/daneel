@@ -31,10 +31,9 @@ func TestRunner_Timeout(t *testing.T) {
 		Timeout:     50 * time.Millisecond,
 	})
 
-	// Run with already canceled or immediate timeout context
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+	// Use an already-expired deadline to avoid OS timer granularity flakiness (e.g. ~15.6ms on Windows).
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
-	time.Sleep(5 * time.Millisecond)
 
 	_, err := runner.ExecuteBytes(ctx, minimalWasm, "")
 	if err == nil || !strings.Contains(err.Error(), "context") {
