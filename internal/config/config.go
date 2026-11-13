@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -494,24 +495,6 @@ func DefaultRoutingMap() map[string][]string {
 		"notes/career":      {"goals", "feedback", "growth", "1:1"},
 		"notes/people":      {"peer", "manager", "mentee", "leadership"},
 		"notes/processes":   {"rfc", "prd", "sla", "postmortem"},
-	}
-}
-
-// DefaultChatConfig returns standard AI agent profiles.
-func DefaultChatConfig() ChatConfig {
-	return ChatConfig{
-		Default: "agy",
-		Profiles: map[string]ProfileConfig{
-			"agy": {
-				Command: "agy",
-				Env: map[string]string{
-					"TERM": "xterm-256color",
-				},
-			},
-			"claude": {
-				Command: "claude",
-			},
-		},
 	}
 }
 
@@ -1068,7 +1051,7 @@ func (c *Config) GetChatProfile(name string) (ProfileConfig, string, error) {
 	}
 
 	if len(profiles) == 0 {
-		profiles = DefaultChatConfig().Profiles
+		return ProfileConfig{}, "", errors.New("no AI agent profiles configured; run 'daneel init' or 'daneel chat' to configure chat.default and chat.profiles in .daneel.yaml")
 	}
 
 	target := name
@@ -1078,7 +1061,12 @@ func (c *Config) GetChatProfile(name string) (ProfileConfig, string, error) {
 			target = c.LegacyAssistant.Default
 		}
 		if target == "" {
-			target = "agy"
+			if len(profiles) == 1 {
+				for k, v := range profiles {
+					return v, k, nil
+				}
+			}
+			return ProfileConfig{}, "", fmt.Errorf("no default AI agent configured (chat.default is empty); set chat.default in .daneel.yaml or pass -p <profile> (available: %s)", strings.Join(sortedProfileNames(profiles), ", "))
 		}
 	}
 
@@ -1086,12 +1074,16 @@ func (c *Config) GetChatProfile(name string) (ProfileConfig, string, error) {
 		return prof, target, nil
 	}
 
-	// Fallback to first available profile
-	for k, v := range profiles {
-		return v, k, nil
-	}
+	return ProfileConfig{}, "", fmt.Errorf("chat profile %q not found in configuration (available: %s)", target, strings.Join(sortedProfileNames(profiles), ", "))
+}
 
-	return ProfileConfig{}, "", errors.New("no chat profile configured")
+func sortedProfileNames(profiles map[string]ProfileConfig) []string {
+	names := make([]string, 0, len(profiles))
+	for k := range profiles {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // ResolveVaultCacheDir returns the cache directory for a given vault without polluting $HOME.
@@ -1278,7 +1270,7 @@ func LoadConfig(customVaultPath string, customConfigPath string, forceGlobal boo
 		Telemetry:    TelemetryConfig{Taxonomy: DefaultTaxonomyArchetypes(), FinOps: DefaultFinOpsConfig()},
 		Radar:        DefaultRadarItems(),
 		Dream:        DreamConfig{AutoFix: true, Routing: DefaultRoutingMap()},
-		Chat:         DefaultChatConfig(),
+		Chat:         ChatConfig{},
 		Harvester:    DefaultHarvesterConfig(),
 		Tui:          DefaultTuiConfig(),
 		Daemon:       DefaultDaemonConfig(),

@@ -64,6 +64,8 @@ master MOCs, and semantic .daneel.yaml configuration.`,
 
 		// 2. Interactive Wizard (if interactive and !initYes)
 		isInteractive := !initYes && isTerminal(os.Stdin)
+		var reader *bufio.Reader
+		var chatCfg config.ChatConfig
 
 		headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
 		accentStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))
@@ -77,7 +79,7 @@ master MOCs, and semantic .daneel.yaml configuration.`,
 			fmt.Println(strings.Repeat("─", 65))
 			fmt.Println()
 
-			reader := bufio.NewReader(os.Stdin)
+			reader = bufio.NewReader(os.Stdin)
 
 			inferredName = promptString(reader, "👤 Owner Name", inferredName)
 			inferredRole = promptString(reader, "💼 Role / Title", inferredRole)
@@ -94,7 +96,10 @@ master MOCs, and semantic .daneel.yaml configuration.`,
 			if kwInput != "" {
 				inferredBlockedKeywords = splitCommaOrSpace(kwInput)
 			}
+			chatCfg = promptChatConfig(reader, true)
 			fmt.Println()
+		} else {
+			chatCfg = promptChatConfig(nil, false)
 		}
 
 		// 3. Create standard OKF folder structure
@@ -231,7 +236,7 @@ Thumbs.db
 				AutoFix: true,
 				Routing: config.DefaultRoutingMap(),
 			},
-			Chat: config.DefaultChatConfig(),
+			Chat: chatCfg,
 		}
 
 		outYAML, err := yaml.Marshal(semanticCfg)

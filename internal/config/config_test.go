@@ -885,3 +885,75 @@ telemetry:
 		t.Errorf("expected daily budget 5.00 preserved, got %v", cfgBoth.Telemetry.FinOps.DailyBudgetUSD)
 	}
 }
+
+func TestGetChatProfile_ExplicitAndSafeDefaults(t *testing.T) {
+	t.Run("empty chat config returns error", func(t *testing.T) {
+		cfg := &Config{}
+		if _, _, err := cfg.GetChatProfile(""); err == nil {
+			t.Fatalf("expected error when no chat profiles are configured")
+		}
+	})
+
+	t.Run("single configured profile without default resolves to that profile", func(t *testing.T) {
+		cfg := &Config{
+			Chat: ChatConfig{
+				Profiles: map[string]ProfileConfig{
+					"claude": {Command: "claude"},
+				},
+			},
+		}
+		prof, name, err := cfg.GetChatProfile("")
+		if err != nil {
+			t.Fatalf("expected single profile to resolve, got err: %v", err)
+		}
+		if name != "claude" || prof.Command != "claude" {
+			t.Errorf("expected claude profile, got %q (%+v)", name, prof)
+		}
+	})
+
+	t.Run("multiple profiles without default returns error", func(t *testing.T) {
+		cfg := &Config{
+			Chat: ChatConfig{
+				Profiles: map[string]ProfileConfig{
+					"agy":    {Command: "agy"},
+					"claude": {Command: "claude"},
+				},
+			},
+		}
+		if _, _, err := cfg.GetChatProfile(""); err == nil {
+			t.Fatalf("expected error when multiple profiles exist and chat.default is empty")
+		}
+	})
+
+	t.Run("unknown profile name returns error without random fallback", func(t *testing.T) {
+		cfg := &Config{
+			Chat: ChatConfig{
+				Default: "claude",
+				Profiles: map[string]ProfileConfig{
+					"claude": {Command: "claude"},
+				},
+			},
+		}
+		if _, _, err := cfg.GetChatProfile("missing"); err == nil {
+			t.Fatalf("expected error for unknown profile name")
+		}
+	})
+
+	t.Run("LoadConfig without chat section does not inject implicit agy default", func(t *testing.T) {
+		t.Setenv("DANEEL_VAULT_PATH", "")
+		t.Setenv("DANEEL_CONFIG", "")
+		tempDir := t.TempDir()
+		cfgPath := filepath.Join(tempDir, ".daneel.yaml")
+		if err := os.WriteFile(cfgPath, []byte("vault:\n  title: \"No Chat Vault\"\n"), 0600); err != nil {
+			t.Fatalf("failed to write yaml: %v", err)
+		}
+
+		loaded, err := LoadConfig(tempDir, cfgPath, false)
+		if err != nil {
+			t.Fatalf("LoadConfig failed: %v", err)
+		}
+		if loaded.Chat.Default != "" || len(loaded.Chat.Profiles) != 0 {
+			t.Errorf("expected empty Chat config when omitted in YAML, got %+v", loaded.Chat)
+		}
+	})
+}
