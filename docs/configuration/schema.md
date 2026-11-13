@@ -162,6 +162,11 @@ hotbar:
     - path: "notes/career/staff-charter.md"
       label: "Staff Charter"
       icon: "🎯"
+
+# 11. Model Context Protocol (MCP) Server
+mcp:
+  default_format: "toon" # Default payload serialization: toon | json
+  tool_exposure: "full"  # Tool manifest mode: full | dynamic (Tool-as-RAG)
 ```
 
 ---

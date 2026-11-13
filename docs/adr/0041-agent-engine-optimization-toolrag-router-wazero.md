@@ -1,6 +1,6 @@
 # ADR 0041: Agent Engine Optimization via Tool-as-RAG, CPU Fast-Path Router, and Wazero Sandboxing
 
-* Status: proposed
+* Status: accepted
 * Date: 2026-11-12
 
 ## Context and Problem Statement
