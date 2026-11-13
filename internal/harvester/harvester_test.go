@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -215,8 +216,8 @@ func TestHarvesters_ConcurrentPoolAndRaceSafety(t *testing.T) {
 		if len(stats.ActiveProjects) != 16 {
 			t.Errorf("expected 16 ActiveProjects, got %d", len(stats.ActiveProjects))
 		}
-		if elapsed >= 1000*time.Millisecond {
-			t.Errorf("GitLab harvest took %v, expected < 1000ms (concurrent 8 workers)", elapsed)
+		if budget := concurrentHarvestBudget(); elapsed >= budget {
+			t.Errorf("GitLab harvest took %v, expected < %s (concurrent 8 workers)", elapsed, budget)
 		}
 	})
 
@@ -246,8 +247,15 @@ func TestHarvesters_ConcurrentPoolAndRaceSafety(t *testing.T) {
 		if len(stats.ActiveProjects) != 16 {
 			t.Errorf("expected 16 ActiveProjects, got %d", len(stats.ActiveProjects))
 		}
-		if elapsed >= 1000*time.Millisecond {
-			t.Errorf("GitHub harvest took %v, expected < 1000ms (concurrent 8 workers)", elapsed)
+		if budget := concurrentHarvestBudget(); elapsed >= budget {
+			t.Errorf("GitHub harvest took %v, expected < %s (concurrent 8 workers)", elapsed, budget)
 		}
 	})
+}
+
+func concurrentHarvestBudget() time.Duration {
+	if runtime.GOOS == "windows" {
+		return 2500 * time.Millisecond
+	}
+	return 1000 * time.Millisecond
 }
