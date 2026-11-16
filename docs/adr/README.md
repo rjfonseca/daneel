@@ -49,6 +49,7 @@ This directory contains the **Architectural Decision Records (ADRs)** for the Da
 | [ADR 0039](0039-universal-note-ingestion-engine.md) | Universal Note Ingestion Engine | Accepted | 2026-11-09 |
 | [ADR 0040](0040-token-oriented-object-notation-toon.md) | Token-Oriented Object Notation (TOON) for Efficient LLM Telemetry and Tool Serialization | Accepted | 2026-11-12 |
 | [ADR 0041](0041-agent-engine-optimization-toolrag-router-wazero.md) | Agent Engine Optimization via Tool-as-RAG, CPU Fast-Path Router, and Wazero Sandboxing | Accepted | 2026-11-12 |
+| [ADR 0042](0042-search-smart-sync-and-sources-isolation.md) | Search Smart Sync Modes and Isolated `sources_index.db` | Accepted | 2026-11-16 |
 
 ## Mandatory ADR Invariant
 
