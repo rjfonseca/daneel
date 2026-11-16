@@ -59,6 +59,12 @@ func TestInitCmd_NonInteractive(t *testing.T) {
 	if len(parsedCfg.Radar) == 0 {
 		t.Errorf("expected radar items in radar")
 	}
+	if !parsedCfg.Embeddings.Enabled {
+		t.Errorf("expected embeddings.enabled to default to true in .daneel.yaml")
+	}
+	if parsedCfg.Embeddings.Provider != "rembed" {
+		t.Errorf("expected embeddings.provider=rembed, got %q", parsedCfg.Embeddings.Provider)
+	}
 
 	// 3. Verify Master MOC created
 	masterMoc := filepath.Join(tempDir, "notes", "moc-indice-geral.md")
@@ -75,5 +81,40 @@ func TestInitCmd_NonInteractive(t *testing.T) {
 	iaMoc := filepath.Join(tempDir, "notes", "ia", "moc-ia.md")
 	if _, err := os.Stat(iaMoc); os.IsNotExist(err) {
 		t.Fatalf("expected notes/ia/moc-ia.md to exist")
+	}
+}
+
+func TestInitCmd_NoEmbeddingsFlag(t *testing.T) {
+	tempDir := t.TempDir()
+
+	initYes = true
+	initGlobal = false
+	initLocal = true
+	initNoEmbeddings = true
+	defer func() {
+		initYes = false
+		initGlobal = false
+		initLocal = false
+		initNoEmbeddings = false
+	}()
+
+	if err := initCmd.RunE(initCmd, []string{tempDir}); err != nil {
+		t.Fatalf("initCmd --no-embeddings failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tempDir, ".daneel.yaml")) //nolint:gosec // intentional
+	if err != nil {
+		t.Fatalf("failed to read .daneel.yaml: %v", err)
+	}
+	if !strings.Contains(string(data), "enabled: false") {
+		t.Errorf("expected embeddings.enabled: false in .daneel.yaml, got:\n%s", string(data))
+	}
+
+	var parsedCfg config.Config
+	if err := yaml.Unmarshal(data, &parsedCfg); err != nil {
+		t.Fatalf("failed to unmarshal .daneel.yaml: %v", err)
+	}
+	if parsedCfg.Embeddings.Enabled {
+		t.Errorf("expected parsed embeddings.enabled to be false")
 	}
 }

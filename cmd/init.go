@@ -18,9 +18,10 @@ import (
 )
 
 var (
-	initGlobal bool
-	initLocal  bool
-	initYes    bool
+	initGlobal       bool
+	initLocal        bool
+	initYes          bool
+	initNoEmbeddings bool
 )
 
 var initCmd = &cobra.Command{
@@ -66,6 +67,10 @@ master MOCs, and semantic .daneel.yaml configuration.`,
 		isInteractive := !initYes && isTerminal(os.Stdin)
 		var reader *bufio.Reader
 		var chatCfg config.ChatConfig
+		embeddingsCfg := config.DefaultEmbeddingsConfig()
+		if initNoEmbeddings {
+			embeddingsCfg.Enabled = false
+		}
 
 		headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86"))
 		accentStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205"))
@@ -97,6 +102,12 @@ master MOCs, and semantic .daneel.yaml configuration.`,
 				inferredBlockedKeywords = splitCommaOrSpace(kwInput)
 			}
 			chatCfg = promptChatConfig(reader, true)
+			if !initNoEmbeddings {
+				embAnswer := strings.ToLower(strings.TrimSpace(promptString(reader, "🧠 Enable local vector embeddings (hybrid RAG)", "Y/n")))
+				if embAnswer == "n" || embAnswer == "no" || embAnswer == "false" {
+					embeddingsCfg.Enabled = false
+				}
+			}
 			fmt.Println()
 		} else {
 			chatCfg = promptChatConfig(nil, false)
@@ -236,7 +247,8 @@ Thumbs.db
 				AutoFix: true,
 				Routing: config.DefaultRoutingMap(),
 			},
-			Chat: chatCfg,
+			Chat:       chatCfg,
+			Embeddings: embeddingsCfg,
 		}
 
 		outYAML, err := yaml.Marshal(semanticCfg)
@@ -393,5 +405,6 @@ func init() {
 	initCmd.Flags().BoolVarP(&initGlobal, "global", "g", false, "Initialize as default global vault (registers in ~/.config/daneel/config.yaml)")
 	initCmd.Flags().BoolVarP(&initLocal, "local", "l", false, "Initialize as local vault (creates .daneel.yaml in target directory)")
 	initCmd.Flags().BoolVarP(&initYes, "yes", "y", false, "Non-interactive mode (applies auto-inferred values and defaults)")
+	initCmd.Flags().BoolVar(&initNoEmbeddings, "no-embeddings", false, "Disable local vector embeddings (hybrid RAG) in generated configuration")
 	RootCmd.AddCommand(initCmd)
 }

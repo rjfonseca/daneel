@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -45,25 +47,78 @@ var daemonRunCmd = &cobra.Command{
 			server.SetVaultDir(cfg.VaultPath)
 		}
 
-		var httpServer *http.Server
+		var (
+			httpServer   *http.Server
+			searchEngine *search.Engine
+		)
 		if daemonRunServe {
 			if cfg == nil {
 				return fmt.Errorf("configuration not loaded")
 			}
-			engine, err := search.Open(cfg.DBPath, cfg.VaultPath)
+			var err error
+			searchEngine, err = search.Open(cfg.DBPath, cfg.VaultPath)
 			if err != nil {
 				return fmt.Errorf("failed to open search database: %w", err)
 			}
-			defer func() { _ = engine.Close() }()
+			defer func() { _ = searchEngine.Close() }()
 
 			// Incrementally index vault on startup
-			_, _, _ = engine.IndexVault(cmd.Context(), cfg.GetIndexedDirs(), false)
+			_, _, _ = searchEngine.IndexVault(cmd.Context(), cfg.GetIndexedDirs(), false)
 
-			httpServer, err = NewGalaxyHTTPServer(cfg, engine, daemonRunPort, nil)
+			httpServer, err = NewGalaxyHTTPServer(cfg, searchEngine, daemonRunPort, nil)
 			if err != nil {
 				return fmt.Errorf("failed to initialize HTTP server: %w", err)
 			}
 			server.SetHTTPServer(httpServer)
+		} else if cfg != nil {
+			if eng, err := search.Open(cfg.DBPath, cfg.VaultPath); err == nil {
+				searchEngine = eng
+				defer func() { _ = searchEngine.Close() }()
+			}
+		}
+
+		if searchEngine != nil && cfg != nil && cfg.Embeddings.Enabled {
+			var (
+				embOnce sync.Once
+				embInst search.Embedder
+			)
+			getEmbedder := func() search.Embedder {
+				embOnce.Do(func() {
+					if e, err := search.NewEmbedderFromConfig(cfg.Embeddings); err == nil && e != nil {
+						embInst = e
+					}
+				})
+				return embInst
+			}
+			defer func() {
+				if embInst != nil {
+					_ = embInst.Close()
+				}
+			}()
+
+			searchEngine.EnableVectorCache()
+			go func() {
+				if emb := getEmbedder(); emb != nil {
+					_ = searchEngine.WarmVectorCache(cmd.Context(), emb.Dimensions())
+				}
+			}()
+
+			server.SetHybridSearchHandler(func(ctx context.Context, payload daemon.SearchHybridPayload) ([]search.SearchResult, error) {
+				if payload.VaultPath != "" && payload.VaultPath != cfg.VaultPath {
+					return nil, fmt.Errorf("vault mismatch: daemon=%s req=%s", cfg.VaultPath, payload.VaultPath)
+				}
+				if payload.DBPath != "" && payload.DBPath != cfg.DBPath {
+					return nil, fmt.Errorf("db mismatch")
+				}
+				emb := getEmbedder()
+				return searchEngine.SearchHybrid(ctx, search.SearchOptions{
+					Query:    payload.Query,
+					Scope:    payload.Scope,
+					NoteType: payload.NoteType,
+					Tag:      payload.Tag,
+					Limit:    payload.Limit,
+				}, emb)
+			})
 		}
 
 		pid := os.Getpid()

@@ -49,3 +49,14 @@ type HookEventPayload struct {
 	GitRoot   string `json:"git_root,omitempty"`
 	Payload   string `json:"payload,omitempty"`
 }
+
+// SearchHybridPayload represents parameters for daemon-accelerated hybrid semantic search.
+type SearchHybridPayload struct {
+	VaultPath string `json:"vault_path,omitempty"`
+	DBPath    string `json:"db_path,omitempty"`
+	Query     string `json:"query"`
+	Scope     string `json:"scope,omitempty"`
+	NoteType  string `json:"note_type,omitempty"`
+	Tag       string `json:"tag,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+}

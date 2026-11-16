@@ -266,6 +266,26 @@ func DefaultMCPConfig() MCPConfig {
 	}
 }
 
+// EmbeddingsConfig defines local pure-Go vector embedding settings for hybrid RAG.
+type EmbeddingsConfig struct {
+	Enabled     bool   `yaml:"enabled" json:"enabled"`
+	Provider    string `yaml:"provider,omitempty" json:"provider,omitempty"`
+	Model       string `yaml:"model,omitempty" json:"model,omitempty"`
+	Int8        bool   `yaml:"int8,omitempty" json:"int8,omitempty"`
+	QueryPrefix string `yaml:"query_prefix,omitempty" json:"query_prefix,omitempty"`
+	DocPrefix   string `yaml:"doc_prefix,omitempty" json:"doc_prefix,omitempty"`
+}
+
+// DefaultEmbeddingsConfig returns default pure-Go embedding settings.
+func DefaultEmbeddingsConfig() EmbeddingsConfig {
+	return EmbeddingsConfig{
+		Enabled:  true,
+		Provider: "rembed",
+		Model:    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+		Int8:     false,
+	}
+}
+
 // EvaluationConfig defines rules for generating performance review dossiers.
 type EvaluationConfig struct {
 	DossierTitle        string   `yaml:"dossier_title,omitempty" json:"dossier_title,omitempty"`
@@ -347,6 +367,7 @@ type Config struct {
 	Daemon     DaemonConfig     `yaml:"daemon,omitempty" json:"daemon,omitempty"`
 	Routines   RoutinesConfig   `yaml:"routines,omitempty" json:"routines,omitempty"`
 	MCP        MCPConfig        `yaml:"mcp,omitempty" json:"mcp,omitempty"`
+	Embeddings EmbeddingsConfig `yaml:"embeddings,omitempty" json:"embeddings,omitempty"`
 
 	// Legacy Top-Level Fields (Mapped automatically for backward compatibility)
 	LegacyAssistant   ChatConfig          `yaml:"assistant,omitempty" json:"-"`
@@ -1276,6 +1297,7 @@ func LoadConfig(customVaultPath string, customConfigPath string, forceGlobal boo
 		Daemon:       DefaultDaemonConfig(),
 		Routines:     DefaultRoutinesConfig(),
 		MCP:          DefaultMCPConfig(),
+		Embeddings:   DefaultEmbeddingsConfig(),
 		Mode:         mode,
 		VaultSource:  vaultSource,
 		ConfigSource: configSource,
@@ -1339,6 +1361,36 @@ func LoadConfig(customVaultPath string, customConfigPath string, forceGlobal boo
 				}
 				if fileCfg.MCP.DefaultFormat != "" {
 					cfg.MCP = fileCfg.MCP
+				}
+				var rawEmb struct {
+					Embeddings *struct {
+						Enabled     *bool  `yaml:"enabled"`
+						Provider    string `yaml:"provider"`
+						Model       string `yaml:"model"`
+						Int8        *bool  `yaml:"int8"`
+						QueryPrefix string `yaml:"query_prefix"`
+						DocPrefix   string `yaml:"doc_prefix"`
+					} `yaml:"embeddings"`
+				}
+				if err := yaml.Unmarshal(data, &rawEmb); err == nil && rawEmb.Embeddings != nil {
+					if rawEmb.Embeddings.Enabled != nil {
+						cfg.Embeddings.Enabled = *rawEmb.Embeddings.Enabled
+					}
+					if rawEmb.Embeddings.Provider != "" {
+						cfg.Embeddings.Provider = rawEmb.Embeddings.Provider
+					}
+					if rawEmb.Embeddings.Model != "" {
+						cfg.Embeddings.Model = rawEmb.Embeddings.Model
+					}
+					if rawEmb.Embeddings.Int8 != nil {
+						cfg.Embeddings.Int8 = *rawEmb.Embeddings.Int8
+					}
+					if rawEmb.Embeddings.QueryPrefix != "" {
+						cfg.Embeddings.QueryPrefix = rawEmb.Embeddings.QueryPrefix
+					}
+					if rawEmb.Embeddings.DocPrefix != "" {
+						cfg.Embeddings.DocPrefix = rawEmb.Embeddings.DocPrefix
+					}
 				}
 				if len(fileCfg.LegacyAssistant.Profiles) > 0 || fileCfg.LegacyAssistant.Default != "" {
 					cfg.LegacyAssistant = fileCfg.LegacyAssistant

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	graphv1 "github.com/rjfonseca/daneel/api/v1"
+	"github.com/rjfonseca/daneel/internal/search"
 	"github.com/rjfonseca/daneel/internal/spooler"
 )
 
@@ -58,11 +59,12 @@ func IsDaemonRunning() bool {
 
 // Server is a Unix domain socket server and optional coordinated HTTP server.
 type Server struct {
-	listener net.Listener
-	hub      *Hub
-	httpSrv  *http.Server
-	spooler  *spooler.Spooler
-	vaultDir string
+	listener     net.Listener
+	hub          *Hub
+	httpSrv      *http.Server
+	spooler      *spooler.Spooler
+	vaultDir     string
+	searchHybrid func(ctx context.Context, payload SearchHybridPayload) ([]search.SearchResult, error)
 }
 
 // NewServer creates a new IPC Server.
@@ -83,6 +85,11 @@ func (s *Server) SetSpooler(sp *spooler.Spooler) {
 // SetVaultDir sets the vault directory for the daemon server.
 func (s *Server) SetVaultDir(dir string) {
 	s.vaultDir = dir
+}
+
+// SetHybridSearchHandler registers a handler for daemon-accelerated hybrid semantic search.
+func (s *Server) SetHybridSearchHandler(fn func(ctx context.Context, payload SearchHybridPayload) ([]search.SearchResult, error)) {
+	s.searchHybrid = fn
 }
 
 // ListenAndServe starts the Unix socket server. It cleans up any existing socket file.
@@ -243,6 +250,26 @@ func (s *Server) dispatch(conn net.Conn, req Request) {
 			resp.Result = ""
 		}
 		s.sendResponse(conn, resp)
+	case "search_hybrid":
+		if s.searchHybrid == nil {
+			resp.Error = "hybrid search unavailable"
+		} else {
+			b, _ := json.Marshal(req.Params)
+			var payload SearchHybridPayload
+			if err := json.Unmarshal(b, &payload); err != nil {
+				resp.Error = "invalid params"
+			} else {
+				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+				res, err := s.searchHybrid(ctx, payload)
+				cancel()
+				if err != nil {
+					resp.Error = err.Error()
+				} else {
+					resp.Result = res
+				}
+			}
+		}
+		s.sendResponse(conn, resp)
 	default:
 		resp.Error = "unknown method"
 		s.sendResponse(conn, resp)
@@ -297,7 +324,7 @@ func (c *Client) sendRequestContext(ctx context.Context, method string, params i
 	b, _ := json.Marshal(req)
 
 	deadline := time.Now().Add(5 * time.Second)
-	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+	if ctxDeadline, ok := ctx.Deadline(); ok {
 		deadline = ctxDeadline
 	}
 	if err := c.conn.SetDeadline(deadline); err != nil {
@@ -497,4 +524,29 @@ func (c *Client) GetHookHandoffContext(ctx context.Context, cwd string) (string,
 		return handoff, nil
 	}
 	return "", nil
+}
+
+// SearchHybridContext executes a hybrid semantic search through the running daemon.
+func (c *Client) SearchHybridContext(ctx context.Context, payload SearchHybridPayload) ([]search.SearchResult, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 20*time.Second)
+		defer cancel()
+	}
+	resp, err := c.sendRequestContext(ctx, "search_hybrid", payload)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != "" {
+		return nil, errors.New(resp.Error)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return nil, err
+	}
+	var results []search.SearchResult
+	if err := json.Unmarshal(b, &results); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
