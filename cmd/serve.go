@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,93 +59,155 @@ func (s *GraphServer) getRoutineStore() routine.Store {
 	return s.routineStore
 }
 
+func loadGalaxyLinks(ctx context.Context, dbs []*sql.DB) ([]*graphv1.Link, map[string]int32, error) {
+	var links []*graphv1.Link
+	degreeMap := make(map[string]int32)
+
+	for _, targetDB := range dbs {
+		if targetDB == nil {
+			continue
+		}
+		linkRows, err := targetDB.QueryContext(ctx, "SELECT source_rel_path, target_rel_path FROM note_links")
+		if err != nil {
+			return nil, nil, err
+		}
+		for linkRows.Next() {
+			var src, tgt string
+			if err := linkRows.Scan(&src, &tgt); err != nil {
+				continue
+			}
+			links = append(links, &graphv1.Link{
+				Source: src,
+				Target: tgt,
+				Label:  "",
+			})
+			degreeMap[src]++
+			degreeMap[tgt]++
+		}
+		_ = linkRows.Close()
+	}
+
+	return links, degreeMap, nil
+}
+
+func loadGalaxyNodesMeta(
+	ctx context.Context,
+	dbs []*sql.DB,
+	vaultDir string,
+	degreeMap map[string]int32,
+) ([]*graphv1.Node, map[string]bool, map[string]bool, error) {
+	var nodes []*graphv1.Node
+	distinctRoots := make(map[string]bool)
+	indexedPaths := make(map[string]bool)
+
+	for _, targetDB := range dbs {
+		if targetDB == nil {
+			continue
+		}
+		rows, err := targetDB.QueryContext(ctx, "SELECT rel_path, title, category, note_type, coalesce(mtime, 0) FROM notes_meta")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		for rows.Next() {
+			var id, title, category, noteType string
+			var mtime float64
+			if err := rows.Scan(&id, &title, &category, &noteType, &mtime); err != nil {
+				continue
+			}
+			if indexedPaths[id] {
+				continue
+			}
+			indexedPaths[id] = true
+			if title == "" {
+				title = filepath.Base(id)
+			}
+
+			tax := vault.ResolveTaxonomy(id, vaultDir)
+			category = tax.Category
+			if category == "" {
+				category = "root"
+			}
+			if noteType == "" {
+				noteType = "default"
+			}
+
+			rootCat := strings.Split(category, "/")[0]
+			distinctRoots[rootCat] = true
+
+			nodes = append(nodes, &graphv1.Node{
+				Id:          id,
+				Title:       title,
+				Category:    category,
+				Domain:      tax.Domain,
+				Group:       tax.Group,
+				Repository:  tax.Repository,
+				NoteType:    noteType,
+				Connections: degreeMap[id],
+				ModTime:     int64(mtime),
+				Ring:        "memory",
+				Status:      "active",
+			})
+		}
+		_ = rows.Close()
+	}
+
+	return nodes, distinctRoots, indexedPaths, nil
+}
+
+func queryNoteMeta(ctx context.Context, dbs []*sql.DB, relPath string) (string, string, string, float64, error) {
+	var lastErr error
+	for _, targetDB := range dbs {
+		if targetDB == nil {
+			continue
+		}
+		var title, category, noteType string
+		var mtime float64
+		err := targetDB.QueryRowContext(
+			ctx,
+			"SELECT title, category, note_type, coalesce(mtime, 0) FROM notes_meta WHERE rel_path = ?",
+			relPath,
+		).Scan(&title, &category, &noteType, &mtime)
+		if err == nil {
+			return title, category, noteType, mtime, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = sql.ErrNoRows
+	}
+	return "", "", "", 0, lastErr
+}
+
 func (s *GraphServer) GetGalaxy(
 	ctx context.Context,
 	req *connect.Request[graphv1.GetGalaxyRequest],
 ) (*connect.Response[graphv1.GetGalaxyResponse], error) {
-	nodes := []*graphv1.Node{}
-	links := []*graphv1.Link{}
+	dbs := []*sql.DB{s.engine.DB()}
+	if sourcesDB, err := s.engine.SourcesDB(ctx); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	} else if sourcesDB != nil {
+		dbs = append(dbs, sourcesDB)
+	}
 
-	db := s.engine.DB()
-
-	linkRows, err := db.QueryContext(ctx, "SELECT source_rel_path, target_rel_path FROM note_links")
+	links, degreeMap, err := loadGalaxyLinks(ctx, dbs)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	defer func() {
-		_ = linkRows.Close()
-	}()
-
-	degreeMap := make(map[string]int32)
-	for linkRows.Next() {
-		var src, tgt string
-		if err := linkRows.Scan(&src, &tgt); err != nil {
-			continue
-		}
-		links = append(links, &graphv1.Link{
-			Source: src,
-			Target: tgt,
-			Label:  "",
-		})
-		degreeMap[src]++
-		degreeMap[tgt]++
+	if links == nil {
+		links = []*graphv1.Link{}
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT rel_path, title, category, note_type, coalesce(mtime, 0) FROM notes_meta")
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	distinctRoots := make(map[string]bool)
-	indexedPaths := make(map[string]bool)
 	vaultDir := s.vaultDir
 	if vaultDir == "" && s.cfg != nil {
 		vaultDir = s.cfg.VaultPath
 	}
 
-	for rows.Next() {
-		var id, title, category, noteType string
-		var mtime float64
-		if err := rows.Scan(&id, &title, &category, &noteType, &mtime); err != nil {
-			continue
-		}
-		indexedPaths[id] = true
-		if title == "" {
-			title = filepath.Base(id)
-		}
-		if category == "" {
-			category = "root"
-		}
-
-		tax := vault.ResolveTaxonomy(id, vaultDir)
-		category = tax.Category
-		domain := tax.Domain
-		group := tax.Group
-		repository := tax.Repository
-
-		if noteType == "" {
-			noteType = "default"
-		}
-
-		rootCat := strings.Split(category, "/")[0]
-		distinctRoots[rootCat] = true
-
-		nodes = append(nodes, &graphv1.Node{
-			Id:          id,
-			Title:       title,
-			Category:    category,
-			Domain:      domain,
-			Group:       group,
-			Repository:  repository,
-			NoteType:    noteType,
-			Connections: degreeMap[id],
-			ModTime:     int64(mtime),
-			Ring:        "memory",
-			Status:      "active",
-		})
+	nodes, distinctRoots, indexedPaths, err := loadGalaxyNodesMeta(ctx, dbs, vaultDir, degreeMap)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if nodes == nil {
+		nodes = []*graphv1.Node{}
 	}
 
 	// Auto-discovery and auto-indexing for daily/ notes on disk
@@ -163,9 +226,7 @@ func (s *GraphServer) GetGalaxy(
 				_ = s.engine.IndexNote(ctx, relPath)
 			}
 
-			var title, category, noteType string
-			var mtime float64
-			rowErr := db.QueryRowContext(ctx, "SELECT title, category, note_type, coalesce(mtime, 0) FROM notes_meta WHERE rel_path = ?", relPath).Scan(&title, &category, &noteType, &mtime)
+			title, category, noteType, mtime, rowErr := queryNoteMeta(ctx, dbs, relPath)
 			if rowErr != nil {
 				title = strings.TrimSuffix(entry.Name(), ".md")
 				category = "daily"

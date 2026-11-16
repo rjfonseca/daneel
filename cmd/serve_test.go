@@ -903,3 +903,75 @@ func TestGraphServer_GetOperationalTelemetry(t *testing.T) {
 		t.Errorf("expected CommandMetrics items, got 0")
 	}
 }
+
+func TestGraphServer_GetGalaxy_IncludesSourcesDB(t *testing.T) {
+	tempVault := t.TempDir()
+	dbPath := filepath.Join(tempVault, ".daneel", "cache", "vault_index.db")
+	eng, err := search.Open(dbPath, tempVault)
+	if err != nil {
+		t.Fatalf("failed to open search engine: %v", err)
+	}
+	defer func() { _ = eng.Close() }()
+
+	files := map[string]string{
+		"notes/arch.md":                       "# Architecture\nSee [Orion README](../sources/github/acme/orion/README.md) for project details.\n",
+		"sources/github/acme/orion/README.md": "# Orion\nProject overview. See [docs](docs.md).\n",
+		"sources/github/acme/orion/docs.md":   "# Orion Docs\nDetailed documentation.\n",
+	}
+	for relPath, content := range files {
+		fullPath := filepath.Join(tempVault, filepath.FromSlash(relPath))
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0750); err != nil {
+			t.Fatalf("failed to create dir for %s: %v", relPath, err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0600); err != nil {
+			t.Fatalf("failed to write %s: %v", relPath, err)
+		}
+	}
+
+	ctx := context.Background()
+	for relPath := range files {
+		if err := eng.IndexNote(ctx, relPath); err != nil {
+			t.Fatalf("failed to index %s: %v", relPath, err)
+		}
+	}
+
+	server := &GraphServer{
+		engine:   eng,
+		vaultDir: tempVault,
+	}
+
+	res, err := server.GetGalaxy(ctx, connect.NewRequest(&graphv1.GetGalaxyRequest{}))
+	if err != nil {
+		t.Fatalf("GetGalaxy failed: %v", err)
+	}
+
+	nodeMap := make(map[string]*graphv1.Node, len(res.Msg.Nodes))
+	for _, n := range res.Msg.Nodes {
+		nodeMap[n.Id] = n
+	}
+	for relPath := range files {
+		if _, ok := nodeMap[relPath]; !ok {
+			t.Fatalf("expected node %q in GetGalaxy response, got %v", relPath, nodeMap)
+		}
+	}
+
+	readmeNode := nodeMap["sources/github/acme/orion/README.md"]
+	if readmeNode.Connections != 2 {
+		t.Errorf("expected sources/github/acme/orion/README.md to have 2 connections, got %d", readmeNode.Connections)
+	}
+
+	hasLink := func(src, tgt string) bool {
+		for _, l := range res.Msg.Links {
+			if l.Source == src && l.Target == tgt {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasLink("notes/arch.md", "sources/github/acme/orion/README.md") {
+		t.Errorf("expected link notes/arch.md -> sources/github/acme/orion/README.md in GetGalaxy response")
+	}
+	if !hasLink("sources/github/acme/orion/README.md", "sources/github/acme/orion/docs.md") {
+		t.Errorf("expected link sources/github/acme/orion/README.md -> sources/github/acme/orion/docs.md in GetGalaxy response")
+	}
+}

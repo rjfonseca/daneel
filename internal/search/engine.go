@@ -124,6 +124,28 @@ func (e *Engine) DB() *sql.DB {
 	return e.db
 }
 
+// SourcesDB returns the isolated sources SQLite database connection if it exists
+// in memory or on disk, lazily opening it when present on disk. Returns (nil, nil)
+// when no sources database has been created yet.
+func (e *Engine) SourcesDB(ctx context.Context) (*sql.DB, error) {
+	if e == nil {
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	e.sourcesMu.Lock()
+	existing := e.sourcesDB
+	e.sourcesMu.Unlock()
+	if existing != nil {
+		return existing, nil
+	}
+	if !e.sourcesDBExistsOnDisk() {
+		return nil, nil
+	}
+	return e.ensureSourcesDB()
+}
+
 // DBPath returns the path to the active SQLite database file.
 func (e *Engine) DBPath() string {
 	return e.dbPath
