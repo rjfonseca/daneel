@@ -4,6 +4,7 @@ package search
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -56,32 +57,61 @@ type HealthReport struct {
 	NotesByScope map[string]int `json:"notes_by_scope"`
 }
 
+const (
+	metaKeyLastSync        = "last_sync_at"
+	metaKeySourcesMigrated = "sources_migrated"
+	sourcesDBFileName      = "sources_index.db"
+)
+
 // Engine encapsulates the SQLite FTS5 search engine.
 type Engine struct {
-	db        *sql.DB
-	dbPath    string
-	vaultRoot string
+	db            *sql.DB
+	sourcesDB     *sql.DB
+	sourcesMu     sync.Mutex
+	dbPath        string
+	sourcesDBPath string
+	vaultRoot     string
+}
+
+func isMemoryDBPath(dbPath string) bool {
+	return dbPath == ":memory:" || strings.HasPrefix(dbPath, "file::memory:")
+}
+
+func deriveSourcesDBPath(dbPath string) string {
+	if isMemoryDBPath(dbPath) {
+		return ":memory:"
+	}
+	return filepath.Join(filepath.Dir(dbPath), sourcesDBFileName)
+}
+
+func sqliteDSN(dbPath string) string {
+	if isMemoryDBPath(dbPath) {
+		return dbPath
+	}
+	return fmt.Sprintf("%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(10000)", dbPath)
 }
 
 // Open initializes and opens the SQLite database.
 func Open(dbPath string, vaultRoot string) (*Engine, error) {
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0750); err != nil {
-		return nil, fmt.Errorf("failed to create cache directory: %w", err)
+	if !isMemoryDBPath(dbPath) {
+		if err := os.MkdirAll(filepath.Dir(dbPath), 0750); err != nil {
+			return nil, fmt.Errorf("failed to create cache directory: %w", err)
+		}
 	}
 
-	dsn := fmt.Sprintf("%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(10000)", dbPath)
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", sqliteDSN(dbPath))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
 	engine := &Engine{
-		db:        db,
-		dbPath:    dbPath,
-		vaultRoot: vaultRoot,
+		db:            db,
+		dbPath:        dbPath,
+		sourcesDBPath: deriveSourcesDBPath(dbPath),
+		vaultRoot:     vaultRoot,
 	}
 
-	if err := engine.initSchema(); err != nil {
+	if err := initSchemaForDB(db); err != nil {
 		db.Close() //nolint:errcheck,gosec // fully read or safe to ignore
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
@@ -89,25 +119,107 @@ func Open(dbPath string, vaultRoot string) (*Engine, error) {
 	return engine, nil
 }
 
-// DBPath returns the path to the active SQLite database file.
+// DB returns the primary SQLite database connection.
 func (e *Engine) DB() *sql.DB {
 	return e.db
 }
 
+// SourcesDB returns the isolated sources SQLite database connection if it exists
+// in memory or on disk, lazily opening it when present on disk. Returns (nil, nil)
+// when no sources database has been created yet.
+func (e *Engine) SourcesDB(ctx context.Context) (*sql.DB, error) {
+	if e == nil {
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	e.sourcesMu.Lock()
+	existing := e.sourcesDB
+	e.sourcesMu.Unlock()
+	if existing != nil {
+		return existing, nil
+	}
+	if !e.sourcesDBExistsOnDisk() {
+		return nil, nil
+	}
+	return e.ensureSourcesDB()
+}
+
+// DBPath returns the path to the active SQLite database file.
 func (e *Engine) DBPath() string {
 	return e.dbPath
 }
 
-// Close closes the underlying database connection.
-func (e *Engine) Close() error {
-	if e.db != nil {
-		return e.db.Close() //nolint:errcheck,gosec // fully read or safe to ignore
-	}
-	return nil
+// SourcesDBPath returns the path to the isolated sources SQLite database file.
+func (e *Engine) SourcesDBPath() string {
+	return e.sourcesDBPath
 }
 
-func (e *Engine) initSchema() error {
+func (e *Engine) sourcesDBExistsOnDisk() bool {
+	if isMemoryDBPath(e.sourcesDBPath) {
+		return false
+	}
+	info, err := os.Stat(e.sourcesDBPath)
+	return err == nil && !info.IsDir()
+}
+
+// ensureSourcesDB lazily opens and initializes the dedicated sources SQLite database.
+func (e *Engine) ensureSourcesDB() (*sql.DB, error) {
+	e.sourcesMu.Lock()
+	defer e.sourcesMu.Unlock()
+
+	if e.sourcesDB != nil {
+		return e.sourcesDB, nil
+	}
+
+	if !isMemoryDBPath(e.sourcesDBPath) {
+		if err := os.MkdirAll(filepath.Dir(e.sourcesDBPath), 0750); err != nil {
+			return nil, fmt.Errorf("failed to create sources cache directory: %w", err)
+		}
+	}
+
+	sdb, err := sql.Open("sqlite", sqliteDSN(e.sourcesDBPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open sources sqlite database: %w", err)
+	}
+
+	if err := initSchemaForDB(sdb); err != nil {
+		sdb.Close() //nolint:errcheck,gosec // fully read or safe to ignore
+		return nil, fmt.Errorf("failed to initialize sources schema: %w", err)
+	}
+
+	e.sourcesDB = sdb
+	return e.sourcesDB, nil
+}
+
+// Close closes the underlying database connections.
+func (e *Engine) Close() error {
+	e.sourcesMu.Lock()
+	sdb := e.sourcesDB
+	e.sourcesDB = nil
+	e.sourcesMu.Unlock()
+
+	var errs []error
+	if sdb != nil {
+		if err := sdb.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if e.db != nil {
+		if err := e.db.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func initSchemaForDB(targetDB *sql.DB) error {
 	queries := []string{
+		`CREATE TABLE IF NOT EXISTS index_metadata (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		);`,
 		`CREATE TABLE IF NOT EXISTS notes_meta (
 			rel_path TEXT PRIMARY KEY,
 			title TEXT,
@@ -170,13 +282,13 @@ func (e *Engine) initSchema() error {
 	}
 
 	for _, q := range queries {
-		if _, err := e.db.Exec(q); err != nil {
+		if _, err := targetDB.Exec(q); err != nil {
 			return err
 		}
 	}
 
 	// Safe migration for existing databases without aliases column
-	_, _ = e.db.Exec("ALTER TABLE notes_meta ADD COLUMN aliases TEXT;")
+	_, _ = targetDB.Exec("ALTER TABLE notes_meta ADD COLUMN aliases TEXT;")
 
 	return nil
 }
@@ -215,146 +327,150 @@ type parseResult struct {
 	exists    bool
 }
 
-// IndexVault scans the vault and updates the SQLite FTS5 database incrementally.
-func (e *Engine) IndexVault(ctx context.Context, indexedDirs []string, force bool) (indexed int, updated int, err error) {
+func isSourcesPath(relPath string) bool {
+	clean := filepath.ToSlash(strings.TrimPrefix(filepath.Clean(relPath), "./"))
+	return clean == "sources" || strings.HasPrefix(clean, "sources/")
+}
+
+func (e *Engine) getMetadata(ctx context.Context, targetDB *sql.DB, key string) (string, bool, error) {
+	var val string
+	err := targetDB.QueryRowContext(ctx, "SELECT value FROM index_metadata WHERE key = ?", key).Scan(&val)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return val, true, nil
+}
+
+func (e *Engine) setMetadata(ctx context.Context, targetDB *sql.DB, key, value string) error {
+	_, err := targetDB.ExecContext(ctx, `
+		INSERT INTO index_metadata(key, value)
+		VALUES (?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+	`, key, value)
+	return err
+}
+
+// ShouldSync reports whether an incremental index sync should run based on last_sync_at and minAge.
+func (e *Engine) ShouldSync(ctx context.Context, minAge time.Duration) (bool, time.Duration, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// 0. Verify vault root exists
-	if stat, err := os.Stat(e.vaultRoot); err != nil || !stat.IsDir() {
-		return 0, 0, fmt.Errorf("vault root directory does not exist or is not a directory: %s", e.vaultRoot)
+	val, found, err := e.getMetadata(ctx, e.db, metaKeyLastSync)
+	if err != nil {
+		return false, 0, err
+	}
+	if !found || strings.TrimSpace(val) == "" {
+		return true, 0, nil
 	}
 
-	// 1. Load existing mtime map from DB
-	existingMTimes := make(map[string]float64)
-	rows, err := e.db.QueryContext(ctx, "SELECT rel_path, mtime FROM notes_meta")
-	if err == nil {
-		for rows.Next() {
-			var p string
-			var mt float64
-			if err := rows.Scan(&p, &mt); err == nil {
-				existingMTimes[p] = mt
-			}
+	lastSync, parseErr := time.Parse(time.RFC3339Nano, val)
+	if parseErr != nil {
+		slog.Debug("invalid last_sync_at timestamp, forcing sync", "value", val, "error", parseErr)
+		return true, 0, nil //nolint:nilerr // corrupt timestamp triggers self-healing sync
+	}
+
+	age := time.Since(lastSync)
+	if age < 0 {
+		age = 0
+	}
+	return age >= minAge, age, nil
+}
+
+// IndexVaultIfStale runs incremental IndexVault only if the index is older than minAge or never synced.
+func (e *Engine) IndexVaultIfStale(ctx context.Context, dirs []string, minAge time.Duration) (indexed int, updated int, skipped bool, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	should, _, err := e.ShouldSync(ctx, minAge)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	if !should {
+		return 0, 0, true, nil
+	}
+
+	indexed, updated, err = e.IndexVault(ctx, dirs, false)
+	return indexed, updated, false, err
+}
+
+func (e *Engine) migrateSourcesFromMainDB(ctx context.Context) error {
+	val, found, err := e.getMetadata(ctx, e.db, metaKeySourcesMigrated)
+	if err != nil {
+		return err
+	}
+	if found && val == "1" {
+		return nil
+	}
+
+	var count int
+	err = e.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM notes_meta WHERE scope = 'sources'").Scan(&count)
+	if err != nil {
+		return err
+	}
+
+	if count > 0 {
+		tx, err := e.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
 		}
-		rows.Close() //nolint:errcheck,gosec // fully read or safe to ignore
-	}
+		defer tx.Rollback() //nolint:errcheck // safe to ignore rollback error
 
-	currentFiles := make(map[string]bool)
-	var tasks []fileTask
-	var scannedDirs []string
-
-	// 2. Discover all files needing parsing
-	dirs := indexedDirs
-	if len(dirs) == 0 {
-		dirs = []string{"."}
-	}
-	for _, dir := range dirs {
-		if err := ctx.Err(); err != nil {
-			return 0, 0, err
+		if _, err := tx.ExecContext(ctx, "DELETE FROM notes_fts WHERE rel_path IN (SELECT rel_path FROM notes_meta WHERE scope = 'sources')"); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM note_links WHERE source_rel_path IN (SELECT rel_path FROM notes_meta WHERE scope = 'sources')"); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM notes_meta WHERE scope = 'sources'"); err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
 		}
 
-		absDir := filepath.Join(e.vaultRoot, dir)
-		if _, err := os.Stat(absDir); os.IsNotExist(err) {
-			continue
+		if _, err := e.db.ExecContext(ctx, "VACUUM"); err != nil {
+			return err
 		}
-		scannedDirs = append(scannedDirs, dir)
-
-		_ = filepath.Walk(absDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				base := info.Name()
-				if base == ".git" || base == ".dev" || base == "node_modules" || base == ".obsidian" || base == ".agents" || base == ".daneel" || base == "vendor" || base == "dist" || base == "build" {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-
-			if !strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
-				return nil
-			}
-
-			relPath, err := filepath.Rel(e.vaultRoot, path)
-			if err != nil {
-				relPath = path
-			}
-			relPath = filepath.ToSlash(relPath)
-			currentFiles[relPath] = true
-
-			mtimeUnix := float64(info.ModTime().UnixNano()) / 1e9
-			dbMTime, exists := existingMTimes[relPath]
-
-			// If file hasn't changed, skip parsing!
-			if !force && exists && (dbMTime == mtimeUnix || int64(dbMTime) == int64(mtimeUnix)) {
-				return nil
-			}
-
-			tasks = append(tasks, fileTask{
-				absPath:   path,
-				relPath:   relPath,
-				mtimeUnix: mtimeUnix,
-				exists:    exists,
-			})
-			return nil
-		})
+		slog.Debug("migrated legacy sources rows out of primary index", "removed_rows", count)
 	}
 
-	if err := ctx.Err(); err != nil {
-		return 0, 0, err
+	return e.setMetadata(ctx, e.db, metaKeySourcesMigrated, "1")
+}
+
+func loadExistingMTimes(ctx context.Context, targetDB *sql.DB) map[string]float64 {
+	existing := make(map[string]float64)
+	if targetDB == nil {
+		return existing
 	}
-
-	// 3. Concurrently parse notes using worker pool
-	numWorkers := runtime.NumCPU()
-	if numWorkers > 16 {
-		numWorkers = 16
+	rows, err := targetDB.QueryContext(ctx, "SELECT rel_path, mtime FROM notes_meta")
+	if err != nil {
+		return existing
 	}
-	if numWorkers < 1 {
-		numWorkers = 1
+	defer rows.Close() //nolint:errcheck,gosec // fully read or safe to ignore
+	for rows.Next() {
+		var p string
+		var mt float64
+		if err := rows.Scan(&p, &mt); err == nil {
+			existing[p] = mt
+		}
 	}
+	return existing
+}
 
-	taskCh := make(chan fileTask, len(tasks))
-	resCh := make(chan parseResult, len(tasks))
-
-	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case t, ok := <-taskCh:
-					if !ok {
-						return
-					}
-					n, err := vault.ParseNote(t.absPath, e.vaultRoot)
-					if err == nil && n != nil {
-						select {
-						case <-ctx.Done():
-							return
-						case resCh <- parseResult{note: n, mtimeUnix: t.mtimeUnix, exists: t.exists}:
-						}
-					}
-				}
-			}
-		}()
-	}
-
-	for _, t := range tasks {
-		taskCh <- t
-	}
-	close(taskCh)
-
-	go func() {
-		wg.Wait()
-		close(resCh)
-	}()
-
-	// 4. Batch insert into SQLite transaction
-	tx, err := e.db.BeginTx(ctx, nil)
+func (e *Engine) writeBatchToDB(
+	ctx context.Context,
+	targetDB *sql.DB,
+	results []parseResult,
+	existingMTimes map[string]float64,
+	currentFiles map[string]bool,
+	scannedDirs []string,
+) (indexed int, updated int, err error) {
+	tx, err := targetDB.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -428,7 +544,7 @@ func (e *Engine) IndexVault(ctx context.Context, indexedDirs []string, force boo
 	}
 	defer stmtDelPeople.Close() //nolint:errcheck,gosec
 
-	for res := range resCh {
+	for _, res := range results {
 		if err := ctx.Err(); err != nil {
 			return 0, 0, err
 		}
@@ -470,7 +586,6 @@ func (e *Engine) IndexVault(ctx context.Context, indexedDirs []string, force boo
 		}
 	}
 
-	// 5. Prune deleted notes within the scanned directories
 	if len(scannedDirs) > 0 {
 		for p := range existingMTimes {
 			if pathInScannedDirs(p, scannedDirs) && !currentFiles[p] {
@@ -484,6 +599,231 @@ func (e *Engine) IndexVault(ctx context.Context, indexedDirs []string, force boo
 
 	if err := tx.Commit(); err != nil {
 		return 0, 0, err
+	}
+
+	return indexed, updated, nil
+}
+
+// IndexVault scans the vault and updates the SQLite FTS5 databases incrementally.
+func (e *Engine) IndexVault(ctx context.Context, indexedDirs []string, force bool) (indexed int, updated int, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// 0. Verify vault root exists
+	if stat, err := os.Stat(e.vaultRoot); err != nil || !stat.IsDir() {
+		return 0, 0, fmt.Errorf("vault root directory does not exist or is not a directory: %s", e.vaultRoot)
+	}
+
+	// 0.5. One-time migration hygiene for legacy sources rows in primary DB
+	if err := e.migrateSourcesFromMainDB(ctx); err != nil {
+		return 0, 0, fmt.Errorf("failed to migrate legacy sources rows: %w", err)
+	}
+
+	dirs := indexedDirs
+	if len(dirs) == 0 {
+		dirs = []string{"."}
+	}
+
+	// Determine if any scanned directory could touch sources/
+	needsSourcesCheck := false
+	for _, dir := range dirs {
+		cleanDir := filepath.ToSlash(strings.TrimPrefix(filepath.Clean(dir), "./"))
+		if cleanDir == "." || cleanDir == "" || isSourcesPath(cleanDir) {
+			if _, statErr := os.Stat(filepath.Join(e.vaultRoot, dir)); statErr == nil {
+				needsSourcesCheck = true
+				break
+			}
+		}
+	}
+
+	// 1. Load existing mtime maps from DB(s)
+	existingMain := loadExistingMTimes(ctx, e.db)
+	var existingSources map[string]float64
+	var sourcesDB *sql.DB
+	if needsSourcesCheck && (e.sourcesDB != nil || e.sourcesDBExistsOnDisk()) {
+		var openErr error
+		sourcesDB, openErr = e.ensureSourcesDB()
+		if openErr != nil {
+			return 0, 0, openErr
+		}
+		existingSources = loadExistingMTimes(ctx, sourcesDB)
+	} else {
+		existingSources = make(map[string]float64)
+	}
+
+	mainCurrentFiles := make(map[string]bool)
+	sourcesCurrentFiles := make(map[string]bool)
+	var tasks []fileTask
+	var mainScannedDirs []string
+	var sourcesScannedDirs []string
+
+	// 2. Discover all files needing parsing
+	for _, dir := range dirs {
+		if err := ctx.Err(); err != nil {
+			return 0, 0, err
+		}
+
+		absDir := filepath.Join(e.vaultRoot, dir)
+		if _, err := os.Stat(absDir); os.IsNotExist(err) {
+			continue
+		}
+
+		cleanDir := filepath.ToSlash(strings.TrimPrefix(filepath.Clean(dir), "./"))
+		if cleanDir == "." || cleanDir == "" {
+			mainScannedDirs = append(mainScannedDirs, dir)
+			sourcesScannedDirs = append(sourcesScannedDirs, dir)
+		} else if isSourcesPath(cleanDir) {
+			sourcesScannedDirs = append(sourcesScannedDirs, dir)
+		} else {
+			mainScannedDirs = append(mainScannedDirs, dir)
+		}
+
+		_ = filepath.Walk(absDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				base := info.Name()
+				if base == ".git" || base == ".dev" || base == "node_modules" || base == ".obsidian" || base == ".agents" || base == ".daneel" || base == "vendor" || base == "dist" || base == "build" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+
+			if !strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+				return nil
+			}
+
+			relPath, err := filepath.Rel(e.vaultRoot, path)
+			if err != nil {
+				relPath = path
+			}
+			relPath = filepath.ToSlash(relPath)
+
+			mtimeUnix := float64(info.ModTime().UnixNano()) / 1e9
+			var dbMTime float64
+			var exists bool
+			if isSourcesPath(relPath) {
+				sourcesCurrentFiles[relPath] = true
+				dbMTime, exists = existingSources[relPath]
+			} else {
+				mainCurrentFiles[relPath] = true
+				dbMTime, exists = existingMain[relPath]
+			}
+
+			// If file hasn't changed, skip parsing!
+			if !force && exists && (dbMTime == mtimeUnix || int64(dbMTime) == int64(mtimeUnix)) {
+				return nil
+			}
+
+			tasks = append(tasks, fileTask{
+				absPath:   path,
+				relPath:   relPath,
+				mtimeUnix: mtimeUnix,
+				exists:    exists,
+			})
+			return nil
+		})
+	}
+
+	if err := ctx.Err(); err != nil {
+		return 0, 0, err
+	}
+
+	// 3. Concurrently parse notes using worker pool
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 16 {
+		numWorkers = 16
+	}
+	if numWorkers < 1 {
+		numWorkers = 1
+	}
+
+	taskCh := make(chan fileTask, len(tasks))
+	resCh := make(chan parseResult, len(tasks))
+
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case t, ok := <-taskCh:
+					if !ok {
+						return
+					}
+					n, err := vault.ParseNote(t.absPath, e.vaultRoot)
+					if err == nil && n != nil {
+						select {
+						case <-ctx.Done():
+							return
+						case resCh <- parseResult{note: n, mtimeUnix: t.mtimeUnix, exists: t.exists}:
+						}
+					}
+				}
+			}
+		}()
+	}
+
+	for _, t := range tasks {
+		taskCh <- t
+	}
+	close(taskCh)
+
+	go func() {
+		wg.Wait()
+		close(resCh)
+	}()
+
+	var mainResults []parseResult
+	var sourcesResults []parseResult
+	for res := range resCh {
+		if err := ctx.Err(); err != nil {
+			return 0, 0, err
+		}
+		if isSourcesPath(res.note.RelPath) {
+			sourcesResults = append(sourcesResults, res)
+		} else {
+			mainResults = append(mainResults, res)
+		}
+	}
+
+	// 4. Batch insert into primary DB (non-sources)
+	if len(mainResults) > 0 || len(mainScannedDirs) > 0 {
+		mIdx, mUpd, err := e.writeBatchToDB(ctx, e.db, mainResults, existingMain, mainCurrentFiles, mainScannedDirs)
+		if err != nil {
+			return 0, 0, err
+		}
+		indexed += mIdx
+		updated += mUpd
+	}
+
+	// 5. Batch insert into isolated sources DB
+	if len(sourcesResults) > 0 || (len(sourcesScannedDirs) > 0 && sourcesDB != nil) {
+		if sourcesDB == nil {
+			sourcesDB, err = e.ensureSourcesDB()
+			if err != nil {
+				return 0, 0, err
+			}
+		}
+		sIdx, sUpd, err := e.writeBatchToDB(ctx, sourcesDB, sourcesResults, existingSources, sourcesCurrentFiles, sourcesScannedDirs)
+		if err != nil {
+			return 0, 0, err
+		}
+		indexed += sIdx
+		updated += sUpd
+	}
+
+	nowStr := time.Now().UTC().Format(time.RFC3339Nano)
+	if err := e.setMetadata(ctx, e.db, metaKeyLastSync, nowStr); err != nil {
+		return 0, 0, fmt.Errorf("failed to persist last_sync_at: %w", err)
+	}
+	if sourcesDB != nil {
+		_ = e.setMetadata(ctx, sourcesDB, metaKeyLastSync, nowStr)
 	}
 
 	slog.Debug("vault indexing completed", "indexed", indexed, "updated", updated)
@@ -507,9 +847,17 @@ func (e *Engine) IndexNote(ctx context.Context, relPath string) error {
 		return fmt.Errorf("failed to parse note: %w", err)
 	}
 
+	targetDB := e.db
+	if isSourcesPath(note.RelPath) {
+		targetDB, err = e.ensureSourcesDB()
+		if err != nil {
+			return err
+		}
+	}
+
 	mtimeUnix := float64(info.ModTime().UnixNano()) / 1e9
 
-	tx, err := e.db.BeginTx(ctx, nil)
+	tx, err := targetDB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -607,6 +955,45 @@ func (e *Engine) SearchFaceted(ctx context.Context, opts SearchOptions) ([]Searc
 		limit = 10
 	}
 
+	scope := strings.TrimSpace(opts.Scope)
+
+	if scope == "sources" {
+		if e.sourcesDB == nil && !e.sourcesDBExistsOnDisk() {
+			return nil, nil
+		}
+		sdb, err := e.ensureSourcesDB()
+		if err != nil {
+			return nil, err
+		}
+		return searchDB(ctx, sdb, opts, limit)
+	}
+
+	results, err := searchDB(ctx, e.db, opts, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	if (scope == "all" || scope == "") && len(results) < limit {
+		if e.sourcesDB != nil || e.sourcesDBExistsOnDisk() {
+			sdb, err := e.ensureSourcesDB()
+			if err != nil {
+				return nil, err
+			}
+			remaining := limit - len(results)
+			sourceOpts := opts
+			sourceOpts.Scope = "sources"
+			sourceResults, err := searchDB(ctx, sdb, sourceOpts, remaining)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, sourceResults...)
+		}
+	}
+
+	return results, nil
+}
+
+func searchDB(ctx context.Context, targetDB *sql.DB, opts SearchOptions, limit int) ([]SearchResult, error) {
 	trimmedQuery := strings.TrimSpace(opts.Query)
 	scope := strings.TrimSpace(opts.Scope)
 	noteType := strings.TrimSpace(opts.NoteType)
@@ -697,7 +1084,7 @@ func (e *Engine) SearchFaceted(ctx context.Context, opts SearchOptions) ([]Searc
 	queryBuilder.WriteString(" LIMIT ?")
 	args = append(args, limit)
 
-	rows, err := e.db.QueryContext(ctx, queryBuilder.String(), args...)
+	rows, err := targetDB.QueryContext(ctx, queryBuilder.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("search query failed: %w", err)
 	}
@@ -724,7 +1111,19 @@ func (e *Engine) SearchFaceted(ctx context.Context, opts SearchOptions) ([]Searc
 
 // GetNote retrieves a single note's metadata by its relative path.
 func (e *Engine) GetNote(relPath string) (*NoteMeta, error) {
-	row := e.db.QueryRow(`
+	targetDB := e.db
+	if isSourcesPath(relPath) {
+		if e.sourcesDB == nil && !e.sourcesDBExistsOnDisk() {
+			return nil, sql.ErrNoRows
+		}
+		var err error
+		targetDB, err = e.ensureSourcesDB()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	row := targetDB.QueryRow(`
 		SELECT rel_path, title, category, scope, note_type, description, tags, headings, COALESCE(aliases, ''), mtime
 		FROM notes_meta WHERE rel_path = ?
 	`, relPath)
@@ -739,9 +1138,8 @@ func (e *Engine) GetNote(relPath string) (*NoteMeta, error) {
 	return &meta, nil
 }
 
-// GetBacklinks returns all incoming links pointing to targetRelPath.
-func (e *Engine) GetBacklinks(targetRelPath string) ([]vault.Link, error) {
-	rows, err := e.db.Query(`
+func queryBacklinksFromDB(targetDB *sql.DB, targetRelPath string) ([]vault.Link, error) {
+	rows, err := targetDB.Query(`
 		SELECT source_rel_path, target_rel_path, link_text
 		FROM note_links
 		WHERE target_rel_path = ? OR target_rel_path LIKE ?
@@ -761,28 +1159,63 @@ func (e *Engine) GetBacklinks(targetRelPath string) ([]vault.Link, error) {
 	return links, nil
 }
 
+// GetBacklinks returns all incoming links pointing to targetRelPath.
+func (e *Engine) GetBacklinks(targetRelPath string) ([]vault.Link, error) {
+	links, err := queryBacklinksFromDB(e.db, targetRelPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if e.sourcesDB != nil || e.sourcesDBExistsOnDisk() {
+		sdb, err := e.ensureSourcesDB()
+		if err != nil {
+			return nil, err
+		}
+		sLinks, err := queryBacklinksFromDB(sdb, targetRelPath)
+		if err != nil {
+			return nil, err
+		}
+		links = append(links, sLinks...)
+	}
+
+	return links, nil
+}
+
+func aggregateHealthFromDB(targetDB *sql.DB, report *HealthReport) {
+	var notesCnt, linksCnt int
+	row := targetDB.QueryRow("SELECT count(*) FROM notes_meta")
+	_ = row.Scan(&notesCnt)
+	report.TotalNotes += notesCnt
+
+	row = targetDB.QueryRow("SELECT count(*) FROM note_links")
+	_ = row.Scan(&linksCnt)
+	report.TotalLinks += linksCnt
+
+	rows, err := targetDB.Query("SELECT scope, count(*) FROM notes_meta GROUP BY scope")
+	if err == nil {
+		for rows.Next() {
+			var sc string
+			var cnt int
+			if err := rows.Scan(&sc, &cnt); err == nil {
+				report.NotesByScope[sc] += cnt
+			}
+		}
+		rows.Close() //nolint:errcheck,gosec // fully read or safe to ignore
+	}
+}
+
 // HealthCheck inspects total counts and checks for broken references.
 func (e *Engine) HealthCheck() (*HealthReport, error) {
 	report := &HealthReport{
 		NotesByScope: make(map[string]int),
 	}
 
-	row := e.db.QueryRow("SELECT count(*) FROM notes_meta")
-	_ = row.Scan(&report.TotalNotes)
-
-	row = e.db.QueryRow("SELECT count(*) FROM note_links")
-	_ = row.Scan(&report.TotalLinks)
-
-	rows, err := e.db.Query("SELECT scope, count(*) FROM notes_meta GROUP BY scope")
-	if err == nil {
-		for rows.Next() {
-			var sc string
-			var cnt int
-			if err := rows.Scan(&sc, &cnt); err == nil {
-				report.NotesByScope[sc] = cnt
-			}
+	aggregateHealthFromDB(e.db, report)
+	if e.sourcesDB != nil || e.sourcesDBExistsOnDisk() {
+		sdb, err := e.ensureSourcesDB()
+		if err == nil {
+			aggregateHealthFromDB(sdb, report)
 		}
-		rows.Close() //nolint:errcheck,gosec // fully read or safe to ignore
 	}
 
 	return report, nil

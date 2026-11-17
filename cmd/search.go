@@ -4,6 +4,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -15,12 +16,17 @@ import (
 )
 
 var (
-	searchScope   string
-	searchType    string
-	searchTag     string
-	searchLimit   int
-	searchReindex bool
+	searchScope      string
+	searchType       string
+	searchTag        string
+	searchLimit      int
+	searchReindex    bool
+	searchNoSync     bool
+	searchForceSync  bool
+	searchMinSyncAge time.Duration
 )
+
+const defaultMinimumSyncAge = 2*time.Hour + 30*time.Minute
 
 var searchCmd = &cobra.Command{
 	Use:     "search [query]",
@@ -31,6 +37,9 @@ var searchCmd = &cobra.Command{
 		queryStr := strings.Join(args, " ")
 		if queryStr == "" && searchType == "" && searchTag == "" {
 			return fmt.Errorf("search requires a query string, --type, or --tag")
+		}
+		if searchNoSync && searchForceSync {
+			return fmt.Errorf("--no-sync and --force-sync cannot be used together")
 		}
 
 		engine, err := search.Open(cfg.DBPath, cfg.VaultPath)
@@ -50,9 +59,20 @@ var searchCmd = &cobra.Command{
 			if verbose {
 				fmt.Printf("✅ Reindexing complete: %d new notes, %d updated.\n\n", idx, upd)
 			}
-		} else {
-			// Auto incremental index
-			_, _, _ = engine.IndexVault(cmd.Context(), cfg.GetIndexedDirs(), false)
+		} else if searchForceSync {
+			idx, upd, syncErr := engine.IndexVault(cmd.Context(), cfg.GetIndexedDirs(), false)
+			if syncErr != nil {
+				slog.Debug("forced incremental sync failed", "error", syncErr)
+			} else {
+				slog.Debug("forced incremental sync completed", "indexed", idx, "updated", upd)
+			}
+		} else if !searchNoSync {
+			idx, upd, skipped, syncErr := engine.IndexVaultIfStale(cmd.Context(), cfg.GetIndexedDirs(), searchMinSyncAge)
+			if syncErr != nil {
+				slog.Debug("stale check incremental sync failed", "error", syncErr)
+			} else {
+				slog.Debug("smart sync evaluated", "skipped", skipped, "indexed", idx, "updated", upd, "min_age", searchMinSyncAge)
+			}
 		}
 
 		start := time.Now()
@@ -154,5 +174,8 @@ func init() {
 	searchCmd.Flags().StringVar(&searchTag, "tag", "", "Filter by specific tag (e.g. kafka, ci-cd)")
 	searchCmd.Flags().IntVarP(&searchLimit, "limit", "l", 10, "Maximum number of results to return")
 	searchCmd.Flags().BoolVarP(&searchReindex, "reindex", "r", false, "Force complete reindexing of all notes")
+	searchCmd.Flags().BoolVar(&searchNoSync, "no-sync", false, "Never run incremental indexing before searching")
+	searchCmd.Flags().BoolVar(&searchForceSync, "force-sync", false, "Always run incremental indexing before searching, ignoring --minimum-sync-age")
+	searchCmd.Flags().DurationVar(&searchMinSyncAge, "minimum-sync-age", defaultMinimumSyncAge, "Minimum age since last sync before running incremental indexing")
 	RootCmd.AddCommand(searchCmd)
 }
