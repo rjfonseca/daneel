@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json --noEmit",
     "lint": "eslint . --max-warnings=0",
-    "audit": "npm audit --include=dev --audit-level=low",
+    "audit": "npm audit --omit=dev --audit-level=low",
     "test": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage",
     "preview": "vite preview",
