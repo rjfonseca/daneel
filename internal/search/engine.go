@@ -22,17 +22,18 @@ import (
 
 // SearchResult represents a matching note from a search query.
 type SearchResult struct { //nolint:revive
-	RelPath     string  `json:"rel_path"`
-	Path        string  `json:"path"`
-	Title       string  `json:"title"`
-	Category    string  `json:"category"`
-	Scope       string  `json:"scope"`
-	NoteType    string  `json:"note_type"`
-	Type        string  `json:"type"`
-	Description string  `json:"description"`
-	Desc        string  `json:"desc"`
-	Snippet     string  `json:"snippet"`
-	Score       float64 `json:"score"`
+	RelPath      string  `json:"rel_path"`
+	Path         string  `json:"path"`
+	Title        string  `json:"title"`
+	Category     string  `json:"category"`
+	Scope        string  `json:"scope"`
+	NoteType     string  `json:"note_type"`
+	Type         string  `json:"type"`
+	Description  string  `json:"description"`
+	Desc         string  `json:"desc"`
+	Snippet      string  `json:"snippet"`
+	ChunkHeading string  `json:"chunk_heading,omitempty"`
+	Score        float64 `json:"score"`
 }
 
 // NoteMeta represents stored metadata for a single note.
@@ -68,6 +69,8 @@ type Engine struct {
 	db            *sql.DB
 	sourcesDB     *sql.DB
 	sourcesMu     sync.Mutex
+	vecCacheMu    sync.RWMutex
+	vecCache      *VectorCache
 	dbPath        string
 	sourcesDBPath string
 	vaultRoot     string
@@ -279,6 +282,31 @@ func initSchemaForDB(targetDB *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_workspace_repos_name ON workspace_repos(name);`,
 		`CREATE INDEX IF NOT EXISTS idx_workspace_repos_clean ON workspace_repos(is_clean);`,
 		`CREATE INDEX IF NOT EXISTS idx_workspace_repos_stack ON workspace_repos(stack);`,
+		`CREATE TABLE IF NOT EXISTS chunks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			rel_path TEXT NOT NULL,
+			chunk_idx INTEGER NOT NULL,
+			scope TEXT NOT NULL,
+			heading TEXT NOT NULL DEFAULT '',
+			content TEXT NOT NULL,
+			content_hash TEXT NOT NULL,
+			embedding BLOB,
+			model TEXT NOT NULL DEFAULT '',
+			dim INTEGER NOT NULL DEFAULT 0,
+			mtime REAL NOT NULL,
+			UNIQUE(rel_path, chunk_idx)
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_chunks_rel_path ON chunks(rel_path);`,
+		`CREATE INDEX IF NOT EXISTS idx_chunks_pending_embed ON chunks(model) WHERE embedding IS NULL;`,
+		`CREATE INDEX IF NOT EXISTS idx_chunks_scope_dim ON chunks(scope, dim) WHERE embedding IS NOT NULL;`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+			rel_path UNINDEXED,
+			chunk_idx UNINDEXED,
+			scope UNINDEXED,
+			heading,
+			content,
+			tokenize="porter unicode61"
+		);`,
 	}
 
 	for _, q := range queries {
@@ -421,6 +449,12 @@ func (e *Engine) migrateSourcesFromMainDB(ctx context.Context) error {
 		defer tx.Rollback() //nolint:errcheck // safe to ignore rollback error
 
 		if _, err := tx.ExecContext(ctx, "DELETE FROM notes_fts WHERE rel_path IN (SELECT rel_path FROM notes_meta WHERE scope = 'sources')"); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM chunks_fts WHERE rel_path IN (SELECT rel_path FROM notes_meta WHERE scope = 'sources')"); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM chunks WHERE rel_path IN (SELECT rel_path FROM notes_meta WHERE scope = 'sources')"); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM note_links WHERE source_rel_path IN (SELECT rel_path FROM notes_meta WHERE scope = 'sources')"); err != nil {
@@ -579,6 +613,10 @@ func (e *Engine) writeBatchToDB(
 			_, _ = stmtInsertPeople.ExecContext(ctx, n.RelPath, cleanName, role, squad, email, aliasesStr, res.mtimeUnix)
 		}
 
+		if err := syncNoteChunksTx(ctx, tx, n, res.mtimeUnix); err != nil {
+			return 0, 0, err
+		}
+
 		if res.exists {
 			updated++
 		} else {
@@ -593,6 +631,8 @@ func (e *Engine) writeBatchToDB(
 				_, _ = stmtDelFTS.ExecContext(ctx, p)
 				_, _ = stmtDelLinks.ExecContext(ctx, p)
 				_, _ = stmtDelPeople.ExecContext(ctx, p)
+				_, _ = tx.ExecContext(ctx, "DELETE FROM chunks WHERE rel_path = ?", p)
+				_, _ = tx.ExecContext(ctx, "DELETE FROM chunks_fts WHERE rel_path = ?", p)
 			}
 		}
 	}
@@ -923,7 +963,99 @@ func (e *Engine) IndexNote(ctx context.Context, relPath string) error {
 		`, note.RelPath, l.TargetRelPath, l.LinkText)
 	}
 
+	// 4. Refresh Chunks (preserving embeddings for unchanged content_hash)
+	if err := syncNoteChunksTx(ctx, tx, note, mtimeUnix); err != nil {
+		return err
+	}
+
 	return tx.Commit()
+}
+
+type preservedEmbedding struct {
+	embedding []byte
+	model     string
+	dim       int
+}
+
+func syncNoteChunksTx(ctx context.Context, tx *sql.Tx, n *vault.Note, mtimeUnix float64) error {
+	preserved := make(map[string]preservedEmbedding)
+	rows, err := tx.QueryContext(ctx, `
+		SELECT content_hash, embedding, model, dim
+		FROM chunks
+		WHERE rel_path = ? AND embedding IS NOT NULL
+	`, n.RelPath)
+	if err == nil {
+		for rows.Next() {
+			var hash string
+			var emb []byte
+			var model string
+			var dim int
+			if scanErr := rows.Scan(&hash, &emb, &model, &dim); scanErr == nil && hash != "" && len(emb) > 0 {
+				embCopy := make([]byte, len(emb))
+				copy(embCopy, emb)
+				preserved[hash] = preservedEmbedding{
+					embedding: embCopy,
+					model:     model,
+					dim:       dim,
+				}
+			}
+		}
+		rows.Close() //nolint:errcheck,gosec
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM chunks WHERE rel_path = ?", n.RelPath); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM chunks_fts WHERE rel_path = ?", n.RelPath); err != nil {
+		return err
+	}
+
+	body := n.Body
+	if strings.TrimSpace(body) == "" {
+		body = n.Content
+	}
+	chunks := ChunkMarkdown(n.RelPath, n.Title, body, DefaultChunkMaxWords, DefaultChunkOverlapWords)
+	if len(chunks) == 0 {
+		return nil
+	}
+
+	stmtChunk, err := tx.PrepareContext(ctx, `
+		INSERT INTO chunks(rel_path, chunk_idx, scope, heading, content, content_hash, embedding, model, dim, mtime)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmtChunk.Close() //nolint:errcheck,gosec
+
+	stmtFTS, err := tx.PrepareContext(ctx, `
+		INSERT INTO chunks_fts(rel_path, chunk_idx, scope, heading, content)
+		VALUES (?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmtFTS.Close() //nolint:errcheck,gosec
+
+	for _, c := range chunks {
+		var embVal interface{}
+		modelVal := ""
+		dimVal := 0
+		if p, ok := preserved[c.ContentHash]; ok {
+			embVal = p.embedding
+			modelVal = p.model
+			dimVal = p.dim
+		}
+
+		if _, err := stmtChunk.ExecContext(ctx, c.RelPath, c.ChunkIdx, n.Scope, c.Heading, c.Content, c.ContentHash, embVal, modelVal, dimVal, mtimeUnix); err != nil {
+			return err
+		}
+		if _, err := stmtFTS.ExecContext(ctx, c.RelPath, c.ChunkIdx, n.Scope, c.Heading, c.Content); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // SearchOptions holds parameters for faceted vault searches.

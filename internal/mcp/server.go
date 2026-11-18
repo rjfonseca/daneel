@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	graphv1 "github.com/rjfonseca/daneel/api/v1"
@@ -83,6 +85,8 @@ type Server struct {
 	cfg          *config.Config
 	catalog      *ToolCatalog
 	dynamicTools bool
+	embedder     search.Embedder
+	embedderOnce sync.Once
 	in           io.Reader
 	out          io.Writer
 }
@@ -108,6 +112,27 @@ func NewServer(vaultRoot string, engine *search.Engine, cfg ...*config.Config) *
 // SetDynamicTools enables or disables dynamic tool exposure (Tool-as-RAG).
 func (s *Server) SetDynamicTools(enabled bool) {
 	s.dynamicTools = enabled
+}
+
+func (s *Server) getEmbedder(ctx context.Context) search.Embedder {
+	if s.cfg == nil || !s.cfg.Embeddings.Enabled || strings.EqualFold(strings.TrimSpace(s.cfg.Embeddings.Provider), "none") {
+		return nil
+	}
+	if s.engine == nil || !s.engine.HasAnyEmbeddings(ctx) {
+		return nil
+	}
+	s.embedderOnce.Do(func() {
+		emb, err := search.NewEmbedderFromConfig(s.cfg.Embeddings)
+		if err != nil {
+			slog.Warn("failed to initialize MCP semantic embedder, falling back to lexical search", "error", err)
+			return
+		}
+		s.embedder = emb
+		if s.engine != nil && emb != nil {
+			s.engine.EnableVectorCache()
+		}
+	})
+	return s.embedder
 }
 
 // Serve runs the stdio JSON-RPC loop.
@@ -927,13 +952,14 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 			limit = int(l)
 		}
 
-		results, err := s.engine.SearchFaceted(context.Background(), search.SearchOptions{
+		ctx := context.Background()
+		results, err := s.engine.SearchHybrid(ctx, search.SearchOptions{
 			Query:    query,
 			Scope:    scope,
 			NoteType: noteType,
 			Tag:      tag,
 			Limit:    limit,
-		})
+		}, s.getEmbedder(ctx))
 		if err != nil {
 			return fmt.Sprintf("Failed to execute search: %v", err), true
 		}

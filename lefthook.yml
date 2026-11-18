@@ -27,22 +27,45 @@ pre-commit:
 pre-push:
   parallel: false
   commands:
+    lint:
+      run: task lint
+
     test:
       run: task test
+
+    scripts-test:
+      run: |
+        python3 -m unittest discover -s scripts -p test_task_git_isolation.py
+        python3 -m unittest discover -s scripts -p test_check_codex_hooks.py
+        python3 -m unittest discover -s scripts -p 'test_release_*.py'
+        python3 scripts/smoke.py
 
     vulncheck:
       run: task vulncheck
 
-    frontend-test-full:
-      root: "web/"
-      run: npm run test
-
     frontend-audit:
       root: "web/"
       run: npm run audit
+
+    frontend-lint:
+      root: "web/"
+      run: npm run lint
+
+    frontend-typecheck:
+      root: "web/"
+      run: npm run typecheck
+
+    frontend-test-full:
+      root: "web/"
+      run: npm run test
 
     webfs-sync:
       run: task web-verify-sync
 
     bench:
       run: task bench
+
+    check-ci-configs:
+      run: |
+        go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+        if command -v goreleaser >/dev/null 2>&1; then goreleaser check; fi

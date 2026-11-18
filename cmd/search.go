@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/rjfonseca/daneel/internal/daemon"
 	"github.com/rjfonseca/daneel/internal/search"
 	"github.com/rjfonseca/daneel/internal/toon"
 )
@@ -24,6 +26,7 @@ var (
 	searchNoSync     bool
 	searchForceSync  bool
 	searchMinSyncAge time.Duration
+	searchSemantic   bool
 )
 
 const defaultMinimumSyncAge = 2*time.Hour + 30*time.Minute
@@ -76,13 +79,42 @@ var searchCmd = &cobra.Command{
 		}
 
 		start := time.Now()
-		results, err := engine.SearchFaceted(cmd.Context(), search.SearchOptions{
+		searchOpts := search.SearchOptions{
 			Query:    queryStr,
 			Scope:    searchScope,
 			NoteType: searchType,
 			Tag:      searchTag,
 			Limit:    searchLimit,
-		})
+		}
+		var results []search.SearchResult
+		if resolveEmbeddingsEnabled(cmd, "semantic", searchSemantic, cfg) {
+			var usedDaemon bool
+			if !searchReindex && cfg != nil && daemon.IsDaemonRunning() {
+				if dRes, dErr := tryDaemonHybridSearch(cmd.Context(), cfg.VaultPath, cfg.DBPath, searchOpts); dErr == nil {
+					results = dRes
+					usedDaemon = true
+					slog.Debug("hybrid search served via daemon")
+				} else {
+					slog.Debug("daemon hybrid search fallback to local", "error", dErr)
+				}
+			}
+			if !usedDaemon {
+				var embedder search.Embedder
+				if cfg != nil {
+					embCfg := effectiveEmbeddingsConfig(cmd, "semantic", searchSemantic, cfg)
+					emb, embErr := newEmbedderFromConfig(embCfg)
+					if embErr != nil {
+						slog.Warn("failed to initialize semantic embedder, falling back to lexical search", "error", embErr)
+					} else if emb != nil {
+						embedder = emb
+						defer embedder.Close() //nolint:errcheck,gosec
+					}
+				}
+				results, err = engine.SearchHybrid(cmd.Context(), searchOpts, embedder)
+			}
+		} else {
+			results, err = engine.SearchFaceted(cmd.Context(), searchOpts)
+		}
 		if err != nil {
 			return fmt.Errorf("search error: %w", err)
 		}
@@ -177,5 +209,27 @@ func init() {
 	searchCmd.Flags().BoolVar(&searchNoSync, "no-sync", false, "Never run incremental indexing before searching")
 	searchCmd.Flags().BoolVar(&searchForceSync, "force-sync", false, "Always run incremental indexing before searching, ignoring --minimum-sync-age")
 	searchCmd.Flags().DurationVar(&searchMinSyncAge, "minimum-sync-age", defaultMinimumSyncAge, "Minimum age since last sync before running incremental indexing")
+	searchCmd.Flags().BoolVar(&searchSemantic, "semantic", false, "Enable hybrid semantic + BM25 search using local vector embeddings")
 	RootCmd.AddCommand(searchCmd)
+}
+
+func tryDaemonHybridSearch(ctx context.Context, vaultPath, dbPath string, opts search.SearchOptions) ([]search.SearchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	client, err := daemon.NewClientContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+
+	return client.SearchHybridContext(ctx, daemon.SearchHybridPayload{
+		VaultPath: vaultPath,
+		DBPath:    dbPath,
+		Query:     opts.Query,
+		Scope:     opts.Scope,
+		NoteType:  opts.NoteType,
+		Tag:       opts.Tag,
+		Limit:     opts.Limit,
+	})
 }

@@ -21,6 +21,7 @@ func resetSearchFlagsForTest() {
 	searchNoSync = false
 	searchForceSync = false
 	searchMinSyncAge = defaultMinimumSyncAge
+	searchSemantic = false
 	jsonOut = false
 	toonOut = false
 	verbose = false
@@ -138,5 +139,144 @@ func TestSearchCmd_SyncModes(t *testing.T) {
 	res, err := engine.Search(t.Context(), "UniqueTokenBetaSync", "all", 10)
 	if err != nil || len(res) != 1 {
 		t.Fatalf("expected beta.md in index, got %d results (err=%v)", len(res), err)
+	}
+}
+
+func TestSearchCmd_SemanticFlagAndFallback(t *testing.T) {
+	resetSearchFlagsForTest()
+	defer resetSearchFlagsForTest()
+
+	flag := searchCmd.Flags().Lookup("semantic")
+	if flag == nil {
+		t.Fatal("expected --semantic flag to be registered")
+	}
+	if flag.DefValue != "false" {
+		t.Fatalf("expected default --semantic=false, got %s", flag.DefValue)
+	}
+
+	tempVault := t.TempDir()
+	notesDir := filepath.Join(tempVault, "notes")
+	_ = os.MkdirAll(notesDir, 0750)
+	_ = os.WriteFile(filepath.Join(notesDir, "hybrid.md"), []byte("# Hybrid Note\n## Storage\nUniqueTokenHybridFallback.\n"), 0600)
+
+	cfg = &config.Config{
+		VaultPath:  tempVault,
+		DBPath:     filepath.Join(tempVault, ".daneel", "cache", "vault_index.db"),
+		Vault:      config.VaultConfig{IndexedDirs: []string{"notes"}},
+		Embeddings: config.EmbeddingsConfig{Enabled: false, Provider: "none"},
+	}
+
+	searchSemantic = true
+	searchForceSync = true
+	jsonOut = true
+	out, err := captureStdout(t, func() error {
+		return searchCmd.RunE(searchCmd, []string{"UniqueTokenHybridFallback"})
+	})
+	if err != nil {
+		t.Fatalf("searchCmd --semantic fallback failed: %v", err)
+	}
+	if !strings.Contains(out, "hybrid.md") {
+		t.Fatalf("expected hybrid.md via chunks_fts fallback, got: %s", out)
+	}
+}
+
+func TestSearchCmd_SemanticConfigAndFlagPrecedence(t *testing.T) {
+	tests := []struct {
+		name         string
+		embCfg       config.EmbeddingsConfig
+		setFlag      bool
+		flagVal      string
+		wantSemantic bool
+	}{
+		{
+			name:         "config enabled without flag runs semantic search",
+			embCfg:       config.EmbeddingsConfig{Enabled: true, Provider: "rembed", Model: "fake"},
+			setFlag:      false,
+			wantSemantic: true,
+		},
+		{
+			name:         "config disabled without flag uses lexical search",
+			embCfg:       config.EmbeddingsConfig{Enabled: false, Provider: "rembed", Model: "fake"},
+			setFlag:      false,
+			wantSemantic: false,
+		},
+		{
+			name:         "provider none without flag uses lexical search",
+			embCfg:       config.EmbeddingsConfig{Enabled: true, Provider: "none"},
+			setFlag:      false,
+			wantSemantic: false,
+		},
+		{
+			name:         "explicit --semantic=false overrides config enabled",
+			embCfg:       config.EmbeddingsConfig{Enabled: true, Provider: "rembed", Model: "fake"},
+			setFlag:      true,
+			flagVal:      "false",
+			wantSemantic: false,
+		},
+		{
+			name:         "explicit --semantic=true overrides config disabled",
+			embCfg:       config.EmbeddingsConfig{Enabled: false, Provider: "rembed", Model: "fake"},
+			setFlag:      true,
+			flagVal:      "true",
+			wantSemantic: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resetSearchFlagsForTest()
+			defer resetSearchFlagsForTest()
+
+			semanticFlag := searchCmd.Flags().Lookup("semantic")
+			semanticFlag.Changed = false
+			defer func() { semanticFlag.Changed = false }()
+
+			origFactory := newEmbedderFromConfig
+			defer func() { newEmbedderFromConfig = origFactory }()
+
+			called := false
+			var receivedCfg config.EmbeddingsConfig
+			newEmbedderFromConfig = func(c config.EmbeddingsConfig) (search.Embedder, error) {
+				called = true
+				receivedCfg = c
+				return &fakeCmdEmbedder{}, nil
+			}
+
+			tempVault := t.TempDir()
+			notesDir := filepath.Join(tempVault, "notes")
+			_ = os.MkdirAll(notesDir, 0750)
+			_ = os.WriteFile(filepath.Join(notesDir, "hybrid.md"), []byte("# Hybrid Note\n## Storage\nUniqueTokenSemanticPrecedence.\n"), 0600)
+
+			cfg = &config.Config{
+				VaultPath:  tempVault,
+				DBPath:     filepath.Join(tempVault, ".daneel", "cache", "vault_index.db"),
+				Vault:      config.VaultConfig{IndexedDirs: []string{"notes"}},
+				Embeddings: tc.embCfg,
+			}
+
+			searchForceSync = true
+			jsonOut = true
+			if tc.setFlag {
+				if err := searchCmd.Flags().Set("semantic", tc.flagVal); err != nil {
+					t.Fatalf("failed to set --semantic=%s: %v", tc.flagVal, err)
+				}
+			}
+
+			out, err := captureStdout(t, func() error {
+				return searchCmd.RunE(searchCmd, []string{"UniqueTokenSemanticPrecedence"})
+			})
+			if err != nil {
+				t.Fatalf("searchCmd.RunE failed: %v", err)
+			}
+			if !strings.Contains(out, "hybrid.md") {
+				t.Fatalf("expected hybrid.md in search results, got: %s", out)
+			}
+			if called != tc.wantSemantic {
+				t.Fatalf("embedder called = %v, want %v", called, tc.wantSemantic)
+			}
+			if tc.wantSemantic && !receivedCfg.Enabled {
+				t.Fatalf("expected effective EmbeddingsConfig.Enabled=true, got false")
+			}
+		})
 	}
 }

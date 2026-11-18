@@ -14,6 +14,7 @@ import (
 	"time"
 
 	graphv1 "github.com/rjfonseca/daneel/api/v1"
+	"github.com/rjfonseca/daneel/internal/search"
 	"github.com/rjfonseca/daneel/internal/spooler"
 )
 
@@ -525,5 +526,58 @@ func TestClientContext_CaptureHookEventSuccessfulResponse(t *testing.T) {
 	}
 	if sid != "context-session" {
 		t.Fatalf("session ID = %q, want context-session", sid)
+	}
+}
+
+func TestDaemonSocket_SearchHybridIPC(t *testing.T) {
+	setupClientSocketFixture(t)
+
+	hub := NewHub()
+	srv := NewServer(hub)
+	srv.SetHybridSearchHandler(func(_ context.Context, payload SearchHybridPayload) ([]search.SearchResult, error) {
+		return []search.SearchResult{
+			{
+				RelPath: "notes/go/golang-struct-padding.md",
+				Title:   "Golang struct padding",
+				Scope:   payload.Scope,
+				Score:   0.033,
+			},
+		}, nil
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.ListenAndServe()
+	}()
+	t.Cleanup(func() {
+		srv.Stop()
+		if err := <-errCh; err != nil {
+			_ = err
+		}
+	})
+
+	for i := 0; i < 50; i++ {
+		if IsDaemonRunning() {
+			break
+		}
+		time.Sleep(15 * time.Millisecond)
+	}
+
+	client, err := NewClient()
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	res, err := client.SearchHybridContext(context.Background(), SearchHybridPayload{
+		Query: "struct padding",
+		Scope: "tech",
+		Limit: 5,
+	})
+	if err != nil {
+		t.Fatalf("SearchHybridContext failed: %v", err)
+	}
+	if len(res) != 1 || res[0].RelPath != "notes/go/golang-struct-padding.md" {
+		t.Fatalf("unexpected IPC search results: %+v", res)
 	}
 }
