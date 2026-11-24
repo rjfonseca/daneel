@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,5 +80,37 @@ func TestAuditAgentsCmd(t *testing.T) {
 	err := RootCmd.Execute()
 	if err != nil {
 		t.Fatalf("audit agents command failed: %v", err)
+	}
+}
+
+func TestAuditConsolidateCommand(t *testing.T) {
+	tempVault := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	cacheDir := filepath.Join(tempVault, ".daneel", "cache")
+	if err := os.MkdirAll(cacheDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	seed := `{"feedback_history":[{"date":"2026-11-10","timestamp":"2026-11-10T09:00:00Z","topic":"Use Taskfile","type":"correction","action":"consolidate","note":"Prefer Taskfile over Makefile"}]}`
+	if err := os.WriteFile(filepath.Join(cacheDir, "agent_learnings.json"), []byte(seed), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg = &config.Config{
+		VaultPath: tempVault,
+		DBPath:    filepath.Join(tempVault, "cache", "index.db"),
+	}
+
+	b := new(bytes.Buffer)
+	RootCmd.SetOut(b)
+	RootCmd.SetErr(b)
+	RootCmd.SetArgs([]string{"audit", "consolidate", "--vault-path=" + tempVault, "--json"})
+
+	if err := RootCmd.Execute(); err != nil {
+		t.Fatalf("audit consolidate command failed: %v", err)
+	}
+	if !strings.Contains(b.String(), `"archived_count": 1`) {
+		t.Fatalf("expected archived_count 1 in JSON output, got: %s", b.String())
 	}
 }
