@@ -3,7 +3,6 @@ package auditor
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/dream"
 	"github.com/rjfonseca/daneel/internal/search"
 )
@@ -393,50 +391,43 @@ func persistTelemetryCache(vaultRoot string, report *AgentEvalReport) error {
 	learnings.MissedOpportunities = report.MissedOpportunities
 	learnings.KnowledgeGaps = report.KnowledgeGaps
 
-	// Synchronize feedback history with report results, avoiding duplicates
+	archivedEntries := dream.LoadArchivedFeedbackEntries(vaultRoot)
+
+	// Synchronize feedback history with report results, avoiding duplicates across hot and archived caches.
 	for _, res := range report.Results {
-		exists := false
-		for _, existing := range learnings.FeedbackHistory {
-			if existing.Topic == res.Doubt && (existing.Type == string(res.Classification) || existing.Action == string(res.Classification)) {
-				exists = true
-				break
-			}
+		if hasFeedbackEntry(learnings.FeedbackHistory, res.Doubt, string(res.Classification)) ||
+			hasFeedbackEntry(archivedEntries, res.Doubt, string(res.Classification)) {
+			continue
 		}
 
-		if !exists {
-			dateStr := res.Timestamp.Format("2006-01-02")
-			if res.Timestamp.IsZero() {
-				dateStr = time.Now().Format("2006-01-02")
-			}
-			timeStr := res.Timestamp.Format(time.RFC3339)
-			if res.Timestamp.IsZero() {
-				timeStr = time.Now().Format(time.RFC3339)
-			}
+		dateStr := res.Timestamp.Format("2006-01-02")
+		if res.Timestamp.IsZero() {
+			dateStr = time.Now().Format("2006-01-02")
+		}
+		timeStr := res.Timestamp.Format(time.RFC3339)
+		if res.Timestamp.IsZero() {
+			timeStr = time.Now().Format(time.RFC3339)
+		}
 
-			learnings.FeedbackHistory = append(learnings.FeedbackHistory, dream.FeedbackEntry{
-				Date:      dateStr,
-				Timestamp: timeStr,
-				Topic:     res.Doubt,
-				Type:      string(res.Classification),
-				Action:    res.SuggestedAction,
-				Note:      res.Details,
-				Agent:     res.AgentName,
-			})
+		learnings.FeedbackHistory = append(learnings.FeedbackHistory, dream.FeedbackEntry{
+			Date:      dateStr,
+			Timestamp: timeStr,
+			Topic:     res.Doubt,
+			Type:      string(res.Classification),
+			Action:    res.SuggestedAction,
+			Note:      res.Details,
+			Agent:     res.AgentName,
+		})
+	}
+
+	return dream.SaveLearnings(vaultRoot, learnings)
+}
+
+func hasFeedbackEntry(entries []dream.FeedbackEntry, doubt, classification string) bool {
+	for _, existing := range entries {
+		if existing.Topic == doubt && (existing.Type == classification || existing.Action == classification) {
+			return true
 		}
 	}
-
-	cacheDir := config.ResolveVaultCacheDir(vaultRoot)
-	_ = os.MkdirAll(cacheDir, 0750)
-	cachePath := filepath.Join(cacheDir, "agent_learnings.json")
-	data, err := json.MarshalIndent(learnings, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(cachePath, data, 0600); err != nil {
-		fallbackDir := config.XDGCacheDir()
-		_ = os.MkdirAll(fallbackDir, 0750)
-		fallbackPath := filepath.Join(fallbackDir, "agent_learnings.json")
-		return os.WriteFile(fallbackPath, data, 0600)
-	}
-	return nil
+	return false
 }

@@ -121,7 +121,7 @@ func RunMetacognitivePass(vaultRoot string, report *FullDreamReport, timings []S
 	if len(learnings.FeedbackHistory) > 5 {
 		metaRep.Insights = append(metaRep.Insights, MetacognitiveInsight{
 			Category:        "skill_refactoring",
-			Observation:     fmt.Sprintf("%d cumulative user calibrations in agent feedback history", len(learnings.FeedbackHistory)),
+			Observation:     fmt.Sprintf("%d pending user calibrations in agent feedback history", len(learnings.FeedbackHistory)),
 			Impact:          "Frequent micro-corrections indicate prompt or skill divergence",
 			SuggestedAction: "Consolidate active rules from meta/guias/aprendizados-agente.md into root AGENTS.md system instructions",
 		})

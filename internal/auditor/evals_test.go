@@ -321,4 +321,15 @@ func TestAgentEvaluator_TelemetryCachePersistenceDryRun(t *testing.T) {
 	if len(learnings.FeedbackHistory) == 0 {
 		t.Errorf("expected feedback history to contain findings, got 0")
 	}
+
+	// Archive findings and re-run persistTelemetryCache; archived entries must not re-enter hot cache.
+	if _, err := dream.ArchiveFeedbackHistory(tempVault, false); err != nil {
+		t.Fatalf("ArchiveFeedbackHistory failed: %v", err)
+	}
+	if err := persistTelemetryCache(tempVault, report); err != nil {
+		t.Fatalf("persistTelemetryCache after archive failed: %v", err)
+	}
+	if got := len(dream.LoadLearnings(tempVault).FeedbackHistory); got != 0 {
+		t.Errorf("expected archived findings not to re-enter hot cache, got %d", got)
+	}
 }

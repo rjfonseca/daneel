@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rjfonseca/daneel/internal/auditor"
+	"github.com/rjfonseca/daneel/internal/dream"
 	"github.com/rjfonseca/daneel/internal/search"
 )
 
@@ -164,6 +165,7 @@ var (
 	auditAgentsBrainDir  string
 	auditAgentsClaudeDir string
 	auditAgentsCursorDir string
+	auditConsolidateDry  bool
 )
 
 var auditAgentsCmd = &cobra.Command{
@@ -315,6 +317,47 @@ Runs a hybrid two-phase pipeline:
 	},
 }
 
+var auditConsolidateCmd = &cobra.Command{
+	Use:   "consolidate",
+	Short: "Archives consolidated agent learnings from the hot cache into monthly files",
+	Long:  "Moves pending feedback_history entries from .daneel/cache/agent_learnings.json into .daneel/cache/learnings_archive/YYYY-MM.json, keeping the hot cache small.",
+	RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive
+		vaultDir := cfg.VaultPath
+		if vaultDir == "" {
+			vaultDir = "."
+		}
+
+		res, err := dream.ArchiveFeedbackHistory(vaultDir, auditConsolidateDry)
+		if err != nil {
+			return fmt.Errorf("consolidating learnings failed: %w", err)
+		}
+
+		if jsonOut {
+			b, err := json.MarshalIndent(res, "", "  ")
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(b))
+			return err
+		}
+
+		if res.ArchivedCount == 0 {
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), "✨ No pending calibrations in agent_learnings.json.")
+			return err
+		}
+
+		if res.DryRun {
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "🔍 [Dry Run] Would archive %d calibration(s) into %s\n",
+				res.ArchivedCount, strings.Join(res.ArchiveFiles, ", "))
+			return err
+		}
+
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "✅ Archived %d calibration(s) into %s (hot cache pending: %d)\n",
+			res.ArchivedCount, strings.Join(res.ArchiveFiles, ", "), res.RemainingPending)
+		return err
+	},
+}
+
 func init() {
 	auditSessionsCmd.Flags().StringVar(&auditSince, "since", "48h", "Time window for session analysis (e.g. 24h, 48h, 72h)")
 	auditSessionsCmd.Flags().BoolVar(&auditDryRun, "dry-run", true, "Simulate without persisting changes to the vault")
@@ -331,7 +374,10 @@ func init() {
 	auditAgentsCmd.Flags().StringVar(&auditAgentsClaudeDir, "claude-dir", "", "Custom directory for Claude Code transcripts")
 	auditAgentsCmd.Flags().StringVar(&auditAgentsCursorDir, "cursor-dir", "", "Custom directory for Cursor workspace storage")
 
+	auditConsolidateCmd.Flags().BoolVar(&auditConsolidateDry, "dry-run", false, "Simulate archiving without modifying cache files")
+
 	auditCmd.AddCommand(auditSessionsCmd)
 	auditCmd.AddCommand(auditAgentsCmd)
+	auditCmd.AddCommand(auditConsolidateCmd)
 	RootCmd.AddCommand(auditCmd)
 }

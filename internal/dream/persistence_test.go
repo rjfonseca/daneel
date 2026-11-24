@@ -1,6 +1,7 @@
 package dream
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -193,5 +194,92 @@ func TestSyncMOCsPreservesUnicodeCategoryTitle(t *testing.T) {
 	}
 	if !utf8.Valid(data) || !strings.Contains(string(data), "MOC: Árvore") {
 		t.Fatalf("invalid category title: %q", data)
+	}
+}
+
+func TestArchiveFeedbackHistoryKeepsHotCacheSmallAndClearsAlert(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	cacheDir := filepath.Join(root, ".daneel", "cache")
+	if err := os.MkdirAll(cacheDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	learnings := DefaultLearnings()
+	for i := 0; i < 7; i++ {
+		month := "2026-10"
+		if i >= 4 {
+			month = "2026-11"
+		}
+		learnings.FeedbackHistory = append(learnings.FeedbackHistory, FeedbackEntry{
+			Date:      fmt.Sprintf("%s-%02d", month, i+1),
+			Timestamp: fmt.Sprintf("%s-%02dT10:00:00Z", month, i+1),
+			Topic:     fmt.Sprintf("Calibration topic %d", i+1),
+			Type:      "correction",
+			Action:    "keep",
+			Note:      "Sample calibration note",
+		})
+	}
+	if err := SaveLearnings(root, learnings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Before archiving, > 5 entries triggers skill_refactoring insight.
+	beforeRep := RunMetacognitivePass(root, &FullDreamReport{}, nil)
+	foundBefore := false
+	for _, ins := range beforeRep.Insights {
+		if ins.Category == "skill_refactoring" && strings.Contains(ins.Observation, "calibrations") {
+			foundBefore = true
+		}
+	}
+	if !foundBefore {
+		t.Fatalf("expected skill_refactoring insight before archiving, got %+v", beforeRep.Insights)
+	}
+
+	// Dry-run leaves hot cache untouched.
+	dryRes, err := ArchiveFeedbackHistory(root, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dryRes.ArchivedCount != 7 || dryRes.RemainingPending != 7 {
+		t.Fatalf("unexpected dry-run result: %+v", dryRes)
+	}
+	if len(LoadLearnings(root).FeedbackHistory) != 7 {
+		t.Fatalf("dry-run modified hot cache")
+	}
+
+	// Real archive moves entries to monthly files and empties hot cache.
+	res, err := ArchiveFeedbackHistory(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ArchivedCount != 7 || res.RemainingPending != 0 || len(res.ArchiveFiles) != 2 {
+		t.Fatalf("unexpected archive result: %+v", res)
+	}
+	if len(LoadLearnings(root).FeedbackHistory) != 0 {
+		t.Fatalf("expected hot cache feedback_history to be empty after archiving")
+	}
+
+	// Idempotent second run archives 0.
+	res2, err := ArchiveFeedbackHistory(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res2.ArchivedCount != 0 {
+		t.Fatalf("expected 0 archived on second run, got %+v", res2)
+	}
+
+	// Archived entries remain loadable and metacognition alert is cleared.
+	archived := LoadArchivedFeedbackEntries(root)
+	if len(archived) != 7 {
+		t.Fatalf("expected 7 archived entries, got %d", len(archived))
+	}
+	afterRep := RunMetacognitivePass(root, &FullDreamReport{}, nil)
+	for _, ins := range afterRep.Insights {
+		if ins.Category == "skill_refactoring" && strings.Contains(ins.Observation, "calibrations") {
+			t.Fatalf("unexpected skill_refactoring insight after archiving: %+v", ins)
+		}
 	}
 }
