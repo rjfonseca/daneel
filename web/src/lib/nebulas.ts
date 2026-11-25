@@ -336,6 +336,37 @@ export function getSectorDisplayName(category: string): string {
   return resolveProjectCategory(clean).sectorDisplayName;
 }
 
+/**
+ * Resolves the canonical macro sector key matching `__SECTOR_*` nodes even when
+ * backend metadata supplies a deeply nested organizational subgroup (e.g. `org/ai/wiki`).
+ */
+export function resolveCanonicalSectorKey(
+  categoryOrPath: string,
+  explicitGroupOrSector?: string
+): string {
+  const clean = (categoryOrPath || '')
+    .replace(/^__SECTOR_/, '')
+    .replace(/^__CAT_/, '')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+
+  if (clean) {
+    const parsedSector = resolveProjectCategory(clean).sector.toLowerCase();
+    if (parsedSector && parsedSector !== 'root') {
+      return parsedSector;
+    }
+  }
+
+  if (explicitGroupOrSector) {
+    const groupSector = getSectorDisplayName(explicitGroupOrSector).toLowerCase();
+    if (groupSector && groupSector !== 'root') {
+      return groupSector;
+    }
+  }
+
+  return 'root';
+}
+
 export interface NebulaCategoryInfo {
   category: string;
   displayName: string;

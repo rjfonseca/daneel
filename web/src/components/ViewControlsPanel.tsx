@@ -4,6 +4,8 @@ import { STELLAR_SPECTRUM_LEGEND } from '../lib/stellarClassification';
 import type { EdgeVisibilityMode } from '../lib/edgeFiltering';
 import { activeViewPreset, applyViewPreset, type GalaxyViewPreset, type GalaxyViewState } from '../lib/galaxyView';
 import { MIN_MAX_NEBULAS, MAX_MAX_NEBULAS } from '../lib/nebulas';
+import type { GalaxyScopeMode, LodTelemetry } from '../lib/semanticZoomLod';
+import { formatCompactCount } from '../lib/superNodeRenderer';
 
 export interface ViewControlsPanelProps {
   isOpen: boolean;
@@ -12,7 +14,20 @@ export interface ViewControlsPanelProps {
   onChange: (next: GalaxyViewState) => void;
   maxNebulas: number;
   onUpdateMaxNebulas: (value: number) => void;
+  lodTelemetry?: LodTelemetry | null;
 }
+
+const SCOPE_MODES: Array<{ id: GalaxyScopeMode; label: string; description: string; title: string }> = [
+  { id: 'curated', label: 'Curated', description: 'Show curated vault notes only', title: 'Show curated vault notes only' },
+  { id: 'hybrid', label: 'Hybrid', description: 'Curated stars visible; external sources expand on zoom & pan', title: 'Show curated stars with progressive zoom disclosure for external sources' },
+  { id: 'all', label: 'All', description: 'Show every star without tier collapsing', title: 'Show every star without tier collapsing' },
+];
+
+const TIER_LABELS: Record<LodTelemetry['tier'], string> = {
+  overview: 'TIER 0 · OVERVIEW',
+  sector: 'TIER 1 · SECTOR',
+  cluster: 'TIER 2 · CLUSTER',
+};
 
 const EDGE_MODES: Array<{ id: EdgeVisibilityMode; label: string; description: string }> = [
   { id: 'auto', label: 'Auto', description: 'Automatically adapts edge density to zoom level' },
@@ -29,7 +44,7 @@ const OVERLAYS: Array<{ key: 'showSectorLabels' | 'showNebulaLabels' | 'isCosmic
 ];
 
 export const ViewControlsPanel: React.FC<ViewControlsPanelProps> = ({
-  isOpen, onClose, view, onChange, maxNebulas, onUpdateMaxNebulas,
+  isOpen, onClose, view, onChange, maxNebulas, onUpdateMaxNebulas, lodTelemetry,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +82,54 @@ export const ViewControlsPanel: React.FC<ViewControlsPanelProps> = ({
         {(['explore', 'read', 'present'] as GalaxyViewPreset[]).map((preset) => (
           <button key={preset} type="button" aria-label={`${preset[0].toUpperCase()}${preset.slice(1)} view`} aria-pressed={activePreset === preset} onClick={() => onChange(applyViewPreset(view, preset))} className={`rounded-lg border px-2 py-2 font-semibold capitalize cosmic-focus-visible ${activePreset === preset ? 'border-indigo-400 bg-indigo-600 text-white' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>{preset}</button>
         ))}
+      </div>
+
+      <div className="mb-4 rounded-lg border border-cyan-500/35 bg-cyan-950/15 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="font-semibold text-slate-100">Knowledge scope</span>
+          <span className="rounded-sm border border-cyan-400/40 bg-cyan-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-cyan-300">LOD</span>
+        </div>
+        <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label="Knowledge scope">
+          {SCOPE_MODES.map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              role="radio"
+              aria-checked={view.scopeMode === mode.id}
+              title={mode.title}
+              data-testid={`scope-mode-${mode.id}`}
+              onClick={() => update('scopeMode', mode.id)}
+              className={`rounded-sm px-1.5 py-1.5 cosmic-focus-visible ${view.scopeMode === mode.id ? 'bg-cyan-600 font-semibold text-white shadow-[0_0_10px_rgba(56,189,248,0.28)]' : 'bg-gray-800 text-slate-300 hover:bg-gray-700'}`}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[10px] text-slate-400">{SCOPE_MODES.find((m) => m.id === view.scopeMode)?.description}</p>
+        {lodTelemetry && (
+          <div data-testid="lod-telemetry" className="mt-2.5 border-t border-white/10 pt-2">
+            <div className="mb-1.5 flex items-center justify-between gap-2 font-mono text-[9px]">
+              <span className="shrink-0 rounded-sm border border-teal-400/40 bg-teal-500/15 px-1.5 py-0.5 font-bold text-teal-300">
+                {TIER_LABELS[lodTelemetry.tier]}
+              </span>
+              <span className="truncate text-slate-300">
+                {formatCompactCount(lodTelemetry.visibleStars)} visible
+                {lodTelemetry.groupedStars > 0 ? ` · ${formatCompactCount(lodTelemetry.groupedStars)} grouped (${lodTelemetry.collapsedGroups})` : ''}
+              </span>
+            </div>
+            <div className="flex h-1.5 overflow-hidden rounded-full border border-white/10 bg-slate-950/90">
+              <div
+                className="bg-cyan-400 transition-all duration-200"
+                style={{
+                  width: `${lodTelemetry.totalStars > 0 ? Math.max(4, Math.min(100, Math.round((lodTelemetry.visibleStars / lodTelemetry.totalStars) * 100))) : 100}%`,
+                }}
+              />
+              {lodTelemetry.groupedStars > 0 && (
+                <div className="flex-1 bg-teal-400/35" />
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mb-4 rounded-lg border border-white/10 bg-white/3 p-3">

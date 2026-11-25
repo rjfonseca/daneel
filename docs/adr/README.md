@@ -51,6 +51,9 @@ This directory contains the **Architectural Decision Records (ADRs)** for the Da
 | [ADR 0041](0041-agent-engine-optimization-toolrag-router-wazero.md) | Agent Engine Optimization via Tool-as-RAG, CPU Fast-Path Router, and Wazero Sandboxing | Accepted | 2026-11-12 |
 | [ADR 0042](0042-search-smart-sync-and-sources-isolation.md) | Search Smart Sync Modes and Isolated `sources_index.db` | Accepted | 2026-11-16 |
 | [ADR 0043](0043-hybrid-rag-chunking-and-pure-go-embeddings.md) | Hybrid RAG Chunking and Pure-Go Embeddings | Accepted | 2026-11-16 |
+| [ADR 0044](0044-semantic-zoom-tiers-and-progressive-disclosure.md) | Semantic Zoom Tiers, Progressive Disclosure & Super-Node Aggregation | Accepted | 2026-11-25 |
+| [ADR 0045](0045-pixel-accurate-stellar-sdf-smooth-log-camera-and-deep-modules.md) | Pixel-Accurate Stellar SDF Shader, Log-Space Smooth Camera, 2-Step Auto-Unfocus & Deep Modules | Accepted | 2026-11-25 |
+| [ADR 0046](0046-contextual-constellation-zoom-exit-canonical-sectors-and-label-decluttering.md) | Contextual Constellation Dimming + Zoom-Out, Canonical Sectors & Label Decluttering | Accepted | 2026-11-25 |
 
 ## Mandatory ADR Invariant
 

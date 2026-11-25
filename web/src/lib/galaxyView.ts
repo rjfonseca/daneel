@@ -1,7 +1,9 @@
 import type { EdgeVisibilityMode } from './edgeFiltering';
+import type { GalaxyScopeMode } from './semanticZoomLod';
 
 export interface GalaxyViewState {
   edgeMode: EdgeVisibilityMode;
+  scopeMode: GalaxyScopeMode;
   showSectorLabels: boolean;
   showNebulaLabels: boolean;
   isCosmicMode: boolean;
@@ -13,6 +15,7 @@ export type GalaxyViewPreset = 'explore' | 'read' | 'present';
 
 export const DEFAULT_GALAXY_VIEW: GalaxyViewState = {
   edgeMode: 'focus',
+  scopeMode: 'hybrid',
   showSectorLabels: true,
   showNebulaLabels: true,
   isCosmicMode: true,
@@ -21,9 +24,9 @@ export const DEFAULT_GALAXY_VIEW: GalaxyViewState = {
 };
 
 const PRESETS: Record<GalaxyViewPreset, Omit<GalaxyViewState, 'reducedMotion'>> = {
-  explore: { edgeMode: 'focus', showSectorLabels: true, showNebulaLabels: true, isCosmicMode: true, showRings: true },
-  read: { edgeMode: 'focus', showSectorLabels: false, showNebulaLabels: false, isCosmicMode: false, showRings: false },
-  present: { edgeMode: 'bridges', showSectorLabels: true, showNebulaLabels: true, isCosmicMode: true, showRings: true },
+  explore: { edgeMode: 'focus', scopeMode: 'hybrid', showSectorLabels: true, showNebulaLabels: true, isCosmicMode: true, showRings: true },
+  read: { edgeMode: 'focus', scopeMode: 'curated', showSectorLabels: false, showNebulaLabels: false, isCosmicMode: false, showRings: false },
+  present: { edgeMode: 'bridges', scopeMode: 'hybrid', showSectorLabels: true, showNebulaLabels: true, isCosmicMode: true, showRings: true },
 };
 
 export function applyViewPreset(view: GalaxyViewState, preset: GalaxyViewPreset): GalaxyViewState {

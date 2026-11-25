@@ -118,13 +118,13 @@ When the right-side detail drawer (440px width) is open:
 
 ## 5. Stellar WebGL Shader Guidelines
 
-Location: [`web/src/lib/nodeStellarProgram.ts`](web/src/lib/nodeStellarProgram.ts)
+Location: [`web/src/lib/nodeStellarProgram.ts`](web/src/lib/nodeStellarProgram.ts) and [`web/src/lib/galaxy/stellarShader.ts`](web/src/lib/galaxy/stellarShader.ts)
 
 ### 5.1 Physical Pixel-Bounded Proportions
 - **Anti-Blur**: Optical effects (glow, bloom, coronal gas) must **NEVER** scale proportionally to the radius without limits.
-- Screen physical radius is provided by `v_radius`.
-- Coronal gas thickness must be bounded with `clamp(v_radius * 0.18, 1.5, 3.5)` physical pixels.
-- This ensures that under deep zoom, adjacent stars maintain crisp, distinct fusion cores without dissolving into a murky blur.
+- Sigma.js v3 `NodeCircleProgram` emits `v_radius` and `v_diffVector` in **normalized framed-graph coordinates**, where 1 CSS pixel equals `u_correctionRatio * 2.0`. Always convert to true CSS screen pixels (`radiusPx = v_radius / max(u_correctionRatio * 2.0, 1e-6)`) before bounding pixel widths.
+- Coronal gas thickness must be bounded in CSS pixels with `clamp(radiusPx * 0.18, 1.5, 3.5)` while keeping the anti-aliased photosphere disc crisp (`discRadiusPx = max(radiusPx - coronaPx, radiusPx * 0.55)`).
+- This ensures that under deep zoom, adjacent stars maintain crisp, distinct fusion cores with zoom-adaptive limb darkening and zero blur collapse.
 
 ---
 

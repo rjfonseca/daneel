@@ -4,6 +4,9 @@
  * (Applications, Routines, Memory, Skills).
  */
 
+import type { CalloutBoundingBox } from './canvasMath';
+import { doesRectOverlapBoxes, type SafeHudBounds } from './galaxy/labelLayout';
+
 export interface OrbitalNodeInput {
   id: string;
   ring?: string; // 'memory' | 'skills' | 'routines' | 'harvesters' | 'hooks'
@@ -145,25 +148,32 @@ export function calculateOrbitalLayout(
 export function renderOrbitalRingsOnCanvas(
   ctx: CanvasRenderingContext2D,
   centerViewport: { x: number; y: number },
-  scaledRings: Array<{ radiusViewport: number; color: string; dashPattern: number[]; shortLabel: string }>
+  scaledRings: Array<{ radiusViewport: number; color: string; dashPattern: number[]; shortLabel: string }>,
+  options?: {
+    safeBounds?: SafeHudBounds;
+    occupiedCalloutBoxes?: CalloutBoundingBox[];
+  }
 ): void {
   ctx.save();
+  const safeBounds = options?.safeBounds;
+  const occupied = options?.occupiedCalloutBoxes || [];
 
   scaledRings.forEach((ring) => {
     if (ring.radiusViewport <= 10) return;
 
-    // 1. Primary Seldon Perimeter Circle with cybernetic glow
+    // 1. Primary Seldon Perimeter Circle with 2-pass translucent glow (zero shadowBlur)
     ctx.beginPath();
     ctx.arc(centerViewport.x, centerViewport.y, ring.radiusViewport, 0, 2 * Math.PI);
     ctx.setLineDash(ring.dashPattern);
-    ctx.lineWidth = 1.8;
+    ctx.lineWidth = 4.6;
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.16)';
+    ctx.stroke();
+
+    ctx.lineWidth = 1.6;
     ctx.strokeStyle = ring.color;
-    ctx.shadowColor = ring.color;
-    ctx.shadowBlur = 10;
     ctx.stroke();
 
     // 2. Geodesic astrolabe coordinate ticks every 15 degrees
-    ctx.shadowBlur = 0;
     ctx.setLineDash([]);
     for (let angle = 0; angle < 2 * Math.PI; angle += Math.PI / 12) {
       const innerR = ring.radiusViewport - 4;
@@ -176,28 +186,41 @@ export function renderOrbitalRingsOnCanvas(
       ctx.stroke();
     }
 
-    // 3. Two Foundations Holographic Arc Badges
+    // 3. Two Foundations Holographic Arc Badges tucked safely inside perimeter & HUD bounds
     ctx.font = 'bold 10px "JetBrains Mono", monospace';
-
-    // First Foundation (Terminus Operational Sector) - Top Arc
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.90)';
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(
-      '✦ FIRST FOUNDATION // TERMINUS OPERATIONAL SECTOR ✦',
-      centerViewport.x,
-      centerViewport.y - ring.radiusViewport - 8
-    );
 
-    // Second Foundation (Star\'s End Mentalics) - Bottom Arc
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.90)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(
-      '✦ SECOND FOUNDATION // STAR\'S END MENTALICS ✦',
-      centerViewport.x,
-      centerViewport.y + ring.radiusViewport + 8
-    );
+    const topLabel = '✦ FIRST FOUNDATION // TERMINUS OPERATIONAL SECTOR ✦';
+    const topY = centerViewport.y - ring.radiusViewport + 14;
+    const topWidth = ctx.measureText(topLabel).width || 360;
+    const topRect = {
+      minX: centerViewport.x - topWidth / 2,
+      maxX: centerViewport.x + topWidth / 2,
+      minY: topY,
+      maxY: topY + 12,
+    };
+    const topInsideHud = !safeBounds || (topRect.minY >= safeBounds.minY + 6 && topRect.maxY <= safeBounds.maxY - 6);
+    if (topInsideHud && !doesRectOverlapBoxes(topRect, occupied, 6)) {
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+      ctx.textBaseline = 'top';
+      ctx.fillText(topLabel, centerViewport.x, topY);
+    }
+
+    const bottomLabel = "✦ SECOND FOUNDATION // STAR'S END MENTALICS ✦";
+    const bottomY = centerViewport.y + ring.radiusViewport - 14;
+    const bottomWidth = ctx.measureText(bottomLabel).width || 340;
+    const bottomRect = {
+      minX: centerViewport.x - bottomWidth / 2,
+      maxX: centerViewport.x + bottomWidth / 2,
+      minY: bottomY - 12,
+      maxY: bottomY,
+    };
+    const bottomInsideHud = !safeBounds || (bottomRect.minY >= safeBounds.minY + 6 && bottomRect.maxY <= safeBounds.maxY - 6);
+    if (bottomInsideHud && !doesRectOverlapBoxes(bottomRect, occupied, 6)) {
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.85)';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(bottomLabel, centerViewport.x, bottomY);
+    }
   });
 
   ctx.restore();

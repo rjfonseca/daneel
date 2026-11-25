@@ -11,7 +11,7 @@ interface RenderedNode extends Partial<GalaxyNode> {
 type BrowserSigma = Omit<Pick<Sigma, keyof Sigma>, 'getGraph' | 'emit'> & {
   getGraph(): Graph<RenderedNode, Partial<GalaxyLink>>;
   normalizationFunction?: (point: { x: number; y: number }) => { x: number; y: number };
-  emit(event: 'clickNode', payload: { node: string }): boolean;
+  emit(event: 'clickNode' | 'enterNode' | 'leaveNode', payload: { node: string }): boolean;
 };
 
 declare global {

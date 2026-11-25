@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   REPO_INTERNAL_DIRS,
   resolveProjectCategory,
+  resolveCanonicalSectorKey,
   getCategoryDisplayName,
   getSectorDisplayName,
 } from '../src/lib/nebulas';
@@ -161,6 +162,15 @@ describe('Hierarchical Sectors & Repository Nebulas (nebulas.ts)', () => {
         sector: 'root',
         sectorDisplayName: 'ROOT',
         isProject: false,
+      });
+    });
+
+    describe('resolveCanonicalSectorKey', () => {
+      it('matches macro sector keys even when explicit nested backend groups are present', () => {
+        expect(resolveCanonicalSectorKey('sources/gitlab/acme/ai/wiki/hugin', 'acme/ai/wiki')).toBe('ai');
+        expect(resolveCanonicalSectorKey('sources/gitlab/acme/saas/billing/financial-api', 'acme/saas/billing')).toBe('saas');
+        expect(resolveCanonicalSectorKey('sources/github/acme/orion', 'acme')).toBe('acme');
+        expect(resolveCanonicalSectorKey('', 'acme/saas/pocs')).toBe('saas');
       });
     });
 

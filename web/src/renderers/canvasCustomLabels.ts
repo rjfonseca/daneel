@@ -1,6 +1,13 @@
 import { sigmaContext } from '../lib/sigmaContext';
 import { resolveProjectCategory } from '../lib/nebulas';
 import {
+  clampOutwardCalloutToSafeBounds,
+  doesRectOverlapBoxes,
+  getSafeHudBounds,
+  sanitizeArmsStationLabel,
+  shouldShowOverviewRootNebula,
+} from '../lib/galaxy/labelLayout';
+import {
   calculateNonCollidingNebulaCallout,
   calculateNonCollidingOutwardCallout,
   renderNeonCallout,
@@ -27,6 +34,7 @@ export const drawPill = (
 export interface NodeLabelData {
   repoCount?: number;
   noteCount?: number;
+  hidden?: boolean;
   x: number;
   y: number;
   size: number;
@@ -37,7 +45,9 @@ export interface NodeLabelData {
   originalCategory?: string;
   category?: string;
   sector?: string;
+  sectorKey?: string;
   sectorDisplayName?: string;
+  trustScope?: string;
   isSector?: boolean;
   isProject?: boolean;
 }
@@ -52,10 +62,10 @@ export const drawCustomLabel = (
   settings: NodeLabelSettings
 ): void => {
   const { x, y, size, label, ring, key } = data;
-  if (!label) return;
+  if (!label || data.hidden) return;
   const nodeKey = (key || data.id || '') as string;
 
-  // 1. Isolated Constellation: stellar focus, suppresses outer labels and secondary nodes
+  // 1. Contextual Constellation: focal star pill + non-colliding 1-hop neighbor labels
   if (sigmaContext.constellation) {
     const constel = sigmaContext.constellation;
     if (nodeKey === constel.centerNodeId) {
@@ -76,18 +86,59 @@ export const drawCustomLabel = (
       drawPill(context, badgeX, badgeY, badgeW, badgeH, 4);
       context.fill();
 
-      const borderColor = 'rgba(224, 242, 254, 0.95)';
-      context.strokeStyle = borderColor;
+      context.strokeStyle = 'rgba(224, 242, 254, 0.95)';
       context.lineWidth = 1.4;
-      context.shadowColor = borderColor;
-      context.shadowBlur = 6;
       context.stroke();
 
-      context.shadowBlur = 0;
       context.fillStyle = '#ffffff';
       context.textBaseline = 'middle';
       context.fillText(fullText, badgeX + 7, y);
       context.restore();
+
+      if (!sigmaContext.frameCalloutBoxes) sigmaContext.frameCalloutBoxes = [];
+      sigmaContext.frameCalloutBoxes.push({
+        minX: badgeX,
+        maxX: badgeX + badgeW,
+        minY: badgeY,
+        maxY: badgeY + badgeH,
+        nodeId: nodeKey,
+      });
+      return;
+    }
+
+    if (constel.hopDistances.get(nodeKey) === 1) {
+      const cameraRatio = sigmaContext.sigma ? sigmaContext.sigma.getCamera().getState().ratio : 0.1;
+      const neighborCount = sigmaContext.frameConstellationNeighborLabelsCount ?? 0;
+      if (cameraRatio <= 0.24 && neighborCount < 10) {
+        const rawTitle = label.replace(/\.(md|markdown)$/i, '').split('/').pop() || label;
+        const display = rawTitle.length > 22 ? rawTitle.substring(0, 20) + '..' : rawTitle;
+        context.save();
+        context.font = '10px sans-serif';
+        const tw = context.measureText(display).width;
+        const badgeW = tw + 10;
+        const badgeH = 17;
+        const badgeX = x + size + 5;
+        const badgeY = y - badgeH / 2;
+        const rect = { minX: badgeX, maxX: badgeX + badgeW, minY: badgeY, maxY: badgeY + badgeH, nodeId: nodeKey };
+        const boxes = sigmaContext.frameCalloutBoxes || [];
+        if (!doesRectOverlapBoxes(rect, boxes, 4)) {
+          context.fillStyle = 'rgba(10, 15, 30, 0.78)';
+          context.beginPath();
+          drawPill(context, badgeX, badgeY, badgeW, badgeH, 3);
+          context.fill();
+          context.strokeStyle = 'rgba(56, 189, 248, 0.32)';
+          context.lineWidth = 1;
+          context.stroke();
+          context.fillStyle = 'rgba(226, 232, 240, 0.88)';
+          context.textBaseline = 'middle';
+          context.fillText(display, badgeX + 5, y);
+
+          if (!sigmaContext.frameCalloutBoxes) sigmaContext.frameCalloutBoxes = [];
+          sigmaContext.frameCalloutBoxes.push(rect);
+          sigmaContext.frameConstellationNeighborLabelsCount = neighborCount + 1;
+        }
+        context.restore();
+      }
     }
     return;
   }
@@ -114,6 +165,13 @@ export const drawCustomLabel = (
     const camera = sigmaContext.sigma ? sigmaContext.sigma.getCamera() : null;
     const cameraRatio = camera ? camera.getState().ratio : 1;
     const isOverviewZoom = cameraRatio >= 0.40;
+    const lod = sigmaContext.lodState;
+    const nodeTrustScope = data.trustScope || (rawCat.startsWith('sources/') || rawCat === 'sources' ? 'sources' : 'curated');
+    const resolvedSectorKey = String(data.sectorKey || data.sector || resolveProjectCategory(rawCat).sector || rawCat).toLowerCase();
+
+    if (sigmaContext.scopeMode === 'curated' && nodeTrustScope === 'sources') {
+      return;
+    }
 
     // If a sector is focused, isolate it and sub-branches exclusively
     if (sigmaContext.focusedSector) {
@@ -128,7 +186,8 @@ export const drawCustomLabel = (
     }
 
     // Hierarchical LOD switching:
-    // Sector label: rendered at overview zoom (ratio >= 0.40); hidden at medium/deep zoom
+    // Sector label: rendered at overview zoom or when collapsed in LOD; hidden when unfolded
+    let allowLodExpandedClusterLabel = false;
     if (isSector) {
       // If this sector is already focused, hide its sector callout so user sees the inner nebulas!
       if (sigmaContext.focusedSector) {
@@ -139,7 +198,11 @@ export const drawCustomLabel = (
           return;
         }
       }
-      if (!isOverviewZoom && !sigmaContext.focusedSector) {
+      if (!sigmaContext.focusedSector && lod && lod.expandedSectors.has(rawCat)) {
+        return;
+      }
+      const isCollapsedByLod = Boolean(lod && lod.collapsedSectorNodes.has(nodeKey));
+      if (!isOverviewZoom && !sigmaContext.focusedSector && !isCollapsedByLod) {
         return;
       }
       if (isOverviewZoom && !sigmaContext.focusedSector) {
@@ -153,30 +216,47 @@ export const drawCustomLabel = (
           return;
         }
       }
+      if (!sigmaContext.focusedSector && !sigmaContext.focusedCluster && lod && nodeTrustScope === 'sources') {
+        if (lod.collapsedSectorNodes.has(`__SECTOR_${resolvedSectorKey}`)) {
+          return;
+        }
+        if (lod.collapsedClusterNodes.has(nodeKey)) {
+          allowLodExpandedClusterLabel = true;
+        }
+      }
       // Repository / Category label:
       // If it belongs to a project sector that has a sector anchor:
       const isProjectRepo = Boolean(data.isProject ?? resolveProjectCategory(rawCat).isProject);
-      if (isProjectRepo && isOverviewZoom && !sigmaContext.focusedSector) {
+      if (isProjectRepo && isOverviewZoom && !sigmaContext.focusedSector && !allowLodExpandedClusterLabel) {
         // Suppress individual repository labels in overview zoom (Sector Anchor takes precedence)
         return;
       }
 
-      if (isOverviewZoom && !sigmaContext.focusedSector) {
+      if (isOverviewZoom && !sigmaContext.focusedSector && !allowLodExpandedClusterLabel) {
         if (!isTop) return;
       }
     }
 
     const threshold = settings.labelRenderedSizeThreshold || 8;
-    if (!isSector && !isTop && !isRoot && size < threshold - 2) return;
+    if (!isSector && !isTop && !isRoot && !allowLodExpandedClusterLabel && size < threshold - 2) return;
 
-    // Proximity Culling: prevent crowding if centers are too close (< 70px)
+    // Progressive overview budget for root notes/* categories (prevents southern pileup in large vaults)
+    const isFocusedView = Boolean(sigmaContext.focusedSector || sigmaContext.focusedCluster);
+    const renderedRoots = sigmaContext.frameRootLabelsCount ?? 0;
+    if (!isSector && isRoot && !shouldShowOverviewRootNebula(renderedRoots, sigmaContext.maxNebulas, cameraRatio, isFocusedView)) {
+      return;
+    }
+
+    // Proximity Culling: prevent crowding if centers are too close
+    const minCenterDist = isOverviewZoom && !isFocusedView ? 110 : 70;
     const renderedCenters = sigmaContext.renderedNebulaCenters || [];
-    const tooClose = renderedCenters.some(c => Math.hypot(c.x - x, c.y - y) < 70);
-    if (tooClose && !isTop && !isRoot) return;
+    const tooClose = renderedCenters.some(c => Math.hypot(c.x - x, c.y - y) < minCenterDist);
+    if (tooClose && (!isTop && (!isRoot || renderedRoots >= 2))) return;
 
-    // Direct root note categories under notes/ (ROOT) are strategic core pillars and always rendered.
-    // Sectors and additional project nebulas count towards maxNebulas.
-    if (!isRoot) {
+    // Direct root note categories under notes/ count toward progressive root cap; sectors/project nebulas share maxNebulas.
+    if (isRoot && !isSector) {
+      sigmaContext.frameRootLabelsCount = renderedRoots + 1;
+    } else {
       if (sigmaContext.frameLabelsCount >= sigmaContext.maxNebulas) {
         return;
       }
@@ -245,7 +325,7 @@ export const drawCustomLabel = (
     return;
   }
 
-  // 3. Seldon Perimeter Stations (Adaptive LOD)
+  // 3. Seldon Perimeter Stations (Adaptive LOD + Safe HUD Clamping)
   if (ring === 'skills' || ring === 'routines' || ring === 'harvesters') {
     if (!sigmaContext.showRings) return;
 
@@ -253,22 +333,13 @@ export const drawCustomLabel = (
     const cameraRatio = camera ? camera.getState().ratio : 1;
     const isOverviewZoom = cameraRatio >= 0.65;
 
-    const ringMeta: Record<string, { foundation: string; badge: string; color: string }> = {
-      harvesters: { foundation: 'Iª FOUNDATION', badge: 'HARVESTER', color: '#38bdf8' },
-      skills: { foundation: 'Iª FOUNDATION', badge: 'SKILL', color: '#c084fc' },
-      routines: { foundation: 'IIª FOUNDATION', badge: 'ROUTINE', color: '#fbbf24' },
+    const ringMeta: Record<string, { badge: string; color: string }> = {
+      harvesters: { badge: 'HARVESTER', color: '#38bdf8' },
+      skills: { badge: 'SKILL', color: '#c084fc' },
+      routines: { badge: 'ROUTINE', color: '#fbbf24' },
     };
-    const meta = ringMeta[ring] || { foundation: 'FOUNDATION', badge: 'ARMS', color: '#38bdf8' };
-    const rawTitle = label.replace(/\.(md|markdown)$/i, '').split('/').pop() || label;
-
-    let fullText = '';
-    if (isOverviewZoom) {
-      const compactTitle = rawTitle.length > 12 ? rawTitle.substring(0, 10) + '..' : rawTitle;
-      fullText = `[${meta.badge}] ${compactTitle}`;
-    } else {
-      const title = rawTitle.length > 20 ? rawTitle.substring(0, 18) + '..' : rawTitle;
-      fullText = `[${meta.foundation} · ${meta.badge}] ${title}`;
-    }
+    const meta = ringMeta[ring] || { badge: 'ARMS', color: '#38bdf8' };
+    const fullText = sanitizeArmsStationLabel(label, ring, isOverviewZoom);
 
     context.font = 'bold 10px monospace';
     const textWidth = context.measureText(fullText).width;
@@ -281,7 +352,7 @@ export const drawCustomLabel = (
       centerY = centerV.y;
     }
 
-    const { geom, box } = calculateNonCollidingOutwardCallout(
+    const rawOutward = calculateNonCollidingOutwardCallout(
       x,
       y,
       centerX,
@@ -289,18 +360,24 @@ export const drawCustomLabel = (
       textWidth,
       sigmaContext.frameCalloutBoxes || [],
       {
-        diagDist: 26,
-        padding: 14,
+        diagDist: 24,
+        padding: 12,
         textOffsetBottom: 3,
       },
       { nodeId: nodeKey, isStation: true }
     );
+    const safeBounds = getSafeHudBounds(
+      window.innerWidth,
+      window.innerHeight,
+      114,
+      window.innerHeight - 92
+    );
+    const { geom, box } = clampOutwardCalloutToSafeBounds(rawOutward.geom, rawOutward.box, safeBounds);
     if (!sigmaContext.frameCalloutBoxes) sigmaContext.frameCalloutBoxes = [];
     sigmaContext.frameCalloutBoxes.push(box);
 
     renderNeonCallout(context, { x, y }, geom, fullText, meta.color, {
       lineWidth: 1.4,
-      glowBlur: 6,
       drawTerminalPoint: true,
     });
     return;
@@ -333,22 +410,27 @@ export interface NodeHoverData {
   x: number;
   y: number;
   size: number;
+  hidden?: boolean;
   label?: string | null;
   color?: string;
 }
 
 export const drawHover = (context: CanvasRenderingContext2D, data: NodeHoverData): void => {
-  const { x, y, size, label, color } = data;
-  if (!label || label.includes('|CATEGORY') || label.includes('|SECTOR')) return;
+  const { x, y, size, label, color, hidden } = data;
+  if (hidden || !label || label.includes('|CATEGORY') || label.includes('|SECTOR')) return;
   
-  // Subtle glowing halo around the hovered star (the rich HTML NodeHoverTooltip handles all text)
+  // Subtle 2-pass glowing halo around the hovered star (zero shadowBlur for 60fps consistency)
+  const r = Math.max(size * 1.6, 5);
   context.save();
   context.beginPath();
-  context.arc(x, y, Math.max(size * 1.6, 5), 0, Math.PI * 2);
+  context.arc(x, y, r, 0, Math.PI * 2);
   context.strokeStyle = color || '#6366f1';
-  context.lineWidth = 1.8;
-  context.shadowColor = color || '#6366f1';
-  context.shadowBlur = 10;
+  context.globalAlpha = 0.28;
+  context.lineWidth = 4.2;
+  context.stroke();
+
+  context.globalAlpha = 0.95;
+  context.lineWidth = 1.6;
   context.stroke();
   context.restore();
 };

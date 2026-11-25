@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EdgeVisibilityMode } from '../lib/edgeFiltering';
+import type { GalaxyScopeMode } from '../lib/semanticZoomLod';
 import { decodeNavigationHash, encodeNavigationHash, type NavigationTarget } from '../lib/navigationHelpers';
 
 export interface NavigationSnapshot {
@@ -7,6 +8,7 @@ export interface NavigationSnapshot {
   camera: { x: number; y: number; ratio: number; angle: number } | null;
   activeFilter: string;
   edgeMode: EdgeVisibilityMode;
+  scopeMode?: GalaxyScopeMode;
   showRings: boolean;
   showSectorLabels: boolean;
   showNebulaLabels: boolean;
@@ -34,6 +36,7 @@ export function isNavigationSnapshot(value: unknown): value is NavigationSnapsho
     (camera as NavigationSnapshot['camera'])!.ratio <= 0 || (camera as NavigationSnapshot['camera'])!.ratio > 10)) return false;
   return typeof s.activeFilter === 'string' && s.activeFilter.length <= 80 &&
     ['auto', 'bridges', 'focus', 'all'].includes(String(s.edgeMode)) &&
+    (s.scopeMode === undefined || ['curated', 'hybrid', 'all'].includes(String(s.scopeMode))) &&
     ['showRings', 'showSectorLabels', 'showNebulaLabels', 'isCosmicMode', 'reducedMotion'].every(key => typeof s[key] === 'boolean') &&
     typeof s.drawerWidth === 'number' && Number.isFinite(s.drawerWidth) && s.drawerWidth >= 320 && s.drawerWidth <= 800 &&
     typeof s.scrollTop === 'number' && Number.isFinite(s.scrollTop) && s.scrollTop >= 0 && s.scrollTop < 10_000_000;

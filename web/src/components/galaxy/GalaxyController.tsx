@@ -3,13 +3,25 @@ import Graph from 'graphology';
 import { useLoadGraph, useRegisterEvents, useSigma } from '@react-sigma/core';
 import { useWorkerLayoutForceAtlas2 } from '@react-sigma/layout-forceatlas2';
 import { saveLayout, loadLayout } from '../../lib/layoutCache';
-import { calculateNebulaAllocations, getCategoryDisplayName, resolveProjectCategory, isRootNoteCategory } from '../../lib/nebulas';
+import { calculateNebulaAllocations, getCategoryDisplayName, resolveCanonicalSectorKey, resolveProjectCategory, isRootNoteCategory } from '../../lib/nebulas';
 import { type CalloutBoundingBox, isPointInCalloutBox } from '../../lib/canvasMath';
 import { classifyStar } from '../../lib/stellarClassification';
 import { calculateOrbitalLayout, type OrbitalLayoutResult } from '../../lib/orbitalRings';
 import { TrafficSimulator } from '../../lib/trafficSimulation';
 import { calculateClusterFraming, calculateNodeFocusCamera, calculateDrawerRecenterX } from '../../lib/cameraMath';
 import { sigmaContext } from '../../lib/sigmaContext';
+import {
+  classifyTrustScope,
+  computeSemanticLodState,
+  isLodStateEqual,
+  type SuperNodeMeta,
+  type TrustScope,
+} from '../../lib/semanticZoomLod';
+import { buildSuperEdgeIndex } from '../../lib/superEdges';
+import { SmoothCameraController, MIN_CAMERA_RATIO, MAX_CAMERA_RATIO } from '../../lib/galaxy/smoothCamera';
+import { evaluateFocusZoomExit } from '../../lib/galaxy/focusZoomExit';
+import { applySectorVisibilityFilter } from '../../lib/galaxy/sectorVisibility';
+import { HoverController } from '../../lib/galaxy/hoverController';
 import { OverlayCanvas } from './OverlayCanvas';
 import type { GalaxyControllerProps } from '../../types/galaxy';
 
@@ -93,13 +105,43 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
   showNebulaLabels = true,
   drawerWidth = 440,
   reducedMotion = false,
+  scopeMode,
+  onLodTelemetryChange,
+  onAutoUnfocus,
 }) => {
   const loadGraph = useLoadGraph();
   const sigma = useSigma();
-  const highlightedNodesRef = useRef<Array<{ id: string; size: number }>>([]);
   const lastLodTierRef = useRef<string>('overview');
+  const lastFrustumLodTimeRef = useRef<number>(0);
+  const trailingLodTimerRef = useRef<number | null>(null);
   const orbitalLayoutRef = useRef<OrbitalLayoutResult | null>(null);
   const trafficSimulatorRef = useRef<TrafficSimulator>(new TrafficSimulator());
+  const sectorMetasRef = useRef<SuperNodeMeta[]>([]);
+  const clusterMetasRef = useRef<SuperNodeMeta[]>([]);
+  const curatedStarCountRef = useRef<number>(0);
+  const totalStarCountRef = useRef<number>(0);
+  const onLodTelemetryChangeRef = useRef(onLodTelemetryChange);
+  onLodTelemetryChangeRef.current = onLodTelemetryChange;
+  const onAutoUnfocusRef = useRef(onAutoUnfocus);
+  onAutoUnfocusRef.current = onAutoUnfocus;
+  const smoothCameraRef = useRef<SmoothCameraController | null>(null);
+  const hoverControllerRef = useRef<HoverController | null>(null);
+  const skipNextTargetZoomRef = useRef<string | null>(null);
+  const lastLayoutRevisionRef = useRef<number>(0);
+  const userHasInteractedRef = useRef<boolean>(false);
+  const focusAnchorRef = useRef<{
+    sectorAnchorRatio: number | null;
+    clusterAnchorRatio: number | null;
+    constellationAnchorRatio: number | null;
+    isProgrammaticFocusFlight: boolean;
+    previousRatio: number;
+  }>({
+    sectorAnchorRatio: null,
+    clusterAnchorRatio: null,
+    constellationAnchorRatio: null,
+    isProgrammaticFocusFlight: false,
+    previousRatio: 1.0,
+  });
   const drawerWidthRef = useRef(drawerWidth);
   drawerWidthRef.current = drawerWidth;
   const lastDrawerRef = useRef({ width: drawerWidth, target: targetNodeId });
@@ -121,16 +163,14 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
     return () => media.removeEventListener?.('change', update);
   }, []);
 
-  // Proportional dynamic cluster framing to fill screen (~78%)
-  const zoomToCategoryCluster = useCallback((catId: string) => {
+  const computeCategoryFraming = useCallback((catId: string) => {
     const graph = sigma.getGraph();
-    if (!graph) return;
+    if (!graph) return null;
     const isSectorNode = catId.startsWith('__SECTOR_');
     const rawSectorCat = catId.replace('__SECTOR_', '').replace('__CAT_', '').toLowerCase();
     const cleanSector = rawSectorCat.replace(/^(notes|sources)\//, '');
-    // Sigma normalization function converts graph coordinates to normalized framed [0, 1] space
     const normFn = (sigma as unknown as { normalizationFunction: (attrs: unknown) => { x: number; y: number } }).normalizationFunction;
-    if (!normFn) return;
+    if (!normFn) return null;
 
     const points: Array<{ x: number; y: number }> = [];
 
@@ -138,8 +178,7 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
       if (node.startsWith('__CAT_') || node.startsWith('__SECTOR_')) return;
       const noteCat = String(attrs.originalCategory || attrs.category || '').toLowerCase();
       const cleanNoteCat = noteCat.replace(/^(notes|sources)\//, '');
-      const proj = resolveProjectCategory(noteCat);
-      const nodeSector = proj.sector.toLowerCase();
+      const nodeSector = String(attrs.sectorKey || resolveCanonicalSectorKey(noteCat)).toLowerCase();
       const cleanNodeSector = nodeSector.replace(/^(notes|sources)\//, '');
 
       const isMatch =
@@ -161,24 +200,60 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
 
     if (points.length > 0) {
       const dims = sigma.getDimensions();
-      const framing = calculateClusterFraming(points, dims, {
+      return calculateClusterFraming(points, dims, {
         targetCoverageFraction: 0.78,
         minRatio: points.length <= 2 ? 0.16 : 0.005,
         minSpan: points.length <= 2 ? 0.08 : 0.001,
       });
-      sigma.getCamera().animate(
-        { x: framing.x, y: framing.y, ratio: framing.ratio, angle: 0 },
-        { duration: cameraDuration(850) }
-      );
-    } else if (graph.hasNode(catId)) {
+    }
+    if (graph.hasNode(catId)) {
       const attrs = graph.getNodeAttributes(catId);
       const framed = normFn(attrs);
+      return { x: framed.x, y: framed.y, ratio: 0.22 };
+    }
+    return null;
+  }, [sigma]);
+
+  // Proportional dynamic cluster framing to fill screen (~78%)
+  const zoomToCategoryCluster = useCallback((catId: string) => {
+    const framing = computeCategoryFraming(catId);
+    if (!framing) return;
+
+    const isClusterNode = catId.startsWith('__CAT_');
+    if (isClusterNode) {
+      focusAnchorRef.current.clusterAnchorRatio = framing.ratio;
+      const rawCat = catId.replace('__CAT_', '').toLowerCase();
+      const proj = resolveProjectCategory(rawCat);
+      if (proj.sector && proj.sector !== 'root') {
+        const parentSectorId = `__SECTOR_${proj.sector.toLowerCase()}`;
+        const parentFraming = computeCategoryFraming(parentSectorId);
+        focusAnchorRef.current.sectorAnchorRatio = parentFraming?.ratio ?? Math.min(0.45, Math.max(framing.ratio * 1.4, 0.28));
+      } else {
+        focusAnchorRef.current.sectorAnchorRatio = null;
+      }
+    } else {
+      focusAnchorRef.current.sectorAnchorRatio = framing.ratio;
+      focusAnchorRef.current.clusterAnchorRatio = null;
+    }
+    focusAnchorRef.current.isProgrammaticFocusFlight = true;
+
+    const clearFlight = () => {
+      focusAnchorRef.current.isProgrammaticFocusFlight = false;
+    };
+    const animator = smoothCameraRef.current;
+    if (animator) {
+      animator.animateTo(
+        { x: framing.x, y: framing.y, ratio: framing.ratio, angle: 0 },
+        { duration: cameraDuration(850), easing: 'cubicInOut', onComplete: clearFlight, onCancel: clearFlight }
+      );
+    } else {
       sigma.getCamera().animate(
-        { x: framed.x, y: framed.y, ratio: 0.22, angle: 0 },
-        { duration: cameraDuration(850) }
+        { x: framing.x, y: framing.y, ratio: framing.ratio, angle: 0 },
+        { duration: cameraDuration(850) },
+        clearFlight
       );
     }
-  }, [sigma, cameraDuration]);
+  }, [sigma, computeCategoryFraming, cameraDuration]);
 
   const zoomToNodes = useCallback((nodeIds: string[]) => {
     const graph = sigma.getGraph();
@@ -200,10 +275,18 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
     if (points.length > 0) {
       const dims = sigma.getDimensions();
       const framing = calculateClusterFraming(points, dims, { targetCoverageFraction: 0.72 });
-      sigma.getCamera().animate(
-        { x: framing.x, y: framing.y, ratio: framing.ratio, angle: 0 },
-        { duration: cameraDuration(850) }
-      );
+      const animator = smoothCameraRef.current;
+      if (animator) {
+        animator.animateTo(
+          { x: framing.x, y: framing.y, ratio: framing.ratio, angle: 0 },
+          { duration: cameraDuration(850), easing: 'cubicInOut' }
+        );
+      } else {
+        sigma.getCamera().animate(
+          { x: framing.x, y: framing.y, ratio: framing.ratio, angle: 0 },
+          { duration: cameraDuration(850) }
+        );
+      }
     } else {
       zoomToCategoryCluster('daily');
     }
@@ -230,19 +313,33 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
   
   const registerEvents = useRegisterEvents();
 
+  const resetCamera = useCallback(() => {
+    hoverControllerRef.current?.clear();
+    focusAnchorRef.current.sectorAnchorRatio = null;
+    focusAnchorRef.current.clusterAnchorRatio = null;
+    focusAnchorRef.current.constellationAnchorRatio = null;
+    focusAnchorRef.current.isProgrammaticFocusFlight = false;
+    sigmaContext.focusedSector = null;
+    sigmaContext.focusedCluster = null;
+    setFocusedSector(null);
+    if (setFocusedCluster) setFocusedCluster(null);
+    const animator = smoothCameraRef.current;
+    if (animator) {
+      animator.animateTo({ x: 0.5, y: 0.5, ratio: 1, angle: 0 }, { duration: cameraDuration(900), easing: 'cubicInOut' });
+    } else {
+      sigma.getCamera().animatedReset({ duration: cameraDuration(900) });
+    }
+  }, [setFocusedSector, setFocusedCluster, sigma, cameraDuration]);
+
   useEffect(() => {
     if (onMountController) {
       onMountController({
-        resetCamera: () => {
-          setFocusedSector(null);
-          if (setFocusedCluster) setFocusedCluster(null);
-          sigma.getCamera().animatedReset({ duration: cameraDuration(900) });
-        },
+        resetCamera,
         zoomToCategoryCluster,
         zoomToNodes,
       });
     }
-  }, [onMountController, setFocusedSector, setFocusedCluster, sigma, zoomToCategoryCluster, zoomToNodes, cameraDuration]);
+  }, [onMountController, resetCamera, zoomToCategoryCluster, zoomToNodes]);
 
   useEffect(() => {
     sigmaContext.sigma = sigma;
@@ -250,6 +347,8 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
     (window as unknown as { __sigmaContext: unknown }).__sigmaContext = sigmaContext;
     const handleBeforeRender = () => {
       sigmaContext.frameLabelsCount = 0;
+      sigmaContext.frameRootLabelsCount = 0;
+      sigmaContext.frameConstellationNeighborLabelsCount = 0;
       sigmaContext.frameCalloutBoxes = [];
       sigmaContext.renderedNebulaCenters = [];
     };
@@ -263,25 +362,178 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
     };
   }, [sigma]);
 
+  const recomputeLod = useCallback((forceRefresh = false) => {
+    if (!sigma) return;
+    const dims = sigma.getDimensions();
+    if (!dims || dims.width <= 0 || dims.height <= 0) return;
+    const camera = sigma.getCamera();
+    const nextLod = computeSemanticLodState({
+      scopeMode: sigmaContext.scopeMode,
+      cameraRatio: camera.ratio,
+      viewportDims: dims,
+      previousState: sigmaContext.lodState,
+      sectors: sectorMetasRef.current,
+      clusters: clusterMetasRef.current,
+      curatedStarCount: curatedStarCountRef.current,
+      totalStarCount: totalStarCountRef.current,
+      projectToViewport: (x, y) => sigma.graphToViewport({ x, y }),
+    });
+
+    const changed = !isLodStateEqual(sigmaContext.lodState, nextLod);
+    const hasFocus = Boolean(sigmaContext.focusedSector || sigmaContext.focusedCluster);
+    if (changed || forceRefresh || hasFocus) {
+      sigmaContext.lodState = nextLod;
+      let visibleStars = nextLod.visibleStarCount;
+      if (hasFocus) {
+        const graph = sigma.getGraph();
+        let focusedVisibleCount = 0;
+        graph.forEachNode((id, attrs) => {
+          if (!id.startsWith('__CAT_') && !id.startsWith('__SECTOR_') && (!attrs.ring || attrs.ring === 'memory') && !attrs.hidden) {
+            focusedVisibleCount++;
+          }
+        });
+        visibleStars = focusedVisibleCount;
+      }
+      onLodTelemetryChangeRef.current?.({
+        tier: nextLod.tier,
+        visibleStars,
+        totalStars: nextLod.totalStarCount,
+        groupedStars: Math.max(0, nextLod.totalStarCount - visibleStars),
+        collapsedGroups: hasFocus ? 0 : nextLod.collapsedGroupCount,
+      });
+      if (changed || forceRefresh) {
+        sigma.refresh({ schedule: true });
+      }
+    }
+  }, [sigma]);
+
+  useEffect(() => {
+    if (!sigma) return;
+    const smoothCamera = new SmoothCameraController({
+      sigma,
+      getReducedMotion: () => motionReducedRef.current,
+      minRatio: MIN_CAMERA_RATIO,
+      maxRatio: MAX_CAMERA_RATIO,
+      onUserWheelInterrupt: () => {
+        userHasInteractedRef.current = true;
+        focusAnchorRef.current.isProgrammaticFocusFlight = false;
+      },
+    });
+    smoothCameraRef.current = smoothCamera;
+
+    const mouseCaptor = sigma.getMouseCaptor();
+    const handleMouseDown = () => {
+      userHasInteractedRef.current = true;
+      smoothCamera.cancelWheelGlide();
+    };
+    mouseCaptor.on('wheel', smoothCamera.handleWheel);
+    mouseCaptor.on('mousedown', handleMouseDown);
+
+    return () => {
+      mouseCaptor.off('wheel', smoothCamera.handleWheel);
+      mouseCaptor.off('mousedown', handleMouseDown);
+      smoothCamera.destroy();
+      if (smoothCameraRef.current === smoothCamera) {
+        smoothCameraRef.current = null;
+      }
+    };
+  }, [sigma]);
+
   useEffect(() => {
     if (!sigma) return;
     const camera = sigma.getCamera();
+    focusAnchorRef.current.previousRatio = camera.ratio;
+    let rafId: number | null = null;
     const handleCameraUpdate = () => {
-      const ratio = camera.ratio;
-      let tier = 'overview';
-      if (ratio < 0.35) tier = 'deep';
-      else if (ratio < 0.65) tier = 'mid';
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const ratio = camera.ratio;
 
-      if (tier !== lastLodTierRef.current) {
-        lastLodTierRef.current = tier;
-        sigma.refresh({ schedule: true });
-      }
+        // 1. Hierarchical auto-unfocus on zoom-out (Constellation -> Cluster -> Sector -> Full Galaxy)
+        const exitAction = evaluateFocusZoomExit({
+          focusedSector: sigmaContext.focusedSector,
+          focusedCluster: sigmaContext.focusedCluster ?? null,
+          hasActiveConstellation: Boolean(sigmaContext.constellation),
+          isProgrammaticFocusFlight: focusAnchorRef.current.isProgrammaticFocusFlight,
+          currentRatio: ratio,
+          previousRatio: focusAnchorRef.current.previousRatio,
+          sectorAnchorRatio: focusAnchorRef.current.sectorAnchorRatio,
+          clusterAnchorRatio: focusAnchorRef.current.clusterAnchorRatio,
+          constellationAnchorRatio: focusAnchorRef.current.constellationAnchorRatio,
+        });
+        focusAnchorRef.current.previousRatio = ratio;
+
+        if (exitAction.type === 'exit-constellation') {
+          smoothCameraRef.current?.cancelWheelGlide();
+          hoverControllerRef.current?.clear();
+          sigmaContext.constellation = null;
+          focusAnchorRef.current.constellationAnchorRatio = null;
+          onAutoUnfocusRef.current?.({ clearCluster: false, clearSector: false, clearConstellation: true });
+          recomputeLod(true);
+          sigma.refresh({ schedule: true });
+        } else if (exitAction.type === 'exit-cluster') {
+          smoothCameraRef.current?.cancelWheelGlide();
+          hoverControllerRef.current?.clear();
+          sigmaContext.focusedCluster = null;
+          focusAnchorRef.current.clusterAnchorRatio = null;
+          onAutoUnfocusRef.current?.({ clearCluster: true, clearSector: false });
+          applySectorVisibilityFilter(sigma.getGraph(), sigmaContext.focusedSector, null);
+          recomputeLod(true);
+        } else if (exitAction.type === 'exit-all') {
+          hoverControllerRef.current?.clear();
+          sigmaContext.focusedCluster = null;
+          sigmaContext.focusedSector = null;
+          focusAnchorRef.current.clusterAnchorRatio = null;
+          focusAnchorRef.current.sectorAnchorRatio = null;
+          onAutoUnfocusRef.current?.({ clearCluster: true, clearSector: true });
+          applySectorVisibilityFilter(sigma.getGraph(), null, null);
+          recomputeLod(true);
+        }
+
+        // 2. Semantic Zoom LOD with throttled frustum checks during smooth camera motion
+        let tier = 'overview';
+        if (ratio < 0.35) tier = 'deep';
+        else if (ratio < 0.65) tier = 'mid';
+
+        const edgeTierChanged = tier !== lastLodTierRef.current;
+        if (edgeTierChanged) {
+          lastLodTierRef.current = tier;
+        }
+
+        const now = performance.now();
+        const isMoving = Boolean(smoothCameraRef.current?.isAnimating());
+        if (edgeTierChanged || !isMoving || now - lastFrustumLodTimeRef.current >= 120) {
+          lastFrustumLodTimeRef.current = now;
+          if (trailingLodTimerRef.current !== null) {
+            window.clearTimeout(trailingLodTimerRef.current);
+            trailingLodTimerRef.current = null;
+          }
+          recomputeLod(edgeTierChanged);
+        } else if (trailingLodTimerRef.current === null) {
+          trailingLodTimerRef.current = window.setTimeout(() => {
+            trailingLodTimerRef.current = null;
+            lastFrustumLodTimeRef.current = performance.now();
+            recomputeLod(false);
+          }, 140);
+        }
+      });
     };
     camera.on('updated', handleCameraUpdate);
     return () => {
       camera.off('updated', handleCameraUpdate);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (trailingLodTimerRef.current !== null) {
+        window.clearTimeout(trailingLodTimerRef.current);
+        trailingLodTimerRef.current = null;
+      }
     };
-  }, [sigma]);
+  }, [sigma, recomputeLod]);
+
+  useEffect(() => {
+    sigmaContext.scopeMode = scopeMode;
+    recomputeLod(true);
+  }, [scopeMode, recomputeLod]);
 
   useEffect(() => {
     sigmaContext.edgeMode = edgeMode;
@@ -327,12 +579,6 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
       sigma.refresh({ schedule: true });
     }
   }, [showNebulaLabels, sigma]);
-  
-  useEffect(() => {
-    if (focusedSector === null && !focusedCluster) {
-      sigma.getCamera().animatedReset({ duration: cameraDuration(1000) });
-    }
-  }, [focusedSector, focusedCluster, sigma, cameraDuration]);
 
   // Load Graph & Calculate Orbital Positions
   useEffect(() => {
@@ -439,6 +685,55 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
     orbitalLayoutRef.current = orbitalLayout;
     sigmaContext.galaxyCenter = orbitalLayout.center;
 
+    // Precompute trust scopes & 7-day activity counters per sector and cluster
+    const recentCutoffSec = Date.now() / 1000 - 7 * 86400;
+    const sectorRecentCounts = new Map<string, number>();
+    const clusterRecentCounts = new Map<string, number>();
+    const sectorTrustScopes = new Map<string, TrustScope>();
+    const clusterTrustScopes = new Map<string, TrustScope>();
+    let curatedStarCount = 0;
+    let totalStarCount = 0;
+
+    safeNodes.forEach((n) => {
+      const scope = classifyTrustScope(n);
+      if (scope === 'arms') return;
+      totalStarCount += 1;
+      if (scope === 'curated') curatedStarCount += 1;
+
+      const cat = n.category || 'root';
+      const proj = resolveProjectCategory(n.id, cat, n.domain || n.sector, n.group, n.repository);
+      const cKey = (proj.category || cat).toLowerCase();
+      const sKey = resolveCanonicalSectorKey(cKey, proj.sector);
+
+      if (scope === 'sources') {
+        clusterTrustScopes.set(cKey, 'sources');
+        if (proj.isProject && proj.sector) {
+          sectorTrustScopes.set(sKey, 'sources');
+        }
+      } else {
+        if (!clusterTrustScopes.has(cKey)) clusterTrustScopes.set(cKey, 'curated');
+        if (proj.isProject && proj.sector && !sectorTrustScopes.has(sKey)) {
+          sectorTrustScopes.set(sKey, 'curated');
+        }
+      }
+
+      const rawMod = Number(n.modTime || 0);
+      const modSec = rawMod > 1e11 ? rawMod / 1000 : rawMod;
+      if (modSec >= recentCutoffSec) {
+        clusterRecentCounts.set(cKey, (clusterRecentCounts.get(cKey) || 0) + 1);
+        if (proj.isProject && proj.sector) {
+          sectorRecentCounts.set(sKey, (sectorRecentCounts.get(sKey) || 0) + 1);
+        }
+      }
+    });
+
+    curatedStarCountRef.current = curatedStarCount;
+    totalStarCountRef.current = totalStarCount;
+
+    const superNodeRegistry = new Map<string, SuperNodeMeta>();
+    const sectorMetas: SuperNodeMeta[] = [];
+    const clusterMetas: SuperNodeMeta[] = [];
+
     // Sector Anchors
     sectorMap.forEach((secGroup, sKey) => {
       const sectorNodeId = `__SECTOR_${sKey}`;
@@ -452,27 +747,70 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
         const repoCount = secInfo ? secInfo.categories.length : secGroup.categories.length;
         const noteCount = secInfo ? secInfo.totalNotes : 0;
         const defaultPos = initialMacroPos.get(sectorNodeId) || { x: 0, y: 0 };
+        const posX = cachedLayout[sectorNodeId] ? cachedLayout[sectorNodeId].x : defaultPos.x;
+        const posY = cachedLayout[sectorNodeId] ? cachedLayout[sectorNodeId].y : defaultPos.y;
+        const hasSourceCat = secGroup.categories.some(c => c.toLowerCase().startsWith('sources/'));
+        const trustScope: TrustScope = sectorTrustScopes.get(sKey) || (hasSourceCat ? 'sources' : 'curated');
+        const recentCount = sectorRecentCounts.get(sKey) || 0;
+
         graph.addNode(sectorNodeId, {
-          x: cachedLayout[sectorNodeId] ? cachedLayout[sectorNodeId].x : defaultPos.x,
-          y: cachedLayout[sectorNodeId] ? cachedLayout[sectorNodeId].y : defaultPos.y,
+          x: posX,
+          y: posY,
           size: 24,
           key: sectorNodeId,
           label: `${displayName}|${neonColor}|SECTOR|SECTOR|${topType}|${rank}|${repoCount}|${noteCount}`,
           color: "rgba(0,0,0,0)",
+          neonColor,
           forceLabel: isTop,
           alwaysRenderLabel: isTop,
           labelDensityWeight: isTop ? 20000 : 0,
           sector: sKey,
+          sectorKey: sKey,
           sectorDisplayName: displayName,
+          trustScope,
           isSector: true,
           repoCount,
           noteCount,
+          recentCount,
         });
+
+        const meta: SuperNodeMeta = {
+          id: sectorNodeId,
+          kind: 'sector',
+          key: sKey,
+          sectorKey: sKey,
+          displayName,
+          color: neonColor,
+          trustScope,
+          noteCount,
+          repoCount,
+          recentCount,
+          x: posX,
+          y: posY,
+        };
+        superNodeRegistry.set(sectorNodeId, meta);
+        sectorMetas.push(meta);
       }
     });
 
-    // Nebula category hubs
-    Object.keys(catCounts).forEach(cat => {
+    // Nebula category hubs (compute recursive counts & skip parent source index dirs already covered by sector orbs)
+    const catKeys = Object.keys(catCounts);
+    const recursiveCatCounts: Record<string, number> = {};
+    const hasChildCatSet = new Set<string>();
+    for (const cat of catKeys) {
+      let sum = 0;
+      for (const other of catKeys) {
+        if (other === cat || other.startsWith(`${cat}/`)) {
+          sum += catCounts[other] || 0;
+          if (other !== cat) {
+            hasChildCatSet.add(cat);
+          }
+        }
+      }
+      recursiveCatCounts[cat] = sum;
+    }
+
+    catKeys.forEach(cat => {
       if (!graph.hasNode(`__CAT_${cat}`)) {
         const neonColor = getColor(cat);
         const info = allocations.categoryMap.get(cat);
@@ -484,23 +822,63 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
         const topType = isTop ? 'TOP' : 'OTHER';
         const rank = info ? info.priorityRank : 999;
         const defaultPos = initialCatPos.get(cat) || { x: 0, y: 0 };
-        const noteCount = catCounts[cat] || 0;
+        const noteCount = recursiveCatCounts[cat] ?? (catCounts[cat] || 0);
+        const catKey = cat.toLowerCase();
+        const posX = cachedLayout[`__CAT_${cat}`] ? cachedLayout[`__CAT_${cat}`].x : defaultPos.x;
+        const posY = cachedLayout[`__CAT_${cat}`] ? cachedLayout[`__CAT_${cat}`].y : defaultPos.y;
+        const proj = resolveProjectCategory(cat);
+        const sectorKey = (info?.sector || proj.sector || cat).toLowerCase();
+        const trustScope: TrustScope = clusterTrustScopes.get(catKey) || (catKey.startsWith('sources/') ? 'sources' : 'curated');
+        const recentCount = clusterRecentCounts.get(catKey) || 0;
         
         graph.addNode(`__CAT_${cat}`, {
-          x: cachedLayout[`__CAT_${cat}`] ? cachedLayout[`__CAT_${cat}`].x : defaultPos.x,
-          y: cachedLayout[`__CAT_${cat}`] ? cachedLayout[`__CAT_${cat}`].y : defaultPos.y,
+          x: posX,
+          y: posY,
           size: dynSize,
           key: `__CAT_${cat}`,
           label: `${name}|${neonColor}|CATEGORY|${catType}|${topType}|${rank}|0|${noteCount}`, 
           color: "rgba(0,0,0,0)",
+          neonColor,
           forceLabel: isRoot,
           alwaysRenderLabel: isRoot,
           labelDensityWeight: isRoot ? 35000 : (isTop ? 10000 : 0),
           isRoot,
           noteCount,
+          recentCount,
+          trustScope,
+          sectorKey,
+          clusterKey: catKey,
         });
+
+        const meta: SuperNodeMeta = {
+          id: `__CAT_${cat}`,
+          kind: 'cluster',
+          key: catKey,
+          sectorKey,
+          displayName: name,
+          color: neonColor,
+          trustScope,
+          noteCount,
+          repoCount: 0,
+          recentCount,
+          x: posX,
+          y: posY,
+        };
+        superNodeRegistry.set(`__CAT_${cat}`, meta);
+        const isParentSourceFolderCoveredBySector =
+          trustScope === 'sources' &&
+          hasChildCatSet.has(cat) &&
+          sectorMap.has(resolveCanonicalSectorKey(cat, sectorKey));
+        if (!isParentSourceFolderCoveredBySector) {
+          clusterMetas.push(meta);
+        }
       }
     });
+
+    sigmaContext.superNodeRegistry = superNodeRegistry;
+    sectorMetasRef.current = sectorMetas;
+    clusterMetasRef.current = clusterMetas;
+    sigmaContext.superEdgeIndex = buildSuperEdgeIndex(safeNodes, safeLinks);
 
     // Connect category hubs to their sector anchors with calibrated gravitational edges
     sectorMap.forEach((secInfo, sKey) => {
@@ -523,13 +901,21 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
 
     const nodeCatMap = new Map<string, string>();
     const nodeDegreeMap = new Map<string, number>();
+    const nodeSectorMap = new Map<string, string>();
+    const nodeClusterMap = new Map<string, string>();
     safeNodes.forEach((n, nIdx) => {
       nodeCatMap.set(n.id, n.category || 'root');
       nodeDegreeMap.set(n.id, n.connections || 0);
 
+      const cat = n.category || 'root';
+      const proj = resolveProjectCategory(n.id, cat, n.domain || n.sector, n.group, n.repository);
+      const clusterKey = (proj.category || cat).toLowerCase();
+      const sectorKey = resolveCanonicalSectorKey(clusterKey, proj.sector);
+      nodeClusterMap.set(n.id, clusterKey);
+      nodeSectorMap.set(n.id, sectorKey);
+
       if (!graph.hasNode(n.id)) {
         const stellar = classifyStar(n);
-        const cat = n.category || 'root';
         const hubPos = initialCatPos.get(cat) || { x: 0, y: 0 };
         const nAngle = (nIdx * 2.39996) % (Math.PI * 2);
         const nDist = 30 + ((nIdx * 17) % 220);
@@ -544,6 +930,9 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
           posX = cachedLayout[n.id].x;
           posY = cachedLayout[n.id].y;
         }
+
+        const trustScope = classifyTrustScope(n);
+        const isClusterAlpha = stellar.spectralClass === 'α-CORE' || n.noteType === 'repository';
 
         graph.addNode(n.id, {
           x: posX,
@@ -562,6 +951,10 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
           ring: n.ring,
           status: n.status,
           icon: n.icon,
+          trustScope,
+          sectorKey,
+          clusterKey,
+          isClusterAlpha,
         });
       }
       
@@ -595,6 +988,10 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
           isCrossCluster,
           sourceCategory: srcCat,
           targetCategory: tgtCat,
+          sourceSectorKey: nodeSectorMap.get(l.source) || 'root',
+          targetSectorKey: nodeSectorMap.get(l.target) || 'root',
+          sourceClusterKey: nodeClusterMap.get(l.source) || srcCat.toLowerCase(),
+          targetClusterKey: nodeClusterMap.get(l.target) || tgtCat.toLowerCase(),
           sourceDegree: nodeDegreeMap.get(l.source) || 0,
           targetDegree: nodeDegreeMap.get(l.target) || 0,
         });
@@ -632,46 +1029,110 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
         }
       });
 
-      // Align category hub centroids to true mathematical barycenter of their member stars
-      const catSums = new Map<string, { sumX: number; sumY: number; count: number }>();
+      // Align category hub centroids & bounding boxes to member stars
+      const catSums = new Map<string, {
+        sumX: number;
+        sumY: number;
+        count: number;
+        minX: number;
+        maxX: number;
+        minY: number;
+        maxY: number;
+      }>();
       safeNodes.forEach((n) => {
         const isMemory = !n.ring || n.ring === 'memory';
         if (isMemory && liveGraph.hasNode(n.id)) {
           const cat = n.category || 'root';
-          const entry = catSums.get(cat) || { sumX: 0, sumY: 0, count: 0 };
-          entry.sumX += liveGraph.getNodeAttribute(n.id, 'x') as number;
-          entry.sumY += liveGraph.getNodeAttribute(n.id, 'y') as number;
+          const nx = liveGraph.getNodeAttribute(n.id, 'x') as number;
+          const ny = liveGraph.getNodeAttribute(n.id, 'y') as number;
+          const entry = catSums.get(cat) || {
+            sumX: 0,
+            sumY: 0,
+            count: 0,
+            minX: Infinity,
+            maxX: -Infinity,
+            minY: Infinity,
+            maxY: -Infinity,
+          };
+          entry.sumX += nx;
+          entry.sumY += ny;
           entry.count++;
+          entry.minX = Math.min(entry.minX, nx);
+          entry.maxX = Math.max(entry.maxX, nx);
+          entry.minY = Math.min(entry.minY, ny);
+          entry.maxY = Math.max(entry.maxY, ny);
           catSums.set(cat, entry);
         }
       });
       catSums.forEach((entry, cat) => {
         const catNodeId = `__CAT_${cat}`;
         if (liveGraph.hasNode(catNodeId) && entry.count > 0) {
-          liveGraph.setNodeAttribute(catNodeId, 'x', entry.sumX / entry.count);
-          liveGraph.setNodeAttribute(catNodeId, 'y', entry.sumY / entry.count);
+          const cx = entry.sumX / entry.count;
+          const cy = entry.sumY / entry.count;
+          liveGraph.setNodeAttribute(catNodeId, 'x', cx);
+          liveGraph.setNodeAttribute(catNodeId, 'y', cy);
+          const meta = sigmaContext.superNodeRegistry.get(catNodeId);
+          if (meta) {
+            meta.x = cx;
+            meta.y = cy;
+            meta.minX = entry.minX;
+            meta.maxX = entry.maxX;
+            meta.minY = entry.minY;
+            meta.maxY = entry.maxY;
+          }
         }
       });
 
-      // Align sector anchor centroids to barycenter of their member category hubs
+      // Align sector anchor centroids & aggregate AABB bounds across member category hubs
       sectorMap.forEach((secInfo, sKey) => {
         const sectorNodeId = `__SECTOR_${sKey}`;
         if (liveGraph.hasNode(sectorNodeId)) {
           let sumX = 0;
           let sumY = 0;
           let totalWeight = 0;
+          let minX = Infinity;
+          let maxX = -Infinity;
+          let minY = Infinity;
+          let maxY = -Infinity;
           secInfo.categories.forEach(cat => {
             const catNodeId = `__CAT_${cat}`;
             if (liveGraph.hasNode(catNodeId)) {
               const weight = catCounts[cat] || 1;
-              sumX += (liveGraph.getNodeAttribute(catNodeId, 'x') as number) * weight;
-              sumY += (liveGraph.getNodeAttribute(catNodeId, 'y') as number) * weight;
+              const cx = liveGraph.getNodeAttribute(catNodeId, 'x') as number;
+              const cy = liveGraph.getNodeAttribute(catNodeId, 'y') as number;
+              sumX += cx * weight;
+              sumY += cy * weight;
               totalWeight += weight;
+              const cBounds = catSums.get(cat);
+              if (cBounds && cBounds.count > 0) {
+                minX = Math.min(minX, cBounds.minX);
+                maxX = Math.max(maxX, cBounds.maxX);
+                minY = Math.min(minY, cBounds.minY);
+                maxY = Math.max(maxY, cBounds.maxY);
+              } else {
+                minX = Math.min(minX, cx);
+                maxX = Math.max(maxX, cx);
+                minY = Math.min(minY, cy);
+                maxY = Math.max(maxY, cy);
+              }
             }
           });
           if (totalWeight > 0) {
-            liveGraph.setNodeAttribute(sectorNodeId, 'x', sumX / totalWeight);
-            liveGraph.setNodeAttribute(sectorNodeId, 'y', sumY / totalWeight);
+            const sx = sumX / totalWeight;
+            const sy = sumY / totalWeight;
+            liveGraph.setNodeAttribute(sectorNodeId, 'x', sx);
+            liveGraph.setNodeAttribute(sectorNodeId, 'y', sy);
+            const meta = sigmaContext.superNodeRegistry.get(sectorNodeId);
+            if (meta) {
+              meta.x = sx;
+              meta.y = sy;
+              if (Number.isFinite(minX)) {
+                meta.minX = minX;
+                meta.maxX = maxX;
+                meta.minY = minY;
+                meta.maxY = maxY;
+              }
+            }
           }
         }
       });
@@ -684,18 +1145,24 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
       // Sigma recomputes graph bounds and normalization during a full refresh.
       // Update them before the selected node is reframed against this layout.
       sigma.refresh();
+      recomputeLod(true);
       // Node coordinates changed in place after ForceAtlas2. Reframe the current
       // selection against the settled layout rather than its initial position.
       setLayoutRevision(revision => revision + 1);
       
       setTimeout(() => {
-        if (!sigmaContext.selectedNodeId && !sigmaContext.focusedSector) {
-          const camera = sigma.getCamera();
-          camera.animatedReset({ duration: cameraDuration(1500) });
+        if (!sigmaContext.selectedNodeId && !sigmaContext.focusedSector && !sigmaContext.focusedCluster && !userHasInteractedRef.current) {
+          const animator = smoothCameraRef.current;
+          if (animator) {
+            animator.animateTo({ x: 0.5, y: 0.5, ratio: 1, angle: 0 }, { duration: cameraDuration(1500), easing: 'cubicInOut' });
+          } else {
+            sigma.getCamera().animatedReset({ duration: cameraDuration(1500) });
+          }
         }
         
         setTimeout(() => {
           onReady();
+          recomputeLod(true);
           sigma.refresh({ schedule: true });
         }, 1500); 
       }, 300);
@@ -707,14 +1174,15 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
       clearTimeout(timer);
       try { stop(); } catch (_e) { /* noop on unmount */ }
     };
-  }, [safeNodes, safeLinks, catCounts, loadGraph, start, stop, sigma, onReady, maxNebulas, cameraDuration]);
+  }, [safeNodes, safeLinks, catCounts, loadGraph, start, stop, sigma, onReady, maxNebulas, cameraDuration, recomputeLod]);
 
   // Dynamically update category node attributes when maxNebulas changes
   useEffect(() => {
     const graph = sigma.getGraph();
     if (!graph || graph.order === 0) return;
     
-    const allocations = calculateNebulaAllocations(Object.keys(catCounts), catCounts, maxNebulas);
+    const catKeys = Object.keys(catCounts);
+    const allocations = calculateNebulaAllocations(catKeys, catCounts, maxNebulas);
     allocations.categoryMap.forEach((info, cat) => {
       const catNodeId = `__CAT_${cat}`;
       if (graph.hasNode(catNodeId)) {
@@ -723,7 +1191,10 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
         const isRoot = info.isRoot;
         const catType = isRoot ? 'ROOT' : 'SUB';
         const topType = isTop ? 'TOP' : 'OTHER';
-        const noteCount = catCounts[cat] || 0;
+        const noteCount = catKeys.reduce(
+          (sum, other) => (other === cat || other.startsWith(`${cat}/`) ? sum + (catCounts[other] || 0) : sum),
+          0
+        );
         
         graph.setNodeAttribute(catNodeId, 'size', isRoot ? 26 : info.dynSize);
         graph.setNodeAttribute(
@@ -766,6 +1237,14 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
 
   // Target Node Camera Zoom & Centering (Constellation-aware + Viewport drawer compensation)
   useEffect(() => {
+    const layoutChanged = lastLayoutRevisionRef.current !== layoutRevision;
+    lastLayoutRevisionRef.current = layoutRevision;
+
+    if (targetNodeId && !layoutChanged && skipNextTargetZoomRef.current === targetNodeId) {
+      skipNextTargetZoomRef.current = null;
+      return;
+    }
+
     if (targetNodeId && sigma.getGraph().hasNode(targetNodeId)) {
       const graph = sigma.getGraph();
       const attrs = graph.getNodeAttributes(targetNodeId);
@@ -812,12 +1291,26 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
         viewportToFramed: (pt, opt) => sigma.viewportToFramedGraph(pt, opt),
       });
 
-      sigma.getCamera().animate({
-        x: camTarget.x,
-        y: camTarget.y,
-        ratio: camTarget.ratio,
-        angle: 0,
-      }, { duration: cameraDuration(850) });
+      focusAnchorRef.current.constellationAnchorRatio = camTarget.ratio;
+      focusAnchorRef.current.isProgrammaticFocusFlight = true;
+      const clearFocusFlight = () => {
+        focusAnchorRef.current.isProgrammaticFocusFlight = false;
+      };
+
+      const animator = smoothCameraRef.current;
+      if (animator) {
+        animator.animateTo(
+          { x: camTarget.x, y: camTarget.y, ratio: camTarget.ratio, angle: 0 },
+          { duration: cameraDuration(850), easing: 'cubicInOut', onComplete: clearFocusFlight, onCancel: clearFocusFlight }
+        );
+      } else {
+        sigma.getCamera().animate({
+          x: camTarget.x,
+          y: camTarget.y,
+          ratio: camTarget.ratio,
+          angle: 0,
+        }, { duration: cameraDuration(850) }, clearFocusFlight);
+      }
     }
   }, [targetNodeId, constellation, safeNodes, layoutRevision, sigma, zoomToCategoryCluster, cameraDuration]);
 
@@ -839,94 +1332,58 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
 
   // Events
   useEffect(() => {
+    const hoverCtrl = new HoverController({
+      sigma,
+      context: sigmaContext,
+      onHover,
+      getColor,
+    });
+    hoverControllerRef.current = hoverCtrl;
+
+    const handleSectorActivate = (sectorId: string) => {
+      hoverControllerRef.current?.clear();
+      const isCurrent = sectorId.toLowerCase() === (focusedSector || '').toLowerCase() && !focusedCluster;
+      if (isCurrent) {
+        resetCamera();
+        return;
+      }
+      skipNextTargetZoomRef.current = sectorId;
+      zoomToCategoryCluster(sectorId);
+      if (setFocusedCluster) setFocusedCluster(null);
+      setFocusedSector(sectorId);
+    };
+
+    const handleClusterActivate = (catId: string) => {
+      hoverControllerRef.current?.clear();
+      const isCurrent = catId.toLowerCase() === (focusedCluster || '').toLowerCase();
+      const rawCat = catId.replace('__CAT_', '').toLowerCase();
+      const proj = resolveProjectCategory(rawCat);
+      const hasParentSector = Boolean(proj.sector && proj.sector !== 'root');
+      const parentSectorId = hasParentSector ? `__SECTOR_${proj.sector.toLowerCase()}` : null;
+
+      if (isCurrent) {
+        if (parentSectorId) {
+          skipNextTargetZoomRef.current = parentSectorId;
+          zoomToCategoryCluster(parentSectorId);
+          if (setFocusedCluster) setFocusedCluster(null);
+          setFocusedSector(parentSectorId);
+        } else {
+          resetCamera();
+        }
+        return;
+      }
+
+      skipNextTargetZoomRef.current = catId;
+      zoomToCategoryCluster(catId);
+      if (parentSectorId) {
+        setFocusedSector(parentSectorId);
+      }
+      if (setFocusedCluster) setFocusedCluster(catId);
+    };
+
     registerEvents({
-      enterNode: (e) => {
-        const graph = sigma.getGraph();
-        if (e.node.startsWith('__SECTOR_')) {
-          const targetSector = e.node.replace('__SECTOR_', '').toLowerCase();
-          const sectorColor = getColor(targetSector);
-          graph.forEachNode((node, nAttrs) => {
-            if (!node.startsWith('__CAT_') && !node.startsWith('__SECTOR_')) {
-              const noteCat = String(nAttrs.originalCategory || nAttrs.category || '').toLowerCase();
-              const nodeSector = resolveProjectCategory(noteCat).sector.toLowerCase();
-              if (nodeSector === targetSector || noteCat === targetSector || noteCat.startsWith(targetSector + '/')) {
-                highlightedNodesRef.current.push({ id: node, size: (nAttrs.size as number) || 2 });
-                graph.setNodeAttribute(node, 'size', ((nAttrs.size as number) || 2) * 1.5);
-              }
-            }
-          });
-          graph.forEachEdge((edge, eAttrs) => {
-            if (eAttrs.isSectorTether && eAttrs.sector === targetSector) {
-              graph.setEdgeAttribute(edge, 'hidden', false);
-              graph.setEdgeAttribute(edge, 'color', sectorColor);
-              graph.setEdgeAttribute(edge, 'size', 1.2);
-            }
-          });
-          sigma.refresh({ schedule: true });
-          return;
-        }
-
-        if (e.node.startsWith('__CAT_')) {
-          const targetCat = e.node.replace('__CAT_', '').toLowerCase();
-          graph.forEachNode((node, nAttrs) => {
-            const noteCat = String(nAttrs.originalCategory || nAttrs.category || '').toLowerCase();
-            if (!node.startsWith('__CAT_') && !node.startsWith('__SECTOR_') && (noteCat === targetCat || noteCat.startsWith(targetCat + '/'))) {
-              highlightedNodesRef.current.push({ id: node, size: (nAttrs.size as number) || 2 });
-              graph.setNodeAttribute(node, 'size', ((nAttrs.size as number) || 2) * 1.5);
-            }
-          });
-          return;
-        }
-
-        const attrs = graph.getNodeAttributes(e.node);
-        const pos = sigma.graphToViewport(attrs as { x: number; y: number });
-        onHover({ 
-          id: e.node, 
-          title: attrs.label, 
-          originalCategory: attrs.originalCategory,
-          color: attrs.color,
-          stellarClass: attrs.stellarClass,
-          stellarBadge: attrs.stellarBadge,
-          stellarLabel: attrs.stellarLabel,
-          stellarDesc: attrs.stellarDesc,
-          connections: attrs.connections,
-          ring: attrs.ring,
-          status: attrs.status,
-          icon: attrs.icon,
-        }, pos);
-        
-        sigmaContext.hoveredNodeId = e.node;
-        sigma.refresh({ schedule: true });
-
-        graph.forEachNeighbor(e.node, (neighbor, nAttrs) => {
-          if (!neighbor.startsWith('__CAT_') && !neighbor.startsWith('__SECTOR_')) {
-            highlightedNodesRef.current.push({ id: neighbor, size: (nAttrs.size as number) || 2 });
-            graph.setNodeAttribute(neighbor, 'size', ((nAttrs.size as number) || 2) * 1.4);
-          }
-        });
-      },
-      leaveNode: () => {
-        onHover(null, null);
-        sigmaContext.hoveredNodeId = null;
-
-        const graph = sigma.getGraph();
-        highlightedNodesRef.current.forEach(({ id, size }) => {
-          if (graph.hasNode(id)) {
-            graph.setNodeAttribute(id, 'size', size);
-          }
-        });
-        highlightedNodesRef.current = [];
-
-        graph.forEachEdge((edge, eAttrs) => {
-          if (eAttrs.isSectorTether && !eAttrs.hidden) {
-            graph.setEdgeAttribute(edge, 'hidden', true);
-            graph.setEdgeAttribute(edge, 'color', 'rgba(0,0,0,0)');
-            graph.setEdgeAttribute(edge, 'size', 0.1);
-          }
-        });
-
-        sigma.refresh({ schedule: true });
-      },
+      enterNode: (e) => hoverCtrl.handleEnterNode(e.node),
+      leaveNode: () => hoverCtrl.handleLeaveNode(),
       clickStage: (e) => {
         const mouseEvent = e.event as unknown as { x?: number; clientX?: number; y?: number; clientY?: number };
         const mouseX = mouseEvent.x ?? mouseEvent.clientX ?? 0;
@@ -946,6 +1403,8 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
           }
         }
         if (bestBox) {
+          userHasInteractedRef.current = true;
+          hoverControllerRef.current?.clear();
           const box = bestBox;
           if (box.isStation && box.nodeId) {
             onFocusNode(box.nodeId);
@@ -953,61 +1412,30 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
           }
           if (box.isSector || box.nodeId?.startsWith('__SECTOR_')) {
             const sectorId = box.nodeId || (box.category ? ('__SECTOR_' + box.category.toLowerCase()) : null);
-            if (sectorId) {
-              zoomToCategoryCluster(sectorId);
-              const isCurrent = sectorId.toLowerCase() === (focusedSector || '').toLowerCase();
-              setFocusedSector(isCurrent ? null : sectorId);
-              if (setFocusedCluster) setFocusedCluster(null);
-            }
+            if (sectorId) handleSectorActivate(sectorId);
             return;
           }
           if (box.isCategory) {
             const catId = box.nodeId || (box.category ? ('__CAT_' + box.category.toLowerCase()) : null);
-            if (catId) {
-              zoomToCategoryCluster(catId);
-              const isCurrent = catId.toLowerCase() === (focusedCluster || '').toLowerCase();
-              if (isCurrent) {
-                if (setFocusedCluster) setFocusedCluster(null);
-              } else {
-                if (setFocusedCluster) setFocusedCluster(catId);
-                const rawCat = catId.replace('__CAT_', '').toLowerCase();
-                const proj = resolveProjectCategory(rawCat);
-                if (proj.sector && proj.sector !== 'root') {
-                  setFocusedSector('__SECTOR_' + proj.sector.toLowerCase());
-                }
-              }
-            }
+            if (catId) handleClusterActivate(catId);
             return;
           }
         }
       },
       clickNode: (e) => {
+        userHasInteractedRef.current = true;
+        hoverControllerRef.current?.clear();
         const nodeId = e.node;
-        
         if (nodeId.startsWith('__SECTOR_')) {
-          zoomToCategoryCluster(nodeId);
-          const isCurrent = nodeId.toLowerCase() === (focusedSector || '').toLowerCase();
-          setFocusedSector(isCurrent ? null : nodeId);
-          if (setFocusedCluster) setFocusedCluster(null);
+          handleSectorActivate(nodeId);
         } else if (nodeId.startsWith('__CAT_')) {
-          zoomToCategoryCluster(nodeId);
-          const isCurrent = nodeId.toLowerCase() === (focusedCluster || '').toLowerCase();
-          if (isCurrent) {
-            if (setFocusedCluster) setFocusedCluster(null);
-          } else {
-            if (setFocusedCluster) setFocusedCluster(nodeId);
-            const rawCat = nodeId.replace('__CAT_', '').toLowerCase();
-            const proj = resolveProjectCategory(rawCat);
-            if (proj.sector && proj.sector !== 'root') {
-              setFocusedSector('__SECTOR_' + proj.sector.toLowerCase());
-            }
-          }
+          handleClusterActivate(nodeId);
         } else {
           onFocusNode(nodeId);
         }
       }
     });
-  }, [registerEvents, sigma, onHover, onFocusNode, focusedSector, setFocusedSector, focusedCluster, setFocusedCluster, zoomToCategoryCluster]);
+  }, [registerEvents, sigma, onHover, onFocusNode, focusedSector, setFocusedSector, focusedCluster, setFocusedCluster, zoomToCategoryCluster, resetCamera]);
 
   // Canvas Callouts Hover Pointer Affordance
   useEffect(() => {
@@ -1036,91 +1464,18 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
     };
   }, [sigma]);
 
-  // Sector & Cluster Visibility Filter
+  // Sector & Cluster Visibility Filter (batched O(N+E) update + immediate LOD sync)
   useEffect(() => {
     const graph = sigma.getGraph();
     if (!graph || graph.order === 0) return;
-    
-    if (focusedCluster) {
-      const clusterCat = focusedCluster.replace('__CAT_', '').toLowerCase();
-      const cleanCluster = clusterCat.replace(/^(notes|sources)\//, '');
 
-      graph.forEachNode((node, attrs) => {
-        if (node.startsWith('__SECTOR_')) {
-          graph.setNodeAttribute(node, 'hidden', true);
-        } else if (node.startsWith('__CAT_')) {
-          const thisCat = node.replace('__CAT_', '').toLowerCase();
-          const cleanThisCat = thisCat.replace(/^(notes|sources)\//, '');
-          const isCurrent = thisCat === clusterCat || cleanThisCat === cleanCluster;
-          graph.setNodeAttribute(node, 'hidden', !isCurrent);
-        } else {
-          const noteCat = String(attrs.originalCategory || attrs.category || 'root').toLowerCase();
-          const cleanNoteCat = noteCat.replace(/^(notes|sources)\//, '');
-          const belongsToCluster =
-            noteCat === clusterCat ||
-            noteCat.startsWith(clusterCat + '/') ||
-            cleanNoteCat === cleanCluster ||
-            cleanNoteCat.startsWith(cleanCluster + '/');
-          graph.setNodeAttribute(node, 'hidden', !belongsToCluster);
-        }
-      });
-    } else if (focusedSector) {
-      const rawSectorCat = focusedSector.replace('__SECTOR_', '').replace('__CAT_', '').toLowerCase();
-      const cleanSector = rawSectorCat.replace(/^(notes|sources)\//, '');
-
-      graph.forEachNode((node, attrs) => {
-        if (node.startsWith('__SECTOR_')) {
-          const thisSector = node.replace('__SECTOR_', '').toLowerCase();
-          const cleanThisSector = thisSector.replace(/^(notes|sources)\//, '');
-          const isCurrent = thisSector === rawSectorCat || cleanThisSector === cleanSector;
-          graph.setNodeAttribute(node, 'hidden', !isCurrent);
-        } else if (node.startsWith('__CAT_')) {
-          const thisCat = node.replace('__CAT_', '').toLowerCase();
-          const cleanThisCat = thisCat.replace(/^(notes|sources)\//, '');
-          const nodeSector = resolveProjectCategory(thisCat).sector.toLowerCase();
-          const cleanNodeSector = nodeSector.replace(/^(notes|sources)\//, '');
-          const isCurrentSector =
-            thisCat === rawSectorCat ||
-            cleanThisCat === cleanSector ||
-            nodeSector === rawSectorCat ||
-            cleanNodeSector === cleanSector;
-          const isSubsector =
-            thisCat.startsWith(rawSectorCat + '/') ||
-            cleanThisCat.startsWith(cleanSector + '/');
-          graph.setNodeAttribute(node, 'hidden', !(isCurrentSector || isSubsector));
-        } else {
-          const noteCat = String(attrs.originalCategory || attrs.category || 'root').toLowerCase();
-          const cleanNoteCat = noteCat.replace(/^(notes|sources)\//, '');
-          const nodeSector = resolveProjectCategory(noteCat).sector.toLowerCase();
-          const cleanNodeSector = nodeSector.replace(/^(notes|sources)\//, '');
-          const belongsToSector =
-            noteCat === rawSectorCat ||
-            noteCat.startsWith(rawSectorCat + '/') ||
-            cleanNoteCat === cleanSector ||
-            cleanNoteCat.startsWith(cleanSector + '/') ||
-            nodeSector === rawSectorCat ||
-            cleanNodeSector === cleanSector;
-          graph.setNodeAttribute(node, 'hidden', !belongsToSector);
-        }
-      });
+    applySectorVisibilityFilter(graph, focusedSector, focusedCluster ?? null);
+    if (!focusedSector && !focusedCluster) {
+      recomputeLod(true);
     } else {
-      graph.forEachNode((node) => {
-        graph.setNodeAttribute(node, 'hidden', false);
-      });
+      sigma.refresh({ schedule: true });
     }
-
-    graph.forEachEdge((edge, attrs, source, target) => {
-      if (focusedCluster || focusedSector) {
-        const sHidden = graph.getNodeAttribute(source, 'hidden');
-        const tHidden = graph.getNodeAttribute(target, 'hidden');
-        graph.setEdgeAttribute(edge, 'hidden', sHidden || tHidden);
-      } else {
-        graph.setEdgeAttribute(edge, 'hidden', attrs.originalHidden || false);
-      }
-    });
-
-    sigma.refresh({ schedule: true });
-  }, [focusedSector, focusedCluster, sigma]);
+  }, [focusedSector, focusedCluster, sigma, recomputeLod]);
 
   return (
     <OverlayCanvas
@@ -1131,6 +1486,8 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
       trafficSimulator={trafficSimulatorRef.current}
       isReady={isReady}
       constellation={constellation}
+      edgeMode={edgeMode}
+      getColor={getColor}
     />
   );
 };

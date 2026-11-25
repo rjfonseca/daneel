@@ -5,6 +5,7 @@ describe('galaxy view presets', () => {
   it('uses the existing galaxy settings as the Explore default', () => {
     expect(DEFAULT_GALAXY_VIEW).toEqual({
       edgeMode: 'focus',
+      scopeMode: 'hybrid',
       showSectorLabels: true,
       showNebulaLabels: true,
       isCosmicMode: true,
@@ -17,6 +18,7 @@ describe('galaxy view presets', () => {
     const current: GalaxyViewState = { ...DEFAULT_GALAXY_VIEW, reducedMotion: true };
     expect(applyViewPreset(current, 'read')).toEqual({
       edgeMode: 'focus',
+      scopeMode: 'curated',
       showSectorLabels: false,
       showNebulaLabels: false,
       isCosmicMode: false,
@@ -28,6 +30,7 @@ describe('galaxy view presets', () => {
   it('restores a presentation view with navigational context', () => {
     expect(applyViewPreset(applyViewPreset(DEFAULT_GALAXY_VIEW, 'read'), 'present')).toMatchObject({
       edgeMode: 'bridges',
+      scopeMode: 'hybrid',
       showSectorLabels: true,
       showNebulaLabels: true,
       isCosmicMode: true,

@@ -10,11 +10,13 @@ export const NodeHoverTooltip: React.FC<NodeHoverTooltipProps> = ({ hoverTooltip
   if (!hoverTooltip) return null;
 
   const posX = typeof window !== 'undefined' 
-    ? Math.min(Math.max(10, hoverTooltip.pos.x + 15), window.innerWidth - 320)
-    : hoverTooltip.pos.x + 15;
+    ? Math.min(Math.max(12, hoverTooltip.pos.x + 18), window.innerWidth - 310)
+    : hoverTooltip.pos.x + 18;
   const posY = typeof window !== 'undefined'
-    ? Math.min(Math.max(10, hoverTooltip.pos.y - 15), window.innerHeight - 130)
-    : hoverTooltip.pos.y - 15;
+    ? (hoverTooltip.pos.y + 26 > window.innerHeight - 135
+        ? Math.max(12, hoverTooltip.pos.y - 128)
+        : Math.max(12, hoverTooltip.pos.y + 26))
+    : hoverTooltip.pos.y + 26;
 
   const displayCategory = hoverTooltip.node.originalCategory 
     ? getCategoryDisplayName(hoverTooltip.node.originalCategory)
@@ -54,10 +56,26 @@ export const NodeHoverTooltip: React.FC<NodeHoverTooltipProps> = ({ hoverTooltip
           {hoverTooltip.node.icon && <span>{hoverTooltip.node.icon}</span>}
           <span className="truncate">{hoverTooltip.node.title || hoverTooltip.node.id}</span>
         </div>
-        <div className="flex items-center gap-3 text-[11px] text-gray-400 font-mono mt-0.5 border-t border-gray-800/80 pt-1.5">
-          <span className="shrink-0">🔗 {hoverTooltip.node.connections ?? 0} {hoverTooltip.node.connections === 1 ? 'connection' : 'connections'}</span>
-          {hoverTooltip.node.stellarDesc && (
-            <span className="text-gray-500 truncate min-w-0">• {hoverTooltip.node.stellarDesc}</span>
+        <div className="flex flex-col gap-1 text-[11px] text-gray-400 font-mono mt-0.5 border-t border-gray-800/80 pt-1.5">
+          {hoverTooltip.node.isSuperNode ? (
+            <>
+              <span className="text-slate-200 truncate">
+                {(hoverTooltip.node.repoCount ?? 0) > 0 ? `${hoverTooltip.node.repoCount} repositories · ` : ''}
+                {hoverTooltip.node.noteCount ?? 0} stars
+                {(hoverTooltip.node.recentCount ?? 0) > 0 ? ` · ${hoverTooltip.node.recentCount} active (7d)` : ''}
+              </span>
+              <span className="text-[10px] text-cyan-300 truncate">
+                Click or zoom in to expand
+                {(hoverTooltip.node.bridgeCount ?? 0) > 0 ? ` · ${hoverTooltip.node.bridgeCount} cross-bridges` : ''}
+              </span>
+            </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="shrink-0">🔗 {hoverTooltip.node.connections ?? 0} {hoverTooltip.node.connections === 1 ? 'connection' : 'connections'}</span>
+              {hoverTooltip.node.stellarDesc && (
+                <span className="text-gray-500 truncate min-w-0">• {hoverTooltip.node.stellarDesc}</span>
+              )}
+            </div>
           )}
         </div>
       </div>
