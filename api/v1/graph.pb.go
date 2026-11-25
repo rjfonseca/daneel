@@ -858,6 +858,7 @@ type SearchNotesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Scope         string                 `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -904,6 +905,13 @@ func (x *SearchNotesRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *SearchNotesRequest) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
 }
 
 type SearchNotesResponse struct {
@@ -955,6 +963,9 @@ type SearchResult struct {
 	RelPath       string                 `protobuf:"bytes,1,opt,name=rel_path,json=relPath,proto3" json:"rel_path,omitempty"`
 	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
 	Snippet       string                 `protobuf:"bytes,3,opt,name=snippet,proto3" json:"snippet,omitempty"` // Contextual snippet containing search match
+	Scope         string                 `protobuf:"bytes,4,opt,name=scope,proto3" json:"scope,omitempty"`
+	NoteType      string                 `protobuf:"bytes,5,opt,name=note_type,json=noteType,proto3" json:"note_type,omitempty"`
+	Description   string                 `protobuf:"bytes,6,opt,name=description,proto3" json:"description,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1006,6 +1017,27 @@ func (x *SearchResult) GetTitle() string {
 func (x *SearchResult) GetSnippet() string {
 	if x != nil {
 		return x.Snippet
+	}
+	return ""
+}
+
+func (x *SearchResult) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *SearchResult) GetNoteType() string {
+	if x != nil {
+		return x.NoteType
+	}
+	return ""
+}
+
+func (x *SearchResult) GetDescription() string {
+	if x != nil {
+		return x.Description
 	}
 	return ""
 }
@@ -3522,6 +3554,1406 @@ func (x *IngestPathResponse) GetWarning() string {
 	return ""
 }
 
+type GetDashboardSummaryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Days          int32                  `protobuf:"varint,1,opt,name=days,proto3" json:"days,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetDashboardSummaryRequest) Reset() {
+	*x = GetDashboardSummaryRequest{}
+	mi := &file_api_v1_graph_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDashboardSummaryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDashboardSummaryRequest) ProtoMessage() {}
+
+func (x *GetDashboardSummaryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDashboardSummaryRequest.ProtoReflect.Descriptor instead.
+func (*GetDashboardSummaryRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *GetDashboardSummaryRequest) GetDays() int32 {
+	if x != nil {
+		return x.Days
+	}
+	return 0
+}
+
+type TaxonomyMetricItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Hours         float64                `protobuf:"fixed64,3,opt,name=hours,proto3" json:"hours,omitempty"`
+	Percentage    float64                `protobuf:"fixed64,4,opt,name=percentage,proto3" json:"percentage,omitempty"`
+	TargetMin     float64                `protobuf:"fixed64,5,opt,name=target_min,json=targetMin,proto3" json:"target_min,omitempty"`
+	TargetMax     float64                `protobuf:"fixed64,6,opt,name=target_max,json=targetMax,proto3" json:"target_max,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TaxonomyMetricItem) Reset() {
+	*x = TaxonomyMetricItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TaxonomyMetricItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TaxonomyMetricItem) ProtoMessage() {}
+
+func (x *TaxonomyMetricItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TaxonomyMetricItem.ProtoReflect.Descriptor instead.
+func (*TaxonomyMetricItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *TaxonomyMetricItem) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *TaxonomyMetricItem) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *TaxonomyMetricItem) GetHours() float64 {
+	if x != nil {
+		return x.Hours
+	}
+	return 0
+}
+
+func (x *TaxonomyMetricItem) GetPercentage() float64 {
+	if x != nil {
+		return x.Percentage
+	}
+	return 0
+}
+
+func (x *TaxonomyMetricItem) GetTargetMin() float64 {
+	if x != nil {
+		return x.TargetMin
+	}
+	return 0
+}
+
+func (x *TaxonomyMetricItem) GetTargetMax() float64 {
+	if x != nil {
+		return x.TargetMax
+	}
+	return 0
+}
+
+type BacklogItemProto struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Priority      string                 `protobuf:"bytes,1,opt,name=priority,proto3" json:"priority,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Completed     bool                   `protobuf:"varint,4,opt,name=completed,proto3" json:"completed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BacklogItemProto) Reset() {
+	*x = BacklogItemProto{}
+	mi := &file_api_v1_graph_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BacklogItemProto) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BacklogItemProto) ProtoMessage() {}
+
+func (x *BacklogItemProto) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BacklogItemProto.ProtoReflect.Descriptor instead.
+func (*BacklogItemProto) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *BacklogItemProto) GetPriority() string {
+	if x != nil {
+		return x.Priority
+	}
+	return ""
+}
+
+func (x *BacklogItemProto) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *BacklogItemProto) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *BacklogItemProto) GetCompleted() bool {
+	if x != nil {
+		return x.Completed
+	}
+	return false
+}
+
+type FrictionSignalItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Date          string                 `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
+	Line          string                 `protobuf:"bytes,2,opt,name=line,proto3" json:"line,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FrictionSignalItem) Reset() {
+	*x = FrictionSignalItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FrictionSignalItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FrictionSignalItem) ProtoMessage() {}
+
+func (x *FrictionSignalItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FrictionSignalItem.ProtoReflect.Descriptor instead.
+func (*FrictionSignalItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *FrictionSignalItem) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *FrictionSignalItem) GetLine() string {
+	if x != nil {
+		return x.Line
+	}
+	return ""
+}
+
+type HandoffDigest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Date              string                 `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
+	DreamCyclesCount  int32                  `protobuf:"varint,2,opt,name=dream_cycles_count,json=dreamCyclesCount,proto3" json:"dream_cycles_count,omitempty"`
+	AutonomousActions []string               `protobuf:"bytes,3,rep,name=autonomous_actions,json=autonomousActions,proto3" json:"autonomous_actions,omitempty"`
+	InboxItems        []string               `protobuf:"bytes,4,rep,name=inbox_items,json=inboxItems,proto3" json:"inbox_items,omitempty"`
+	Alerts            []string               `protobuf:"bytes,5,rep,name=alerts,proto3" json:"alerts,omitempty"`
+	Suggestions       []string               `protobuf:"bytes,6,rep,name=suggestions,proto3" json:"suggestions,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *HandoffDigest) Reset() {
+	*x = HandoffDigest{}
+	mi := &file_api_v1_graph_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandoffDigest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandoffDigest) ProtoMessage() {}
+
+func (x *HandoffDigest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandoffDigest.ProtoReflect.Descriptor instead.
+func (*HandoffDigest) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *HandoffDigest) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *HandoffDigest) GetDreamCyclesCount() int32 {
+	if x != nil {
+		return x.DreamCyclesCount
+	}
+	return 0
+}
+
+func (x *HandoffDigest) GetAutonomousActions() []string {
+	if x != nil {
+		return x.AutonomousActions
+	}
+	return nil
+}
+
+func (x *HandoffDigest) GetInboxItems() []string {
+	if x != nil {
+		return x.InboxItems
+	}
+	return nil
+}
+
+func (x *HandoffDigest) GetAlerts() []string {
+	if x != nil {
+		return x.Alerts
+	}
+	return nil
+}
+
+func (x *HandoffDigest) GetSuggestions() []string {
+	if x != nil {
+		return x.Suggestions
+	}
+	return nil
+}
+
+type GetDashboardSummaryResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	WindowDays      int32                  `protobuf:"varint,1,opt,name=window_days,json=windowDays,proto3" json:"window_days,omitempty"`
+	DaysWithLogs    int32                  `protobuf:"varint,2,opt,name=days_with_logs,json=daysWithLogs,proto3" json:"days_with_logs,omitempty"`
+	TotalHours      float64                `protobuf:"fixed64,3,opt,name=total_hours,json=totalHours,proto3" json:"total_hours,omitempty"`
+	Taxonomy        []*TaxonomyMetricItem  `protobuf:"bytes,4,rep,name=taxonomy,proto3" json:"taxonomy,omitempty"`
+	DriftAlerts     []string               `protobuf:"bytes,5,rep,name=drift_alerts,json=driftAlerts,proto3" json:"drift_alerts,omitempty"`
+	FrictionSignals []*FrictionSignalItem  `protobuf:"bytes,6,rep,name=friction_signals,json=frictionSignals,proto3" json:"friction_signals,omitempty"`
+	Handoff         *HandoffDigest         `protobuf:"bytes,7,opt,name=handoff,proto3" json:"handoff,omitempty"`
+	TotalNotes      int32                  `protobuf:"varint,8,opt,name=total_notes,json=totalNotes,proto3" json:"total_notes,omitempty"`
+	TotalLinks      int32                  `protobuf:"varint,9,opt,name=total_links,json=totalLinks,proto3" json:"total_links,omitempty"`
+	OrphanNotes     int32                  `protobuf:"varint,10,opt,name=orphan_notes,json=orphanNotes,proto3" json:"orphan_notes,omitempty"`
+	BacklogItems    []*BacklogItemProto    `protobuf:"bytes,11,rep,name=backlog_items,json=backlogItems,proto3" json:"backlog_items,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GetDashboardSummaryResponse) Reset() {
+	*x = GetDashboardSummaryResponse{}
+	mi := &file_api_v1_graph_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetDashboardSummaryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetDashboardSummaryResponse) ProtoMessage() {}
+
+func (x *GetDashboardSummaryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetDashboardSummaryResponse.ProtoReflect.Descriptor instead.
+func (*GetDashboardSummaryResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *GetDashboardSummaryResponse) GetWindowDays() int32 {
+	if x != nil {
+		return x.WindowDays
+	}
+	return 0
+}
+
+func (x *GetDashboardSummaryResponse) GetDaysWithLogs() int32 {
+	if x != nil {
+		return x.DaysWithLogs
+	}
+	return 0
+}
+
+func (x *GetDashboardSummaryResponse) GetTotalHours() float64 {
+	if x != nil {
+		return x.TotalHours
+	}
+	return 0
+}
+
+func (x *GetDashboardSummaryResponse) GetTaxonomy() []*TaxonomyMetricItem {
+	if x != nil {
+		return x.Taxonomy
+	}
+	return nil
+}
+
+func (x *GetDashboardSummaryResponse) GetDriftAlerts() []string {
+	if x != nil {
+		return x.DriftAlerts
+	}
+	return nil
+}
+
+func (x *GetDashboardSummaryResponse) GetFrictionSignals() []*FrictionSignalItem {
+	if x != nil {
+		return x.FrictionSignals
+	}
+	return nil
+}
+
+func (x *GetDashboardSummaryResponse) GetHandoff() *HandoffDigest {
+	if x != nil {
+		return x.Handoff
+	}
+	return nil
+}
+
+func (x *GetDashboardSummaryResponse) GetTotalNotes() int32 {
+	if x != nil {
+		return x.TotalNotes
+	}
+	return 0
+}
+
+func (x *GetDashboardSummaryResponse) GetTotalLinks() int32 {
+	if x != nil {
+		return x.TotalLinks
+	}
+	return 0
+}
+
+func (x *GetDashboardSummaryResponse) GetOrphanNotes() int32 {
+	if x != nil {
+		return x.OrphanNotes
+	}
+	return 0
+}
+
+func (x *GetDashboardSummaryResponse) GetBacklogItems() []*BacklogItemProto {
+	if x != nil {
+		return x.BacklogItems
+	}
+	return nil
+}
+
+type GetWorkspaceOverviewRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ForceRescan   bool                   `protobuf:"varint,1,opt,name=force_rescan,json=forceRescan,proto3" json:"force_rescan,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetWorkspaceOverviewRequest) Reset() {
+	*x = GetWorkspaceOverviewRequest{}
+	mi := &file_api_v1_graph_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetWorkspaceOverviewRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetWorkspaceOverviewRequest) ProtoMessage() {}
+
+func (x *GetWorkspaceOverviewRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetWorkspaceOverviewRequest.ProtoReflect.Descriptor instead.
+func (*GetWorkspaceOverviewRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *GetWorkspaceOverviewRequest) GetForceRescan() bool {
+	if x != nil {
+		return x.ForceRescan
+	}
+	return false
+}
+
+type WorkspaceRepoItem struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Name              string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	RelPath           string                 `protobuf:"bytes,2,opt,name=rel_path,json=relPath,proto3" json:"rel_path,omitempty"`
+	Category          string                 `protobuf:"bytes,3,opt,name=category,proto3" json:"category,omitempty"`
+	Branch            string                 `protobuf:"bytes,4,opt,name=branch,proto3" json:"branch,omitempty"`
+	Stack             string                 `protobuf:"bytes,5,opt,name=stack,proto3" json:"stack,omitempty"`
+	ComponentType     string                 `protobuf:"bytes,6,opt,name=component_type,json=componentType,proto3" json:"component_type,omitempty"`
+	Commands          string                 `protobuf:"bytes,7,opt,name=commands,proto3" json:"commands,omitempty"`
+	Description       string                 `protobuf:"bytes,8,opt,name=description,proto3" json:"description,omitempty"`
+	VaultLink         string                 `protobuf:"bytes,9,opt,name=vault_link,json=vaultLink,proto3" json:"vault_link,omitempty"`
+	LastCommitDate    string                 `protobuf:"bytes,10,opt,name=last_commit_date,json=lastCommitDate,proto3" json:"last_commit_date,omitempty"`
+	DaysSinceActivity int32                  `protobuf:"varint,11,opt,name=days_since_activity,json=daysSinceActivity,proto3" json:"days_since_activity,omitempty"`
+	Dirty             bool                   `protobuf:"varint,12,opt,name=dirty,proto3" json:"dirty,omitempty"`
+	ModifiedCount     int32                  `protobuf:"varint,13,opt,name=modified_count,json=modifiedCount,proto3" json:"modified_count,omitempty"`
+	UntrackedCount    int32                  `protobuf:"varint,14,opt,name=untracked_count,json=untrackedCount,proto3" json:"untracked_count,omitempty"`
+	FilesPreview      []string               `protobuf:"bytes,15,rep,name=files_preview,json=filesPreview,proto3" json:"files_preview,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *WorkspaceRepoItem) Reset() {
+	*x = WorkspaceRepoItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkspaceRepoItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkspaceRepoItem) ProtoMessage() {}
+
+func (x *WorkspaceRepoItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkspaceRepoItem.ProtoReflect.Descriptor instead.
+func (*WorkspaceRepoItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *WorkspaceRepoItem) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetRelPath() string {
+	if x != nil {
+		return x.RelPath
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetBranch() string {
+	if x != nil {
+		return x.Branch
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetStack() string {
+	if x != nil {
+		return x.Stack
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetComponentType() string {
+	if x != nil {
+		return x.ComponentType
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetCommands() string {
+	if x != nil {
+		return x.Commands
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetVaultLink() string {
+	if x != nil {
+		return x.VaultLink
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetLastCommitDate() string {
+	if x != nil {
+		return x.LastCommitDate
+	}
+	return ""
+}
+
+func (x *WorkspaceRepoItem) GetDaysSinceActivity() int32 {
+	if x != nil {
+		return x.DaysSinceActivity
+	}
+	return 0
+}
+
+func (x *WorkspaceRepoItem) GetDirty() bool {
+	if x != nil {
+		return x.Dirty
+	}
+	return false
+}
+
+func (x *WorkspaceRepoItem) GetModifiedCount() int32 {
+	if x != nil {
+		return x.ModifiedCount
+	}
+	return 0
+}
+
+func (x *WorkspaceRepoItem) GetUntrackedCount() int32 {
+	if x != nil {
+		return x.UntrackedCount
+	}
+	return 0
+}
+
+func (x *WorkspaceRepoItem) GetFilesPreview() []string {
+	if x != nil {
+		return x.FilesPreview
+	}
+	return nil
+}
+
+type GetWorkspaceOverviewResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkDir       string                 `protobuf:"bytes,1,opt,name=work_dir,json=workDir,proto3" json:"work_dir,omitempty"`
+	TotalRepos    int32                  `protobuf:"varint,2,opt,name=total_repos,json=totalRepos,proto3" json:"total_repos,omitempty"`
+	CleanCount    int32                  `protobuf:"varint,3,opt,name=clean_count,json=cleanCount,proto3" json:"clean_count,omitempty"`
+	DirtyCount    int32                  `protobuf:"varint,4,opt,name=dirty_count,json=dirtyCount,proto3" json:"dirty_count,omitempty"`
+	ScannedAt     string                 `protobuf:"bytes,5,opt,name=scanned_at,json=scannedAt,proto3" json:"scanned_at,omitempty"`
+	FromCache     bool                   `protobuf:"varint,6,opt,name=from_cache,json=fromCache,proto3" json:"from_cache,omitempty"`
+	Repos         []*WorkspaceRepoItem   `protobuf:"bytes,7,rep,name=repos,proto3" json:"repos,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetWorkspaceOverviewResponse) Reset() {
+	*x = GetWorkspaceOverviewResponse{}
+	mi := &file_api_v1_graph_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetWorkspaceOverviewResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetWorkspaceOverviewResponse) ProtoMessage() {}
+
+func (x *GetWorkspaceOverviewResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetWorkspaceOverviewResponse.ProtoReflect.Descriptor instead.
+func (*GetWorkspaceOverviewResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *GetWorkspaceOverviewResponse) GetWorkDir() string {
+	if x != nil {
+		return x.WorkDir
+	}
+	return ""
+}
+
+func (x *GetWorkspaceOverviewResponse) GetTotalRepos() int32 {
+	if x != nil {
+		return x.TotalRepos
+	}
+	return 0
+}
+
+func (x *GetWorkspaceOverviewResponse) GetCleanCount() int32 {
+	if x != nil {
+		return x.CleanCount
+	}
+	return 0
+}
+
+func (x *GetWorkspaceOverviewResponse) GetDirtyCount() int32 {
+	if x != nil {
+		return x.DirtyCount
+	}
+	return 0
+}
+
+func (x *GetWorkspaceOverviewResponse) GetScannedAt() string {
+	if x != nil {
+		return x.ScannedAt
+	}
+	return ""
+}
+
+func (x *GetWorkspaceOverviewResponse) GetFromCache() bool {
+	if x != nil {
+		return x.FromCache
+	}
+	return false
+}
+
+func (x *GetWorkspaceOverviewResponse) GetRepos() []*WorkspaceRepoItem {
+	if x != nil {
+		return x.Repos
+	}
+	return nil
+}
+
+type GetPeopleDirectoryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPeopleDirectoryRequest) Reset() {
+	*x = GetPeopleDirectoryRequest{}
+	mi := &file_api_v1_graph_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPeopleDirectoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPeopleDirectoryRequest) ProtoMessage() {}
+
+func (x *GetPeopleDirectoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPeopleDirectoryRequest.ProtoReflect.Descriptor instead.
+func (*GetPeopleDirectoryRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{54}
+}
+
+type PersonSummaryItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Slug          string                 `protobuf:"bytes,2,opt,name=slug,proto3" json:"slug,omitempty"`
+	RelPath       string                 `protobuf:"bytes,3,opt,name=rel_path,json=relPath,proto3" json:"rel_path,omitempty"`
+	Role          string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	Squad         string                 `protobuf:"bytes,5,opt,name=squad,proto3" json:"squad,omitempty"`
+	Interactions  int32                  `protobuf:"varint,6,opt,name=interactions,proto3" json:"interactions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PersonSummaryItem) Reset() {
+	*x = PersonSummaryItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PersonSummaryItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PersonSummaryItem) ProtoMessage() {}
+
+func (x *PersonSummaryItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PersonSummaryItem.ProtoReflect.Descriptor instead.
+func (*PersonSummaryItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *PersonSummaryItem) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PersonSummaryItem) GetSlug() string {
+	if x != nil {
+		return x.Slug
+	}
+	return ""
+}
+
+func (x *PersonSummaryItem) GetRelPath() string {
+	if x != nil {
+		return x.RelPath
+	}
+	return ""
+}
+
+func (x *PersonSummaryItem) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *PersonSummaryItem) GetSquad() string {
+	if x != nil {
+		return x.Squad
+	}
+	return ""
+}
+
+func (x *PersonSummaryItem) GetInteractions() int32 {
+	if x != nil {
+		return x.Interactions
+	}
+	return 0
+}
+
+type GetPeopleDirectoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	People        []*PersonSummaryItem   `protobuf:"bytes,1,rep,name=people,proto3" json:"people,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPeopleDirectoryResponse) Reset() {
+	*x = GetPeopleDirectoryResponse{}
+	mi := &file_api_v1_graph_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPeopleDirectoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPeopleDirectoryResponse) ProtoMessage() {}
+
+func (x *GetPeopleDirectoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPeopleDirectoryResponse.ProtoReflect.Descriptor instead.
+func (*GetPeopleDirectoryResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *GetPeopleDirectoryResponse) GetPeople() []*PersonSummaryItem {
+	if x != nil {
+		return x.People
+	}
+	return nil
+}
+
+type GetPersonBriefingRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Slug          string                 `protobuf:"bytes,1,opt,name=slug,proto3" json:"slug,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPersonBriefingRequest) Reset() {
+	*x = GetPersonBriefingRequest{}
+	mi := &file_api_v1_graph_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPersonBriefingRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPersonBriefingRequest) ProtoMessage() {}
+
+func (x *GetPersonBriefingRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPersonBriefingRequest.ProtoReflect.Descriptor instead.
+func (*GetPersonBriefingRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *GetPersonBriefingRequest) GetSlug() string {
+	if x != nil {
+		return x.Slug
+	}
+	return ""
+}
+
+type GetPersonBriefingResponse struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Name                string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Slug                string                 `protobuf:"bytes,2,opt,name=slug,proto3" json:"slug,omitempty"`
+	RelPath             string                 `protobuf:"bytes,3,opt,name=rel_path,json=relPath,proto3" json:"rel_path,omitempty"`
+	Cargo               string                 `protobuf:"bytes,4,opt,name=cargo,proto3" json:"cargo,omitempty"`
+	Squad               string                 `protobuf:"bytes,5,opt,name=squad,proto3" json:"squad,omitempty"`
+	Relacao             string                 `protobuf:"bytes,6,opt,name=relacao,proto3" json:"relacao,omitempty"`
+	RecentInteractions  []string               `protobuf:"bytes,7,rep,name=recent_interactions,json=recentInteractions,proto3" json:"recent_interactions,omitempty"`
+	Topics              []string               `protobuf:"bytes,8,rep,name=topics,proto3" json:"topics,omitempty"`
+	PendingTasks        []string               `protobuf:"bytes,9,rep,name=pending_tasks,json=pendingTasks,proto3" json:"pending_tasks,omitempty"`
+	RecentDailyMentions []string               `protobuf:"bytes,10,rep,name=recent_daily_mentions,json=recentDailyMentions,proto3" json:"recent_daily_mentions,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *GetPersonBriefingResponse) Reset() {
+	*x = GetPersonBriefingResponse{}
+	mi := &file_api_v1_graph_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPersonBriefingResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPersonBriefingResponse) ProtoMessage() {}
+
+func (x *GetPersonBriefingResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPersonBriefingResponse.ProtoReflect.Descriptor instead.
+func (*GetPersonBriefingResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *GetPersonBriefingResponse) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GetPersonBriefingResponse) GetSlug() string {
+	if x != nil {
+		return x.Slug
+	}
+	return ""
+}
+
+func (x *GetPersonBriefingResponse) GetRelPath() string {
+	if x != nil {
+		return x.RelPath
+	}
+	return ""
+}
+
+func (x *GetPersonBriefingResponse) GetCargo() string {
+	if x != nil {
+		return x.Cargo
+	}
+	return ""
+}
+
+func (x *GetPersonBriefingResponse) GetSquad() string {
+	if x != nil {
+		return x.Squad
+	}
+	return ""
+}
+
+func (x *GetPersonBriefingResponse) GetRelacao() string {
+	if x != nil {
+		return x.Relacao
+	}
+	return ""
+}
+
+func (x *GetPersonBriefingResponse) GetRecentInteractions() []string {
+	if x != nil {
+		return x.RecentInteractions
+	}
+	return nil
+}
+
+func (x *GetPersonBriefingResponse) GetTopics() []string {
+	if x != nil {
+		return x.Topics
+	}
+	return nil
+}
+
+func (x *GetPersonBriefingResponse) GetPendingTasks() []string {
+	if x != nil {
+		return x.PendingTasks
+	}
+	return nil
+}
+
+func (x *GetPersonBriefingResponse) GetRecentDailyMentions() []string {
+	if x != nil {
+		return x.RecentDailyMentions
+	}
+	return nil
+}
+
+type GetAgentActivityRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Hours         int32                  `protobuf:"varint,1,opt,name=hours,proto3" json:"hours,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAgentActivityRequest) Reset() {
+	*x = GetAgentActivityRequest{}
+	mi := &file_api_v1_graph_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAgentActivityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAgentActivityRequest) ProtoMessage() {}
+
+func (x *GetAgentActivityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAgentActivityRequest.ProtoReflect.Descriptor instead.
+func (*GetAgentActivityRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *GetAgentActivityRequest) GetHours() int32 {
+	if x != nil {
+		return x.Hours
+	}
+	return 0
+}
+
+func (x *GetAgentActivityRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type AgentSessionItem struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	SessionId        string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Agent            string                 `protobuf:"bytes,2,opt,name=agent,proto3" json:"agent,omitempty"`
+	Model            string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
+	StartedAt        int64                  `protobuf:"varint,4,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	UpdatedAt        int64                  `protobuf:"varint,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	TurnsCount       int32                  `protobuf:"varint,6,opt,name=turns_count,json=turnsCount,proto3" json:"turns_count,omitempty"`
+	EventCount       int32                  `protobuf:"varint,7,opt,name=event_count,json=eventCount,proto3" json:"event_count,omitempty"`
+	InputTokens      int64                  `protobuf:"varint,8,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`
+	CacheReadTokens  int64                  `protobuf:"varint,9,opt,name=cache_read_tokens,json=cacheReadTokens,proto3" json:"cache_read_tokens,omitempty"`
+	OutputTokens     int64                  `protobuf:"varint,10,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
+	EstimatedCostUsd float64                `protobuf:"fixed64,11,opt,name=estimated_cost_usd,json=estimatedCostUsd,proto3" json:"estimated_cost_usd,omitempty"`
+	SkillsUsed       string                 `protobuf:"bytes,12,opt,name=skills_used,json=skillsUsed,proto3" json:"skills_used,omitempty"`
+	IsActive         bool                   `protobuf:"varint,13,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
+	SpoolFile        string                 `protobuf:"bytes,14,opt,name=spool_file,json=spoolFile,proto3" json:"spool_file,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *AgentSessionItem) Reset() {
+	*x = AgentSessionItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentSessionItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentSessionItem) ProtoMessage() {}
+
+func (x *AgentSessionItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentSessionItem.ProtoReflect.Descriptor instead.
+func (*AgentSessionItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *AgentSessionItem) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *AgentSessionItem) GetAgent() string {
+	if x != nil {
+		return x.Agent
+	}
+	return ""
+}
+
+func (x *AgentSessionItem) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *AgentSessionItem) GetStartedAt() int64 {
+	if x != nil {
+		return x.StartedAt
+	}
+	return 0
+}
+
+func (x *AgentSessionItem) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+func (x *AgentSessionItem) GetTurnsCount() int32 {
+	if x != nil {
+		return x.TurnsCount
+	}
+	return 0
+}
+
+func (x *AgentSessionItem) GetEventCount() int32 {
+	if x != nil {
+		return x.EventCount
+	}
+	return 0
+}
+
+func (x *AgentSessionItem) GetInputTokens() int64 {
+	if x != nil {
+		return x.InputTokens
+	}
+	return 0
+}
+
+func (x *AgentSessionItem) GetCacheReadTokens() int64 {
+	if x != nil {
+		return x.CacheReadTokens
+	}
+	return 0
+}
+
+func (x *AgentSessionItem) GetOutputTokens() int64 {
+	if x != nil {
+		return x.OutputTokens
+	}
+	return 0
+}
+
+func (x *AgentSessionItem) GetEstimatedCostUsd() float64 {
+	if x != nil {
+		return x.EstimatedCostUsd
+	}
+	return 0
+}
+
+func (x *AgentSessionItem) GetSkillsUsed() string {
+	if x != nil {
+		return x.SkillsUsed
+	}
+	return ""
+}
+
+func (x *AgentSessionItem) GetIsActive() bool {
+	if x != nil {
+		return x.IsActive
+	}
+	return false
+}
+
+func (x *AgentSessionItem) GetSpoolFile() string {
+	if x != nil {
+		return x.SpoolFile
+	}
+	return ""
+}
+
+type AgentEventItem struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Timestamp      string                 `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Event          string                 `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
+	Agent          string                 `protobuf:"bytes,3,opt,name=agent,proto3" json:"agent,omitempty"`
+	Cwd            string                 `protobuf:"bytes,4,opt,name=cwd,proto3" json:"cwd,omitempty"`
+	PayloadSnippet string                 `protobuf:"bytes,5,opt,name=payload_snippet,json=payloadSnippet,proto3" json:"payload_snippet,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AgentEventItem) Reset() {
+	*x = AgentEventItem{}
+	mi := &file_api_v1_graph_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentEventItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentEventItem) ProtoMessage() {}
+
+func (x *AgentEventItem) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentEventItem.ProtoReflect.Descriptor instead.
+func (*AgentEventItem) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *AgentEventItem) GetTimestamp() string {
+	if x != nil {
+		return x.Timestamp
+	}
+	return ""
+}
+
+func (x *AgentEventItem) GetEvent() string {
+	if x != nil {
+		return x.Event
+	}
+	return ""
+}
+
+func (x *AgentEventItem) GetAgent() string {
+	if x != nil {
+		return x.Agent
+	}
+	return ""
+}
+
+func (x *AgentEventItem) GetCwd() string {
+	if x != nil {
+		return x.Cwd
+	}
+	return ""
+}
+
+func (x *AgentEventItem) GetPayloadSnippet() string {
+	if x != nil {
+		return x.PayloadSnippet
+	}
+	return ""
+}
+
+type GetAgentActivityResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sessions      []*AgentSessionItem    `protobuf:"bytes,1,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	Events        []*AgentEventItem      `protobuf:"bytes,2,rep,name=events,proto3" json:"events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAgentActivityResponse) Reset() {
+	*x = GetAgentActivityResponse{}
+	mi := &file_api_v1_graph_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAgentActivityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAgentActivityResponse) ProtoMessage() {}
+
+func (x *GetAgentActivityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_graph_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAgentActivityResponse.ProtoReflect.Descriptor instead.
+func (*GetAgentActivityResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_graph_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *GetAgentActivityResponse) GetSessions() []*AgentSessionItem {
+	if x != nil {
+		return x.Sessions
+	}
+	return nil
+}
+
+func (x *GetAgentActivityResponse) GetEvents() []*AgentEventItem {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
 var File_api_v1_graph_proto protoreflect.FileDescriptor
 
 const file_api_v1_graph_proto_rawDesc = "" +
@@ -3587,16 +5019,20 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x0eGetNoteRequest\x12\x19\n" +
 	"\brel_path\x18\x01 \x01(\tR\arelPath\"<\n" +
 	"\x0fGetNoteResponse\x12)\n" +
-	"\x10content_markdown\x18\x01 \x01(\tR\x0fcontentMarkdown\"@\n" +
+	"\x10content_markdown\x18\x01 \x01(\tR\x0fcontentMarkdown\"V\n" +
 	"\x12SearchNotesRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\"G\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"G\n" +
 	"\x13SearchNotesResponse\x120\n" +
-	"\aresults\x18\x01 \x03(\v2\x16.graph.v1.SearchResultR\aresults\"Y\n" +
+	"\aresults\x18\x01 \x03(\v2\x16.graph.v1.SearchResultR\aresults\"\xae\x01\n" +
 	"\fSearchResult\x12\x19\n" +
 	"\brel_path\x18\x01 \x01(\tR\arelPath\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
-	"\asnippet\x18\x03 \x01(\tR\asnippet\"\xd4\x01\n" +
+	"\asnippet\x18\x03 \x01(\tR\asnippet\x12\x14\n" +
+	"\x05scope\x18\x04 \x01(\tR\x05scope\x12\x1b\n" +
+	"\tnote_type\x18\x05 \x01(\tR\bnoteType\x12 \n" +
+	"\vdescription\x18\x06 \x01(\tR\vdescription\"\xd4\x01\n" +
 	"\x15ExecuteRoutineRequest\x12!\n" +
 	"\froutine_name\x18\x01 \x01(\tR\vroutineName\x12\x18\n" +
 	"\averbose\x18\x02 \x01(\bR\averbose\x12C\n" +
@@ -3842,7 +5278,146 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x12IngestPathResponse\x12,\n" +
 	"\x05items\x18\x01 \x03(\v2\x16.graph.v1.IngestedItemR\x05items\x12'\n" +
 	"\x0ftotal_processed\x18\x02 \x01(\x05R\x0etotalProcessed\x12\x18\n" +
-	"\awarning\x18\x03 \x01(\tR\awarning*\xd7\x01\n" +
+	"\awarning\x18\x03 \x01(\tR\awarning\"0\n" +
+	"\x1aGetDashboardSummaryRequest\x12\x12\n" +
+	"\x04days\x18\x01 \x01(\x05R\x04days\"\xac\x01\n" +
+	"\x12TaxonomyMetricItem\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05hours\x18\x03 \x01(\x01R\x05hours\x12\x1e\n" +
+	"\n" +
+	"percentage\x18\x04 \x01(\x01R\n" +
+	"percentage\x12\x1d\n" +
+	"\n" +
+	"target_min\x18\x05 \x01(\x01R\ttargetMin\x12\x1d\n" +
+	"\n" +
+	"target_max\x18\x06 \x01(\x01R\ttargetMax\"\x84\x01\n" +
+	"\x10BacklogItemProto\x12\x1a\n" +
+	"\bpriority\x18\x01 \x01(\tR\bpriority\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1c\n" +
+	"\tcompleted\x18\x04 \x01(\bR\tcompleted\"<\n" +
+	"\x12FrictionSignalItem\x12\x12\n" +
+	"\x04date\x18\x01 \x01(\tR\x04date\x12\x12\n" +
+	"\x04line\x18\x02 \x01(\tR\x04line\"\xdb\x01\n" +
+	"\rHandoffDigest\x12\x12\n" +
+	"\x04date\x18\x01 \x01(\tR\x04date\x12,\n" +
+	"\x12dream_cycles_count\x18\x02 \x01(\x05R\x10dreamCyclesCount\x12-\n" +
+	"\x12autonomous_actions\x18\x03 \x03(\tR\x11autonomousActions\x12\x1f\n" +
+	"\vinbox_items\x18\x04 \x03(\tR\n" +
+	"inboxItems\x12\x16\n" +
+	"\x06alerts\x18\x05 \x03(\tR\x06alerts\x12 \n" +
+	"\vsuggestions\x18\x06 \x03(\tR\vsuggestions\"\x84\x04\n" +
+	"\x1bGetDashboardSummaryResponse\x12\x1f\n" +
+	"\vwindow_days\x18\x01 \x01(\x05R\n" +
+	"windowDays\x12$\n" +
+	"\x0edays_with_logs\x18\x02 \x01(\x05R\fdaysWithLogs\x12\x1f\n" +
+	"\vtotal_hours\x18\x03 \x01(\x01R\n" +
+	"totalHours\x128\n" +
+	"\btaxonomy\x18\x04 \x03(\v2\x1c.graph.v1.TaxonomyMetricItemR\btaxonomy\x12!\n" +
+	"\fdrift_alerts\x18\x05 \x03(\tR\vdriftAlerts\x12G\n" +
+	"\x10friction_signals\x18\x06 \x03(\v2\x1c.graph.v1.FrictionSignalItemR\x0ffrictionSignals\x121\n" +
+	"\ahandoff\x18\a \x01(\v2\x17.graph.v1.HandoffDigestR\ahandoff\x12\x1f\n" +
+	"\vtotal_notes\x18\b \x01(\x05R\n" +
+	"totalNotes\x12\x1f\n" +
+	"\vtotal_links\x18\t \x01(\x05R\n" +
+	"totalLinks\x12!\n" +
+	"\forphan_notes\x18\n" +
+	" \x01(\x05R\vorphanNotes\x12?\n" +
+	"\rbacklog_items\x18\v \x03(\v2\x1a.graph.v1.BacklogItemProtoR\fbacklogItems\"@\n" +
+	"\x1bGetWorkspaceOverviewRequest\x12!\n" +
+	"\fforce_rescan\x18\x01 \x01(\bR\vforceRescan\"\xf5\x03\n" +
+	"\x11WorkspaceRepoItem\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
+	"\brel_path\x18\x02 \x01(\tR\arelPath\x12\x1a\n" +
+	"\bcategory\x18\x03 \x01(\tR\bcategory\x12\x16\n" +
+	"\x06branch\x18\x04 \x01(\tR\x06branch\x12\x14\n" +
+	"\x05stack\x18\x05 \x01(\tR\x05stack\x12%\n" +
+	"\x0ecomponent_type\x18\x06 \x01(\tR\rcomponentType\x12\x1a\n" +
+	"\bcommands\x18\a \x01(\tR\bcommands\x12 \n" +
+	"\vdescription\x18\b \x01(\tR\vdescription\x12\x1d\n" +
+	"\n" +
+	"vault_link\x18\t \x01(\tR\tvaultLink\x12(\n" +
+	"\x10last_commit_date\x18\n" +
+	" \x01(\tR\x0elastCommitDate\x12.\n" +
+	"\x13days_since_activity\x18\v \x01(\x05R\x11daysSinceActivity\x12\x14\n" +
+	"\x05dirty\x18\f \x01(\bR\x05dirty\x12%\n" +
+	"\x0emodified_count\x18\r \x01(\x05R\rmodifiedCount\x12'\n" +
+	"\x0funtracked_count\x18\x0e \x01(\x05R\x0euntrackedCount\x12#\n" +
+	"\rfiles_preview\x18\x0f \x03(\tR\ffilesPreview\"\x8d\x02\n" +
+	"\x1cGetWorkspaceOverviewResponse\x12\x19\n" +
+	"\bwork_dir\x18\x01 \x01(\tR\aworkDir\x12\x1f\n" +
+	"\vtotal_repos\x18\x02 \x01(\x05R\n" +
+	"totalRepos\x12\x1f\n" +
+	"\vclean_count\x18\x03 \x01(\x05R\n" +
+	"cleanCount\x12\x1f\n" +
+	"\vdirty_count\x18\x04 \x01(\x05R\n" +
+	"dirtyCount\x12\x1d\n" +
+	"\n" +
+	"scanned_at\x18\x05 \x01(\tR\tscannedAt\x12\x1d\n" +
+	"\n" +
+	"from_cache\x18\x06 \x01(\bR\tfromCache\x121\n" +
+	"\x05repos\x18\a \x03(\v2\x1b.graph.v1.WorkspaceRepoItemR\x05repos\"\x1b\n" +
+	"\x19GetPeopleDirectoryRequest\"\xa4\x01\n" +
+	"\x11PersonSummaryItem\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x19\n" +
+	"\brel_path\x18\x03 \x01(\tR\arelPath\x12\x12\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\x12\x14\n" +
+	"\x05squad\x18\x05 \x01(\tR\x05squad\x12\"\n" +
+	"\finteractions\x18\x06 \x01(\x05R\finteractions\"Q\n" +
+	"\x1aGetPeopleDirectoryResponse\x123\n" +
+	"\x06people\x18\x01 \x03(\v2\x1b.graph.v1.PersonSummaryItemR\x06people\".\n" +
+	"\x18GetPersonBriefingRequest\x12\x12\n" +
+	"\x04slug\x18\x01 \x01(\tR\x04slug\"\xc6\x02\n" +
+	"\x19GetPersonBriefingResponse\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x19\n" +
+	"\brel_path\x18\x03 \x01(\tR\arelPath\x12\x14\n" +
+	"\x05cargo\x18\x04 \x01(\tR\x05cargo\x12\x14\n" +
+	"\x05squad\x18\x05 \x01(\tR\x05squad\x12\x18\n" +
+	"\arelacao\x18\x06 \x01(\tR\arelacao\x12/\n" +
+	"\x13recent_interactions\x18\a \x03(\tR\x12recentInteractions\x12\x16\n" +
+	"\x06topics\x18\b \x03(\tR\x06topics\x12#\n" +
+	"\rpending_tasks\x18\t \x03(\tR\fpendingTasks\x122\n" +
+	"\x15recent_daily_mentions\x18\n" +
+	" \x03(\tR\x13recentDailyMentions\"N\n" +
+	"\x17GetAgentActivityRequest\x12\x14\n" +
+	"\x05hours\x18\x01 \x01(\x05R\x05hours\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"\xdc\x03\n" +
+	"\x10AgentSessionItem\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x14\n" +
+	"\x05agent\x18\x02 \x01(\tR\x05agent\x12\x14\n" +
+	"\x05model\x18\x03 \x01(\tR\x05model\x12\x1d\n" +
+	"\n" +
+	"started_at\x18\x04 \x01(\x03R\tstartedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x05 \x01(\x03R\tupdatedAt\x12\x1f\n" +
+	"\vturns_count\x18\x06 \x01(\x05R\n" +
+	"turnsCount\x12\x1f\n" +
+	"\vevent_count\x18\a \x01(\x05R\n" +
+	"eventCount\x12!\n" +
+	"\finput_tokens\x18\b \x01(\x03R\vinputTokens\x12*\n" +
+	"\x11cache_read_tokens\x18\t \x01(\x03R\x0fcacheReadTokens\x12#\n" +
+	"\routput_tokens\x18\n" +
+	" \x01(\x03R\foutputTokens\x12,\n" +
+	"\x12estimated_cost_usd\x18\v \x01(\x01R\x10estimatedCostUsd\x12\x1f\n" +
+	"\vskills_used\x18\f \x01(\tR\n" +
+	"skillsUsed\x12\x1b\n" +
+	"\tis_active\x18\r \x01(\bR\bisActive\x12\x1d\n" +
+	"\n" +
+	"spool_file\x18\x0e \x01(\tR\tspoolFile\"\x95\x01\n" +
+	"\x0eAgentEventItem\x12\x1c\n" +
+	"\ttimestamp\x18\x01 \x01(\tR\ttimestamp\x12\x14\n" +
+	"\x05event\x18\x02 \x01(\tR\x05event\x12\x14\n" +
+	"\x05agent\x18\x03 \x01(\tR\x05agent\x12\x10\n" +
+	"\x03cwd\x18\x04 \x01(\tR\x03cwd\x12'\n" +
+	"\x0fpayload_snippet\x18\x05 \x01(\tR\x0epayloadSnippet\"\x84\x01\n" +
+	"\x18GetAgentActivityResponse\x126\n" +
+	"\bsessions\x18\x01 \x03(\v2\x1a.graph.v1.AgentSessionItemR\bsessions\x120\n" +
+	"\x06events\x18\x02 \x03(\v2\x18.graph.v1.AgentEventItemR\x06events*\xd7\x01\n" +
 	"\fUIActionType\x12\x16\n" +
 	"\x12ACTION_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10ACTION_OPEN_NOTE\x10\x01\x12\x17\n" +
@@ -3851,8 +5426,7 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\x19ACTION_FLASH_NOTIFICATION\x10\x03\x12\x18\n" +
 	"\x14ACTION_GALAXY_RELOAD\x10\x04\x12\x13\n" +
 	"\x0fACTION_PIN_NOTE\x10\x05\x12\x15\n" +
-	"\x11ACTION_UNPIN_NOTE\x10\x06\x1a\x02\x10\x012\x98\n" +
-	"\n" +
+	"\x11ACTION_UNPIN_NOTE\x10\x06\x1a\x02\x10\x012\xfd\r\n" +
 	"\fGraphService\x12D\n" +
 	"\tGetGalaxy\x12\x1a.graph.v1.GetGalaxyRequest\x1a\x1b.graph.v1.GetGalaxyResponse\x12>\n" +
 	"\aGetNote\x12\x18.graph.v1.GetNoteRequest\x1a\x19.graph.v1.GetNoteResponse\x12J\n" +
@@ -3869,7 +5443,12 @@ const file_api_v1_graph_proto_rawDesc = "" +
 	"\rUpsertRoutine\x12\x1e.graph.v1.UpsertRoutineRequest\x1a\x1f.graph.v1.UpsertRoutineResponse\x12P\n" +
 	"\rDeleteRoutine\x12\x1e.graph.v1.DeleteRoutineRequest\x1a\x1f.graph.v1.DeleteRoutineResponse\x12\\\n" +
 	"\x11GetRoutineHistory\x12\".graph.v1.GetRoutineHistoryRequest\x1a#.graph.v1.GetRoutineHistoryResponse\x12n\n" +
-	"\x17GetOperationalTelemetry\x12(.graph.v1.GetOperationalTelemetryRequest\x1a).graph.v1.GetOperationalTelemetryResponseB,Z*github.com/rjfonseca/daneel/api/v1;graphv1b\x06proto3"
+	"\x17GetOperationalTelemetry\x12(.graph.v1.GetOperationalTelemetryRequest\x1a).graph.v1.GetOperationalTelemetryResponse\x12b\n" +
+	"\x13GetDashboardSummary\x12$.graph.v1.GetDashboardSummaryRequest\x1a%.graph.v1.GetDashboardSummaryResponse\x12e\n" +
+	"\x14GetWorkspaceOverview\x12%.graph.v1.GetWorkspaceOverviewRequest\x1a&.graph.v1.GetWorkspaceOverviewResponse\x12_\n" +
+	"\x12GetPeopleDirectory\x12#.graph.v1.GetPeopleDirectoryRequest\x1a$.graph.v1.GetPeopleDirectoryResponse\x12\\\n" +
+	"\x11GetPersonBriefing\x12\".graph.v1.GetPersonBriefingRequest\x1a#.graph.v1.GetPersonBriefingResponse\x12Y\n" +
+	"\x10GetAgentActivity\x12!.graph.v1.GetAgentActivityRequest\x1a\".graph.v1.GetAgentActivityResponseB,Z*github.com/rjfonseca/daneel/api/v1;graphv1b\x06proto3"
 
 var (
 	file_api_v1_graph_proto_rawDescOnce sync.Once
@@ -3884,7 +5463,7 @@ func file_api_v1_graph_proto_rawDescGZIP() []byte {
 }
 
 var file_api_v1_graph_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_v1_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
+var file_api_v1_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
 var file_api_v1_graph_proto_goTypes = []any{
 	(UIActionType)(0),                       // 0: graph.v1.UIActionType
 	(*UIEvent)(nil),                         // 1: graph.v1.UIEvent
@@ -3932,7 +5511,25 @@ var file_api_v1_graph_proto_goTypes = []any{
 	(*IngestPathRequest)(nil),               // 43: graph.v1.IngestPathRequest
 	(*IngestedItem)(nil),                    // 44: graph.v1.IngestedItem
 	(*IngestPathResponse)(nil),              // 45: graph.v1.IngestPathResponse
-	nil,                                     // 46: graph.v1.ExecuteRoutineRequest.ParamsEntry
+	(*GetDashboardSummaryRequest)(nil),      // 46: graph.v1.GetDashboardSummaryRequest
+	(*TaxonomyMetricItem)(nil),              // 47: graph.v1.TaxonomyMetricItem
+	(*BacklogItemProto)(nil),                // 48: graph.v1.BacklogItemProto
+	(*FrictionSignalItem)(nil),              // 49: graph.v1.FrictionSignalItem
+	(*HandoffDigest)(nil),                   // 50: graph.v1.HandoffDigest
+	(*GetDashboardSummaryResponse)(nil),     // 51: graph.v1.GetDashboardSummaryResponse
+	(*GetWorkspaceOverviewRequest)(nil),     // 52: graph.v1.GetWorkspaceOverviewRequest
+	(*WorkspaceRepoItem)(nil),               // 53: graph.v1.WorkspaceRepoItem
+	(*GetWorkspaceOverviewResponse)(nil),    // 54: graph.v1.GetWorkspaceOverviewResponse
+	(*GetPeopleDirectoryRequest)(nil),       // 55: graph.v1.GetPeopleDirectoryRequest
+	(*PersonSummaryItem)(nil),               // 56: graph.v1.PersonSummaryItem
+	(*GetPeopleDirectoryResponse)(nil),      // 57: graph.v1.GetPeopleDirectoryResponse
+	(*GetPersonBriefingRequest)(nil),        // 58: graph.v1.GetPersonBriefingRequest
+	(*GetPersonBriefingResponse)(nil),       // 59: graph.v1.GetPersonBriefingResponse
+	(*GetAgentActivityRequest)(nil),         // 60: graph.v1.GetAgentActivityRequest
+	(*AgentSessionItem)(nil),                // 61: graph.v1.AgentSessionItem
+	(*AgentEventItem)(nil),                  // 62: graph.v1.AgentEventItem
+	(*GetAgentActivityResponse)(nil),        // 63: graph.v1.GetAgentActivityResponse
+	nil,                                     // 64: graph.v1.ExecuteRoutineRequest.ParamsEntry
 }
 var file_api_v1_graph_proto_depIdxs = []int32{
 	0,  // 0: graph.v1.UIEvent.action:type_name -> graph.v1.UIActionType
@@ -3941,7 +5538,7 @@ var file_api_v1_graph_proto_depIdxs = []int32{
 	6,  // 3: graph.v1.GetGalaxyResponse.stats:type_name -> graph.v1.GalaxyStats
 	7,  // 4: graph.v1.GetGalaxyResponse.pinned_anchors:type_name -> graph.v1.PinnedAnchor
 	15, // 5: graph.v1.SearchNotesResponse.results:type_name -> graph.v1.SearchResult
-	46, // 6: graph.v1.ExecuteRoutineRequest.params:type_name -> graph.v1.ExecuteRoutineRequest.ParamsEntry
+	64, // 6: graph.v1.ExecuteRoutineRequest.params:type_name -> graph.v1.ExecuteRoutineRequest.ParamsEntry
 	19, // 7: graph.v1.GetRoutinesOverviewResponse.routines:type_name -> graph.v1.RoutineStatusItem
 	21, // 8: graph.v1.GetRoutineHistoryResponse.runs:type_name -> graph.v1.RoutineRunItem
 	29, // 9: graph.v1.GetStaffTelemetryResponse.rolling_weeks:type_name -> graph.v1.StaffPeriodSummary
@@ -3953,41 +5550,59 @@ var file_api_v1_graph_proto_depIdxs = []int32{
 	38, // 15: graph.v1.GetOperationalTelemetryResponse.recent_sessions:type_name -> graph.v1.SessionTelemetryItem
 	39, // 16: graph.v1.GetOperationalTelemetryResponse.command_metrics:type_name -> graph.v1.CommandMetricItem
 	44, // 17: graph.v1.IngestPathResponse.items:type_name -> graph.v1.IngestedItem
-	5,  // 18: graph.v1.GraphService.GetGalaxy:input_type -> graph.v1.GetGalaxyRequest
-	11, // 19: graph.v1.GraphService.GetNote:input_type -> graph.v1.GetNoteRequest
-	41, // 20: graph.v1.GraphService.CaptureNote:input_type -> graph.v1.CaptureNoteRequest
-	43, // 21: graph.v1.GraphService.IngestPath:input_type -> graph.v1.IngestPathRequest
-	13, // 22: graph.v1.GraphService.SearchNotes:input_type -> graph.v1.SearchNotesRequest
-	2,  // 23: graph.v1.GraphService.SubscribeUIEvents:input_type -> graph.v1.SubscribeUIEventsRequest
-	3,  // 24: graph.v1.GraphService.ReportActiveContext:input_type -> graph.v1.ReportActiveContextRequest
-	16, // 25: graph.v1.GraphService.ExecuteRoutine:input_type -> graph.v1.ExecuteRoutineRequest
-	18, // 26: graph.v1.GraphService.GetRoutinesOverview:input_type -> graph.v1.GetRoutinesOverviewRequest
-	28, // 27: graph.v1.GraphService.GetStaffTelemetry:input_type -> graph.v1.GetStaffTelemetryRequest
-	31, // 28: graph.v1.GraphService.GetCognitiveTelemetry:input_type -> graph.v1.GetCognitiveTelemetryRequest
-	24, // 29: graph.v1.GraphService.UpsertRoutine:input_type -> graph.v1.UpsertRoutineRequest
-	26, // 30: graph.v1.GraphService.DeleteRoutine:input_type -> graph.v1.DeleteRoutineRequest
-	22, // 31: graph.v1.GraphService.GetRoutineHistory:input_type -> graph.v1.GetRoutineHistoryRequest
-	35, // 32: graph.v1.GraphService.GetOperationalTelemetry:input_type -> graph.v1.GetOperationalTelemetryRequest
-	8,  // 33: graph.v1.GraphService.GetGalaxy:output_type -> graph.v1.GetGalaxyResponse
-	12, // 34: graph.v1.GraphService.GetNote:output_type -> graph.v1.GetNoteResponse
-	42, // 35: graph.v1.GraphService.CaptureNote:output_type -> graph.v1.CaptureNoteResponse
-	45, // 36: graph.v1.GraphService.IngestPath:output_type -> graph.v1.IngestPathResponse
-	14, // 37: graph.v1.GraphService.SearchNotes:output_type -> graph.v1.SearchNotesResponse
-	1,  // 38: graph.v1.GraphService.SubscribeUIEvents:output_type -> graph.v1.UIEvent
-	4,  // 39: graph.v1.GraphService.ReportActiveContext:output_type -> graph.v1.ReportActiveContextResponse
-	17, // 40: graph.v1.GraphService.ExecuteRoutine:output_type -> graph.v1.RoutineOutputEvent
-	20, // 41: graph.v1.GraphService.GetRoutinesOverview:output_type -> graph.v1.GetRoutinesOverviewResponse
-	30, // 42: graph.v1.GraphService.GetStaffTelemetry:output_type -> graph.v1.GetStaffTelemetryResponse
-	34, // 43: graph.v1.GraphService.GetCognitiveTelemetry:output_type -> graph.v1.GetCognitiveTelemetryResponse
-	25, // 44: graph.v1.GraphService.UpsertRoutine:output_type -> graph.v1.UpsertRoutineResponse
-	27, // 45: graph.v1.GraphService.DeleteRoutine:output_type -> graph.v1.DeleteRoutineResponse
-	23, // 46: graph.v1.GraphService.GetRoutineHistory:output_type -> graph.v1.GetRoutineHistoryResponse
-	40, // 47: graph.v1.GraphService.GetOperationalTelemetry:output_type -> graph.v1.GetOperationalTelemetryResponse
-	33, // [33:48] is the sub-list for method output_type
-	18, // [18:33] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	47, // 18: graph.v1.GetDashboardSummaryResponse.taxonomy:type_name -> graph.v1.TaxonomyMetricItem
+	49, // 19: graph.v1.GetDashboardSummaryResponse.friction_signals:type_name -> graph.v1.FrictionSignalItem
+	50, // 20: graph.v1.GetDashboardSummaryResponse.handoff:type_name -> graph.v1.HandoffDigest
+	48, // 21: graph.v1.GetDashboardSummaryResponse.backlog_items:type_name -> graph.v1.BacklogItemProto
+	53, // 22: graph.v1.GetWorkspaceOverviewResponse.repos:type_name -> graph.v1.WorkspaceRepoItem
+	56, // 23: graph.v1.GetPeopleDirectoryResponse.people:type_name -> graph.v1.PersonSummaryItem
+	61, // 24: graph.v1.GetAgentActivityResponse.sessions:type_name -> graph.v1.AgentSessionItem
+	62, // 25: graph.v1.GetAgentActivityResponse.events:type_name -> graph.v1.AgentEventItem
+	5,  // 26: graph.v1.GraphService.GetGalaxy:input_type -> graph.v1.GetGalaxyRequest
+	11, // 27: graph.v1.GraphService.GetNote:input_type -> graph.v1.GetNoteRequest
+	41, // 28: graph.v1.GraphService.CaptureNote:input_type -> graph.v1.CaptureNoteRequest
+	43, // 29: graph.v1.GraphService.IngestPath:input_type -> graph.v1.IngestPathRequest
+	13, // 30: graph.v1.GraphService.SearchNotes:input_type -> graph.v1.SearchNotesRequest
+	2,  // 31: graph.v1.GraphService.SubscribeUIEvents:input_type -> graph.v1.SubscribeUIEventsRequest
+	3,  // 32: graph.v1.GraphService.ReportActiveContext:input_type -> graph.v1.ReportActiveContextRequest
+	16, // 33: graph.v1.GraphService.ExecuteRoutine:input_type -> graph.v1.ExecuteRoutineRequest
+	18, // 34: graph.v1.GraphService.GetRoutinesOverview:input_type -> graph.v1.GetRoutinesOverviewRequest
+	28, // 35: graph.v1.GraphService.GetStaffTelemetry:input_type -> graph.v1.GetStaffTelemetryRequest
+	31, // 36: graph.v1.GraphService.GetCognitiveTelemetry:input_type -> graph.v1.GetCognitiveTelemetryRequest
+	24, // 37: graph.v1.GraphService.UpsertRoutine:input_type -> graph.v1.UpsertRoutineRequest
+	26, // 38: graph.v1.GraphService.DeleteRoutine:input_type -> graph.v1.DeleteRoutineRequest
+	22, // 39: graph.v1.GraphService.GetRoutineHistory:input_type -> graph.v1.GetRoutineHistoryRequest
+	35, // 40: graph.v1.GraphService.GetOperationalTelemetry:input_type -> graph.v1.GetOperationalTelemetryRequest
+	46, // 41: graph.v1.GraphService.GetDashboardSummary:input_type -> graph.v1.GetDashboardSummaryRequest
+	52, // 42: graph.v1.GraphService.GetWorkspaceOverview:input_type -> graph.v1.GetWorkspaceOverviewRequest
+	55, // 43: graph.v1.GraphService.GetPeopleDirectory:input_type -> graph.v1.GetPeopleDirectoryRequest
+	58, // 44: graph.v1.GraphService.GetPersonBriefing:input_type -> graph.v1.GetPersonBriefingRequest
+	60, // 45: graph.v1.GraphService.GetAgentActivity:input_type -> graph.v1.GetAgentActivityRequest
+	8,  // 46: graph.v1.GraphService.GetGalaxy:output_type -> graph.v1.GetGalaxyResponse
+	12, // 47: graph.v1.GraphService.GetNote:output_type -> graph.v1.GetNoteResponse
+	42, // 48: graph.v1.GraphService.CaptureNote:output_type -> graph.v1.CaptureNoteResponse
+	45, // 49: graph.v1.GraphService.IngestPath:output_type -> graph.v1.IngestPathResponse
+	14, // 50: graph.v1.GraphService.SearchNotes:output_type -> graph.v1.SearchNotesResponse
+	1,  // 51: graph.v1.GraphService.SubscribeUIEvents:output_type -> graph.v1.UIEvent
+	4,  // 52: graph.v1.GraphService.ReportActiveContext:output_type -> graph.v1.ReportActiveContextResponse
+	17, // 53: graph.v1.GraphService.ExecuteRoutine:output_type -> graph.v1.RoutineOutputEvent
+	20, // 54: graph.v1.GraphService.GetRoutinesOverview:output_type -> graph.v1.GetRoutinesOverviewResponse
+	30, // 55: graph.v1.GraphService.GetStaffTelemetry:output_type -> graph.v1.GetStaffTelemetryResponse
+	34, // 56: graph.v1.GraphService.GetCognitiveTelemetry:output_type -> graph.v1.GetCognitiveTelemetryResponse
+	25, // 57: graph.v1.GraphService.UpsertRoutine:output_type -> graph.v1.UpsertRoutineResponse
+	27, // 58: graph.v1.GraphService.DeleteRoutine:output_type -> graph.v1.DeleteRoutineResponse
+	23, // 59: graph.v1.GraphService.GetRoutineHistory:output_type -> graph.v1.GetRoutineHistoryResponse
+	40, // 60: graph.v1.GraphService.GetOperationalTelemetry:output_type -> graph.v1.GetOperationalTelemetryResponse
+	51, // 61: graph.v1.GraphService.GetDashboardSummary:output_type -> graph.v1.GetDashboardSummaryResponse
+	54, // 62: graph.v1.GraphService.GetWorkspaceOverview:output_type -> graph.v1.GetWorkspaceOverviewResponse
+	57, // 63: graph.v1.GraphService.GetPeopleDirectory:output_type -> graph.v1.GetPeopleDirectoryResponse
+	59, // 64: graph.v1.GraphService.GetPersonBriefing:output_type -> graph.v1.GetPersonBriefingResponse
+	63, // 65: graph.v1.GraphService.GetAgentActivity:output_type -> graph.v1.GetAgentActivityResponse
+	46, // [46:66] is the sub-list for method output_type
+	26, // [26:46] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_graph_proto_init() }
@@ -4001,7 +5616,7 @@ func file_api_v1_graph_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_graph_proto_rawDesc), len(file_api_v1_graph_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   46,
+			NumMessages:   64,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

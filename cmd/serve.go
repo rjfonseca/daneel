@@ -551,7 +551,11 @@ func (s *GraphServer) SearchNotes(
 	ctx context.Context,
 	req *connect.Request[graphv1.SearchNotesRequest],
 ) (*connect.Response[graphv1.SearchNotesResponse], error) {
-	results, err := s.engine.Search(ctx, req.Msg.Query, "all", int(req.Msg.Limit))
+	scope := strings.TrimSpace(req.Msg.Scope)
+	if scope == "" {
+		scope = "all"
+	}
+	results, err := s.engine.Search(ctx, req.Msg.Query, scope, int(req.Msg.Limit))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -559,9 +563,12 @@ func (s *GraphServer) SearchNotes(
 	var pbResults []*graphv1.SearchResult
 	for _, r := range results {
 		pbResults = append(pbResults, &graphv1.SearchResult{
-			RelPath: r.RelPath,
-			Title:   r.Title,
-			Snippet: r.Snippet,
+			RelPath:     r.RelPath,
+			Title:       r.Title,
+			Snippet:     r.Snippet,
+			Scope:       r.Scope,
+			NoteType:    r.Type,
+			Description: r.Description,
 		})
 	}
 
@@ -1934,7 +1941,7 @@ var serveCmd = &cobra.Command{
 	},
 }
 
-// newWebTelemetryInterceptor records ConnectRPC calls from the Web UI into command_telemetry under surface "web".
+// newWebTelemetryInterceptor records ConnectRPC calls from the Web UI (or TUI/CLI/MCP via X-Daneel-Surface) into command_telemetry.
 func newWebTelemetryInterceptor(s *GraphServer) connect.UnaryInterceptorFunc {
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
@@ -1947,13 +1954,18 @@ func newWebTelemetryInterceptor(s *GraphServer) connect.UnaryInterceptorFunc {
 				return next(ctx, req)
 			}
 
+			surface := strings.ToLower(strings.TrimSpace(req.Header().Get("X-Daneel-Surface")))
+			if surface != "tui" && surface != "cli" && surface != "mcp" {
+				surface = "web"
+			}
+
 			start := time.Now()
 			resp, err := next(ctx, req)
 			durationMs := time.Since(start).Milliseconds()
 
 			if store := s.getRoutineStore(); store != nil {
 				_ = store.RecordCommandEvent(context.Background(), routine.CommandTelemetryEvent{
-					Surface:    "web",
+					Surface:    surface,
 					Command:    proc,
 					StartedAt:  start.Unix(),
 					DurationMs: durationMs,
@@ -1985,7 +1997,7 @@ func NewGalaxyHTTPServer(cfg *config.Config, engine *search.Engine, port int, dC
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins: []string{fmt.Sprintf("http://localhost:%d", port), fmt.Sprintf("http://127.0.0.1:%d", port), "http://localhost:5173", "http://127.0.0.1:5173"},
 		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders: []string{"Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms", "X-User-Agent", "Grpc-Timeout"},
+		AllowedHeaders: []string{"Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms", "X-User-Agent", "X-Daneel-Surface", "Grpc-Timeout"},
 		ExposedHeaders: []string{"Grpc-Status", "Grpc-Message", "Grpc-Status-Details-Bin"},
 	}).Handler(mux)
 

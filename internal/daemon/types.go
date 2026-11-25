@@ -60,3 +60,9 @@ type SearchHybridPayload struct {
 	Tag       string `json:"tag,omitempty"`
 	Limit     int    `json:"limit,omitempty"`
 }
+
+// ServerInfo describes the running daemon's HTTP endpoint and vault root.
+type ServerInfo struct {
+	HTTPAddr  string `json:"http_addr"`
+	VaultPath string `json:"vault_path"`
+}

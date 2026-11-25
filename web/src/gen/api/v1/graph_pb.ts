@@ -736,6 +736,11 @@ export class SearchNotesRequest extends Message<SearchNotesRequest> {
    */
   limit = 0;
 
+  /**
+   * @generated from field: string scope = 3;
+   */
+  scope = "";
+
   constructor(data?: PartialMessage<SearchNotesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -746,6 +751,7 @@ export class SearchNotesRequest extends Message<SearchNotesRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "limit", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "scope", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchNotesRequest {
@@ -823,6 +829,21 @@ export class SearchResult extends Message<SearchResult> {
    */
   snippet = "";
 
+  /**
+   * @generated from field: string scope = 4;
+   */
+  scope = "";
+
+  /**
+   * @generated from field: string note_type = 5;
+   */
+  noteType = "";
+
+  /**
+   * @generated from field: string description = 6;
+   */
+  description = "";
+
   constructor(data?: PartialMessage<SearchResult>) {
     super();
     proto3.util.initPartial(data, this);
@@ -834,6 +855,9 @@ export class SearchResult extends Message<SearchResult> {
     { no: 1, name: "rel_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "snippet", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "scope", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "note_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchResult {
@@ -2872,6 +2896,1128 @@ export class IngestPathResponse extends Message<IngestPathResponse> {
 
   static equals(a: IngestPathResponse | PlainMessage<IngestPathResponse> | undefined, b: IngestPathResponse | PlainMessage<IngestPathResponse> | undefined): boolean {
     return proto3.util.equals(IngestPathResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetDashboardSummaryRequest
+ */
+export class GetDashboardSummaryRequest extends Message<GetDashboardSummaryRequest> {
+  /**
+   * @generated from field: int32 days = 1;
+   */
+  days = 0;
+
+  constructor(data?: PartialMessage<GetDashboardSummaryRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetDashboardSummaryRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "days", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDashboardSummaryRequest {
+    return new GetDashboardSummaryRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDashboardSummaryRequest {
+    return new GetDashboardSummaryRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDashboardSummaryRequest {
+    return new GetDashboardSummaryRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetDashboardSummaryRequest | PlainMessage<GetDashboardSummaryRequest> | undefined, b: GetDashboardSummaryRequest | PlainMessage<GetDashboardSummaryRequest> | undefined): boolean {
+    return proto3.util.equals(GetDashboardSummaryRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.TaxonomyMetricItem
+ */
+export class TaxonomyMetricItem extends Message<TaxonomyMetricItem> {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name = "";
+
+  /**
+   * @generated from field: double hours = 3;
+   */
+  hours = 0;
+
+  /**
+   * @generated from field: double percentage = 4;
+   */
+  percentage = 0;
+
+  /**
+   * @generated from field: double target_min = 5;
+   */
+  targetMin = 0;
+
+  /**
+   * @generated from field: double target_max = 6;
+   */
+  targetMax = 0;
+
+  constructor(data?: PartialMessage<TaxonomyMetricItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.TaxonomyMetricItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "hours", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 4, name: "percentage", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 5, name: "target_min", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 6, name: "target_max", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TaxonomyMetricItem {
+    return new TaxonomyMetricItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TaxonomyMetricItem {
+    return new TaxonomyMetricItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TaxonomyMetricItem {
+    return new TaxonomyMetricItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: TaxonomyMetricItem | PlainMessage<TaxonomyMetricItem> | undefined, b: TaxonomyMetricItem | PlainMessage<TaxonomyMetricItem> | undefined): boolean {
+    return proto3.util.equals(TaxonomyMetricItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.BacklogItemProto
+ */
+export class BacklogItemProto extends Message<BacklogItemProto> {
+  /**
+   * @generated from field: string priority = 1;
+   */
+  priority = "";
+
+  /**
+   * @generated from field: string title = 2;
+   */
+  title = "";
+
+  /**
+   * @generated from field: string description = 3;
+   */
+  description = "";
+
+  /**
+   * @generated from field: bool completed = 4;
+   */
+  completed = false;
+
+  constructor(data?: PartialMessage<BacklogItemProto>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.BacklogItemProto";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "priority", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "completed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BacklogItemProto {
+    return new BacklogItemProto().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BacklogItemProto {
+    return new BacklogItemProto().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BacklogItemProto {
+    return new BacklogItemProto().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BacklogItemProto | PlainMessage<BacklogItemProto> | undefined, b: BacklogItemProto | PlainMessage<BacklogItemProto> | undefined): boolean {
+    return proto3.util.equals(BacklogItemProto, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.FrictionSignalItem
+ */
+export class FrictionSignalItem extends Message<FrictionSignalItem> {
+  /**
+   * @generated from field: string date = 1;
+   */
+  date = "";
+
+  /**
+   * @generated from field: string line = 2;
+   */
+  line = "";
+
+  constructor(data?: PartialMessage<FrictionSignalItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.FrictionSignalItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "date", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "line", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): FrictionSignalItem {
+    return new FrictionSignalItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): FrictionSignalItem {
+    return new FrictionSignalItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): FrictionSignalItem {
+    return new FrictionSignalItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: FrictionSignalItem | PlainMessage<FrictionSignalItem> | undefined, b: FrictionSignalItem | PlainMessage<FrictionSignalItem> | undefined): boolean {
+    return proto3.util.equals(FrictionSignalItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.HandoffDigest
+ */
+export class HandoffDigest extends Message<HandoffDigest> {
+  /**
+   * @generated from field: string date = 1;
+   */
+  date = "";
+
+  /**
+   * @generated from field: int32 dream_cycles_count = 2;
+   */
+  dreamCyclesCount = 0;
+
+  /**
+   * @generated from field: repeated string autonomous_actions = 3;
+   */
+  autonomousActions: string[] = [];
+
+  /**
+   * @generated from field: repeated string inbox_items = 4;
+   */
+  inboxItems: string[] = [];
+
+  /**
+   * @generated from field: repeated string alerts = 5;
+   */
+  alerts: string[] = [];
+
+  /**
+   * @generated from field: repeated string suggestions = 6;
+   */
+  suggestions: string[] = [];
+
+  constructor(data?: PartialMessage<HandoffDigest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.HandoffDigest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "date", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "dream_cycles_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "autonomous_actions", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 4, name: "inbox_items", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 5, name: "alerts", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 6, name: "suggestions", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HandoffDigest {
+    return new HandoffDigest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): HandoffDigest {
+    return new HandoffDigest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): HandoffDigest {
+    return new HandoffDigest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: HandoffDigest | PlainMessage<HandoffDigest> | undefined, b: HandoffDigest | PlainMessage<HandoffDigest> | undefined): boolean {
+    return proto3.util.equals(HandoffDigest, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetDashboardSummaryResponse
+ */
+export class GetDashboardSummaryResponse extends Message<GetDashboardSummaryResponse> {
+  /**
+   * @generated from field: int32 window_days = 1;
+   */
+  windowDays = 0;
+
+  /**
+   * @generated from field: int32 days_with_logs = 2;
+   */
+  daysWithLogs = 0;
+
+  /**
+   * @generated from field: double total_hours = 3;
+   */
+  totalHours = 0;
+
+  /**
+   * @generated from field: repeated graph.v1.TaxonomyMetricItem taxonomy = 4;
+   */
+  taxonomy: TaxonomyMetricItem[] = [];
+
+  /**
+   * @generated from field: repeated string drift_alerts = 5;
+   */
+  driftAlerts: string[] = [];
+
+  /**
+   * @generated from field: repeated graph.v1.FrictionSignalItem friction_signals = 6;
+   */
+  frictionSignals: FrictionSignalItem[] = [];
+
+  /**
+   * @generated from field: graph.v1.HandoffDigest handoff = 7;
+   */
+  handoff?: HandoffDigest;
+
+  /**
+   * @generated from field: int32 total_notes = 8;
+   */
+  totalNotes = 0;
+
+  /**
+   * @generated from field: int32 total_links = 9;
+   */
+  totalLinks = 0;
+
+  /**
+   * @generated from field: int32 orphan_notes = 10;
+   */
+  orphanNotes = 0;
+
+  /**
+   * @generated from field: repeated graph.v1.BacklogItemProto backlog_items = 11;
+   */
+  backlogItems: BacklogItemProto[] = [];
+
+  constructor(data?: PartialMessage<GetDashboardSummaryResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetDashboardSummaryResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "window_days", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "days_with_logs", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "total_hours", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 4, name: "taxonomy", kind: "message", T: TaxonomyMetricItem, repeated: true },
+    { no: 5, name: "drift_alerts", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 6, name: "friction_signals", kind: "message", T: FrictionSignalItem, repeated: true },
+    { no: 7, name: "handoff", kind: "message", T: HandoffDigest },
+    { no: 8, name: "total_notes", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 9, name: "total_links", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 10, name: "orphan_notes", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 11, name: "backlog_items", kind: "message", T: BacklogItemProto, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetDashboardSummaryResponse {
+    return new GetDashboardSummaryResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetDashboardSummaryResponse {
+    return new GetDashboardSummaryResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetDashboardSummaryResponse {
+    return new GetDashboardSummaryResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetDashboardSummaryResponse | PlainMessage<GetDashboardSummaryResponse> | undefined, b: GetDashboardSummaryResponse | PlainMessage<GetDashboardSummaryResponse> | undefined): boolean {
+    return proto3.util.equals(GetDashboardSummaryResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetWorkspaceOverviewRequest
+ */
+export class GetWorkspaceOverviewRequest extends Message<GetWorkspaceOverviewRequest> {
+  /**
+   * @generated from field: bool force_rescan = 1;
+   */
+  forceRescan = false;
+
+  constructor(data?: PartialMessage<GetWorkspaceOverviewRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetWorkspaceOverviewRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "force_rescan", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetWorkspaceOverviewRequest {
+    return new GetWorkspaceOverviewRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetWorkspaceOverviewRequest {
+    return new GetWorkspaceOverviewRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetWorkspaceOverviewRequest {
+    return new GetWorkspaceOverviewRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetWorkspaceOverviewRequest | PlainMessage<GetWorkspaceOverviewRequest> | undefined, b: GetWorkspaceOverviewRequest | PlainMessage<GetWorkspaceOverviewRequest> | undefined): boolean {
+    return proto3.util.equals(GetWorkspaceOverviewRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.WorkspaceRepoItem
+ */
+export class WorkspaceRepoItem extends Message<WorkspaceRepoItem> {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * @generated from field: string rel_path = 2;
+   */
+  relPath = "";
+
+  /**
+   * @generated from field: string category = 3;
+   */
+  category = "";
+
+  /**
+   * @generated from field: string branch = 4;
+   */
+  branch = "";
+
+  /**
+   * @generated from field: string stack = 5;
+   */
+  stack = "";
+
+  /**
+   * @generated from field: string component_type = 6;
+   */
+  componentType = "";
+
+  /**
+   * @generated from field: string commands = 7;
+   */
+  commands = "";
+
+  /**
+   * @generated from field: string description = 8;
+   */
+  description = "";
+
+  /**
+   * @generated from field: string vault_link = 9;
+   */
+  vaultLink = "";
+
+  /**
+   * @generated from field: string last_commit_date = 10;
+   */
+  lastCommitDate = "";
+
+  /**
+   * @generated from field: int32 days_since_activity = 11;
+   */
+  daysSinceActivity = 0;
+
+  /**
+   * @generated from field: bool dirty = 12;
+   */
+  dirty = false;
+
+  /**
+   * @generated from field: int32 modified_count = 13;
+   */
+  modifiedCount = 0;
+
+  /**
+   * @generated from field: int32 untracked_count = 14;
+   */
+  untrackedCount = 0;
+
+  /**
+   * @generated from field: repeated string files_preview = 15;
+   */
+  filesPreview: string[] = [];
+
+  constructor(data?: PartialMessage<WorkspaceRepoItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.WorkspaceRepoItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "rel_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "category", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "branch", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "stack", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "component_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "commands", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 9, name: "vault_link", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "last_commit_date", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 11, name: "days_since_activity", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 12, name: "dirty", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 13, name: "modified_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 14, name: "untracked_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 15, name: "files_preview", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): WorkspaceRepoItem {
+    return new WorkspaceRepoItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): WorkspaceRepoItem {
+    return new WorkspaceRepoItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): WorkspaceRepoItem {
+    return new WorkspaceRepoItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: WorkspaceRepoItem | PlainMessage<WorkspaceRepoItem> | undefined, b: WorkspaceRepoItem | PlainMessage<WorkspaceRepoItem> | undefined): boolean {
+    return proto3.util.equals(WorkspaceRepoItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetWorkspaceOverviewResponse
+ */
+export class GetWorkspaceOverviewResponse extends Message<GetWorkspaceOverviewResponse> {
+  /**
+   * @generated from field: string work_dir = 1;
+   */
+  workDir = "";
+
+  /**
+   * @generated from field: int32 total_repos = 2;
+   */
+  totalRepos = 0;
+
+  /**
+   * @generated from field: int32 clean_count = 3;
+   */
+  cleanCount = 0;
+
+  /**
+   * @generated from field: int32 dirty_count = 4;
+   */
+  dirtyCount = 0;
+
+  /**
+   * @generated from field: string scanned_at = 5;
+   */
+  scannedAt = "";
+
+  /**
+   * @generated from field: bool from_cache = 6;
+   */
+  fromCache = false;
+
+  /**
+   * @generated from field: repeated graph.v1.WorkspaceRepoItem repos = 7;
+   */
+  repos: WorkspaceRepoItem[] = [];
+
+  constructor(data?: PartialMessage<GetWorkspaceOverviewResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetWorkspaceOverviewResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "work_dir", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "total_repos", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "clean_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "dirty_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "scanned_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "from_cache", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 7, name: "repos", kind: "message", T: WorkspaceRepoItem, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetWorkspaceOverviewResponse {
+    return new GetWorkspaceOverviewResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetWorkspaceOverviewResponse {
+    return new GetWorkspaceOverviewResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetWorkspaceOverviewResponse {
+    return new GetWorkspaceOverviewResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetWorkspaceOverviewResponse | PlainMessage<GetWorkspaceOverviewResponse> | undefined, b: GetWorkspaceOverviewResponse | PlainMessage<GetWorkspaceOverviewResponse> | undefined): boolean {
+    return proto3.util.equals(GetWorkspaceOverviewResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetPeopleDirectoryRequest
+ */
+export class GetPeopleDirectoryRequest extends Message<GetPeopleDirectoryRequest> {
+  constructor(data?: PartialMessage<GetPeopleDirectoryRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetPeopleDirectoryRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPeopleDirectoryRequest {
+    return new GetPeopleDirectoryRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPeopleDirectoryRequest {
+    return new GetPeopleDirectoryRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPeopleDirectoryRequest {
+    return new GetPeopleDirectoryRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPeopleDirectoryRequest | PlainMessage<GetPeopleDirectoryRequest> | undefined, b: GetPeopleDirectoryRequest | PlainMessage<GetPeopleDirectoryRequest> | undefined): boolean {
+    return proto3.util.equals(GetPeopleDirectoryRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.PersonSummaryItem
+ */
+export class PersonSummaryItem extends Message<PersonSummaryItem> {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * @generated from field: string slug = 2;
+   */
+  slug = "";
+
+  /**
+   * @generated from field: string rel_path = 3;
+   */
+  relPath = "";
+
+  /**
+   * @generated from field: string role = 4;
+   */
+  role = "";
+
+  /**
+   * @generated from field: string squad = 5;
+   */
+  squad = "";
+
+  /**
+   * @generated from field: int32 interactions = 6;
+   */
+  interactions = 0;
+
+  constructor(data?: PartialMessage<PersonSummaryItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.PersonSummaryItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "slug", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "rel_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "role", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "squad", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "interactions", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PersonSummaryItem {
+    return new PersonSummaryItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PersonSummaryItem {
+    return new PersonSummaryItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PersonSummaryItem {
+    return new PersonSummaryItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PersonSummaryItem | PlainMessage<PersonSummaryItem> | undefined, b: PersonSummaryItem | PlainMessage<PersonSummaryItem> | undefined): boolean {
+    return proto3.util.equals(PersonSummaryItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetPeopleDirectoryResponse
+ */
+export class GetPeopleDirectoryResponse extends Message<GetPeopleDirectoryResponse> {
+  /**
+   * @generated from field: repeated graph.v1.PersonSummaryItem people = 1;
+   */
+  people: PersonSummaryItem[] = [];
+
+  constructor(data?: PartialMessage<GetPeopleDirectoryResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetPeopleDirectoryResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "people", kind: "message", T: PersonSummaryItem, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPeopleDirectoryResponse {
+    return new GetPeopleDirectoryResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPeopleDirectoryResponse {
+    return new GetPeopleDirectoryResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPeopleDirectoryResponse {
+    return new GetPeopleDirectoryResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPeopleDirectoryResponse | PlainMessage<GetPeopleDirectoryResponse> | undefined, b: GetPeopleDirectoryResponse | PlainMessage<GetPeopleDirectoryResponse> | undefined): boolean {
+    return proto3.util.equals(GetPeopleDirectoryResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetPersonBriefingRequest
+ */
+export class GetPersonBriefingRequest extends Message<GetPersonBriefingRequest> {
+  /**
+   * @generated from field: string slug = 1;
+   */
+  slug = "";
+
+  constructor(data?: PartialMessage<GetPersonBriefingRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetPersonBriefingRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "slug", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPersonBriefingRequest {
+    return new GetPersonBriefingRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPersonBriefingRequest {
+    return new GetPersonBriefingRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPersonBriefingRequest {
+    return new GetPersonBriefingRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPersonBriefingRequest | PlainMessage<GetPersonBriefingRequest> | undefined, b: GetPersonBriefingRequest | PlainMessage<GetPersonBriefingRequest> | undefined): boolean {
+    return proto3.util.equals(GetPersonBriefingRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetPersonBriefingResponse
+ */
+export class GetPersonBriefingResponse extends Message<GetPersonBriefingResponse> {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * @generated from field: string slug = 2;
+   */
+  slug = "";
+
+  /**
+   * @generated from field: string rel_path = 3;
+   */
+  relPath = "";
+
+  /**
+   * @generated from field: string cargo = 4;
+   */
+  cargo = "";
+
+  /**
+   * @generated from field: string squad = 5;
+   */
+  squad = "";
+
+  /**
+   * @generated from field: string relacao = 6;
+   */
+  relacao = "";
+
+  /**
+   * @generated from field: repeated string recent_interactions = 7;
+   */
+  recentInteractions: string[] = [];
+
+  /**
+   * @generated from field: repeated string topics = 8;
+   */
+  topics: string[] = [];
+
+  /**
+   * @generated from field: repeated string pending_tasks = 9;
+   */
+  pendingTasks: string[] = [];
+
+  /**
+   * @generated from field: repeated string recent_daily_mentions = 10;
+   */
+  recentDailyMentions: string[] = [];
+
+  constructor(data?: PartialMessage<GetPersonBriefingResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetPersonBriefingResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "slug", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "rel_path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "cargo", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "squad", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "relacao", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "recent_interactions", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 8, name: "topics", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 9, name: "pending_tasks", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 10, name: "recent_daily_mentions", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPersonBriefingResponse {
+    return new GetPersonBriefingResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPersonBriefingResponse {
+    return new GetPersonBriefingResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPersonBriefingResponse {
+    return new GetPersonBriefingResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPersonBriefingResponse | PlainMessage<GetPersonBriefingResponse> | undefined, b: GetPersonBriefingResponse | PlainMessage<GetPersonBriefingResponse> | undefined): boolean {
+    return proto3.util.equals(GetPersonBriefingResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetAgentActivityRequest
+ */
+export class GetAgentActivityRequest extends Message<GetAgentActivityRequest> {
+  /**
+   * @generated from field: int32 hours = 1;
+   */
+  hours = 0;
+
+  /**
+   * @generated from field: string session_id = 2;
+   */
+  sessionId = "";
+
+  constructor(data?: PartialMessage<GetAgentActivityRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetAgentActivityRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "hours", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetAgentActivityRequest {
+    return new GetAgentActivityRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetAgentActivityRequest {
+    return new GetAgentActivityRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetAgentActivityRequest {
+    return new GetAgentActivityRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetAgentActivityRequest | PlainMessage<GetAgentActivityRequest> | undefined, b: GetAgentActivityRequest | PlainMessage<GetAgentActivityRequest> | undefined): boolean {
+    return proto3.util.equals(GetAgentActivityRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.AgentSessionItem
+ */
+export class AgentSessionItem extends Message<AgentSessionItem> {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId = "";
+
+  /**
+   * @generated from field: string agent = 2;
+   */
+  agent = "";
+
+  /**
+   * @generated from field: string model = 3;
+   */
+  model = "";
+
+  /**
+   * @generated from field: int64 started_at = 4;
+   */
+  startedAt = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 updated_at = 5;
+   */
+  updatedAt = protoInt64.zero;
+
+  /**
+   * @generated from field: int32 turns_count = 6;
+   */
+  turnsCount = 0;
+
+  /**
+   * @generated from field: int32 event_count = 7;
+   */
+  eventCount = 0;
+
+  /**
+   * @generated from field: int64 input_tokens = 8;
+   */
+  inputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 cache_read_tokens = 9;
+   */
+  cacheReadTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 output_tokens = 10;
+   */
+  outputTokens = protoInt64.zero;
+
+  /**
+   * @generated from field: double estimated_cost_usd = 11;
+   */
+  estimatedCostUsd = 0;
+
+  /**
+   * @generated from field: string skills_used = 12;
+   */
+  skillsUsed = "";
+
+  /**
+   * @generated from field: bool is_active = 13;
+   */
+  isActive = false;
+
+  /**
+   * @generated from field: string spool_file = 14;
+   */
+  spoolFile = "";
+
+  constructor(data?: PartialMessage<AgentSessionItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.AgentSessionItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "agent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "model", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "started_at", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 5, name: "updated_at", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 6, name: "turns_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 7, name: "event_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 8, name: "input_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 9, name: "cache_read_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 10, name: "output_tokens", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 11, name: "estimated_cost_usd", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 12, name: "skills_used", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "is_active", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 14, name: "spool_file", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AgentSessionItem {
+    return new AgentSessionItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AgentSessionItem {
+    return new AgentSessionItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AgentSessionItem {
+    return new AgentSessionItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AgentSessionItem | PlainMessage<AgentSessionItem> | undefined, b: AgentSessionItem | PlainMessage<AgentSessionItem> | undefined): boolean {
+    return proto3.util.equals(AgentSessionItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.AgentEventItem
+ */
+export class AgentEventItem extends Message<AgentEventItem> {
+  /**
+   * @generated from field: string timestamp = 1;
+   */
+  timestamp = "";
+
+  /**
+   * @generated from field: string event = 2;
+   */
+  event = "";
+
+  /**
+   * @generated from field: string agent = 3;
+   */
+  agent = "";
+
+  /**
+   * @generated from field: string cwd = 4;
+   */
+  cwd = "";
+
+  /**
+   * @generated from field: string payload_snippet = 5;
+   */
+  payloadSnippet = "";
+
+  constructor(data?: PartialMessage<AgentEventItem>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.AgentEventItem";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "timestamp", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "event", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "agent", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "cwd", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "payload_snippet", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AgentEventItem {
+    return new AgentEventItem().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AgentEventItem {
+    return new AgentEventItem().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AgentEventItem {
+    return new AgentEventItem().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AgentEventItem | PlainMessage<AgentEventItem> | undefined, b: AgentEventItem | PlainMessage<AgentEventItem> | undefined): boolean {
+    return proto3.util.equals(AgentEventItem, a, b);
+  }
+}
+
+/**
+ * @generated from message graph.v1.GetAgentActivityResponse
+ */
+export class GetAgentActivityResponse extends Message<GetAgentActivityResponse> {
+  /**
+   * @generated from field: repeated graph.v1.AgentSessionItem sessions = 1;
+   */
+  sessions: AgentSessionItem[] = [];
+
+  /**
+   * @generated from field: repeated graph.v1.AgentEventItem events = 2;
+   */
+  events: AgentEventItem[] = [];
+
+  constructor(data?: PartialMessage<GetAgentActivityResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "graph.v1.GetAgentActivityResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "sessions", kind: "message", T: AgentSessionItem, repeated: true },
+    { no: 2, name: "events", kind: "message", T: AgentEventItem, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetAgentActivityResponse {
+    return new GetAgentActivityResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetAgentActivityResponse {
+    return new GetAgentActivityResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetAgentActivityResponse {
+    return new GetAgentActivityResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetAgentActivityResponse | PlainMessage<GetAgentActivityResponse> | undefined, b: GetAgentActivityResponse | PlainMessage<GetAgentActivityResponse> | undefined): boolean {
+    return proto3.util.equals(GetAgentActivityResponse, a, b);
   }
 }
 

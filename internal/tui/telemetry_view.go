@@ -4,23 +4,22 @@ package tui
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	graphv1 "github.com/rjfonseca/daneel/api/v1"
 	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/routine"
-	"github.com/rjfonseca/daneel/internal/telemetry"
 )
 
 // TelemetryView provides an interactive AI FinOps and operational telemetry dashboard.
 type TelemetryView struct {
 	vaultRoot          string
 	styles             Styles
+	backend            *Backend
 	store              *routine.SQLiteStore
 	cfg                *config.Config
 	windowDays         int
@@ -38,9 +37,15 @@ type TelemetryView struct {
 	selectedSection    int // 0: Models/Sessions, 1: Routines, 2: Commands
 	selectedIndex      int
 	loaded             bool
+	loading            bool
 	width              int
 	height             int
 	statusMsg          string
+}
+
+type telemetryLoadedMsg struct {
+	resp *graphv1.GetOperationalTelemetryResponse
+	err  error
 }
 
 // NewTelemetryView constructs a new TelemetryView instance.
@@ -49,6 +54,40 @@ func NewTelemetryView(vaultRoot string, styles Styles) *TelemetryView {
 		vaultRoot:  vaultRoot,
 		styles:     styles,
 		windowDays: 7,
+	}
+}
+
+// SetBackend injects the daemon-first backend for unified operational telemetry.
+func (v *TelemetryView) SetBackend(b *Backend) {
+	v.backend = b
+}
+
+// EnsureLoaded triggers async telemetry loading on first activation.
+func (v *TelemetryView) EnsureLoaded() tea.Cmd {
+	if v.loaded || v.loading {
+		return nil
+	}
+	return v.LoadAsync()
+}
+
+// LoadAsync fetches operational telemetry asynchronously via daemon or local store.
+func (v *TelemetryView) LoadAsync() tea.Cmd {
+	if v.store != nil {
+		v.Refresh()
+		return nil
+	}
+	v.loading = true
+	days := v.windowDays
+	if days <= 0 {
+		days = 7
+	}
+	backend := v.backend
+	if backend == nil {
+		backend = NewLocalBackend(v.vaultRoot, v.cfg, nil)
+	}
+	return func() tea.Msg {
+		resp, err := backend.GetOperationalTelemetry(context.Background(), days)
+		return telemetryLoadedMsg{resp: resp, err: err}
 	}
 }
 
@@ -73,36 +112,30 @@ func (v *TelemetryView) Init() tea.Cmd {
 	return nil
 }
 
-// Refresh reloads aggregates and telemetry data from store.
+// Refresh reloads aggregates and telemetry data from daemon or local store.
 func (v *TelemetryView) Refresh() {
 	if v.windowDays <= 0 {
 		v.windowDays = 7
 	}
 
-	var st *routine.SQLiteStore
-	var shouldClose bool
-
-	if v.store != nil {
-		st = v.store
-		shouldClose = false
-	} else {
-		opened, err := routine.OpenDefaultStore(v.vaultRoot)
+	if v.store == nil {
+		backend := v.backend
+		if backend == nil {
+			backend = NewLocalBackend(v.vaultRoot, v.cfg, nil)
+		}
+		resp, err := backend.GetOperationalTelemetry(context.Background(), v.windowDays)
 		if err != nil {
-			v.statusMsg = fmt.Sprintf("Error opening store: %v", err)
+			v.statusMsg = fmt.Sprintf("Error loading telemetry: %v", err)
+			v.loaded = true
 			return
 		}
-		st = opened
-		shouldClose = true
+		v.applyOperationalResponse(resp)
+		return
 	}
 
-	if shouldClose {
-		defer func() { _ = st.Close() }()
-	}
-
-	// Load configuration if not yet set
+	st := v.store
 	if v.cfg == nil && v.vaultRoot != "" {
-		cfg, err := config.LoadConfig(v.vaultRoot, "", false)
-		if err == nil {
+		if cfg, err := config.LoadConfig(v.vaultRoot, "", false); err == nil {
 			v.cfg = cfg
 		}
 	}
@@ -119,96 +152,151 @@ func (v *TelemetryView) Refresh() {
 
 	sinceDuration := time.Duration(v.windowDays) * 24 * time.Hour
 	sinceUnix := time.Now().Add(-sinceDuration).Unix()
-
-	// Live sync from transcripts only when in dynamic store mode
-	if v.store == nil {
-		parserOpts := telemetry.ParserOptions{
-			Since:  sinceDuration,
-			Config: v.cfg,
-		}
-		if v.vaultRoot != "" {
-			brainDir := filepath.Join(v.vaultRoot, "brain")
-			if fi, err := os.Stat(brainDir); err == nil && fi.IsDir() {
-				parserOpts.BrainDir = brainDir
-			}
-		}
-		_, _ = telemetry.SyncSessionsToStore(context.Background(), st, parserOpts)
-	}
-
 	ctx := context.Background()
 
-	// 1. Model Usage Aggregates
-	modelAggs, err := st.GetModelUsageAggregates(ctx, sinceUnix)
-	if err == nil {
+	if modelAggs, err := st.GetModelUsageAggregates(ctx, sinceUnix); err == nil {
 		v.modelUsage = modelAggs
 	} else {
 		v.modelUsage = nil
 	}
-
-	// 2. Routine Weight Aggregates
-	routineWeights, err := st.GetRoutineWeightAggregates(ctx, sinceUnix)
-	if err == nil {
+	if routineWeights, err := st.GetRoutineWeightAggregates(ctx, sinceUnix); err == nil {
 		v.routineWeights = routineWeights
 	} else {
 		v.routineWeights = nil
 	}
-
-	// 3. Recent Sessions Telemetry
-	recentSessions, err := st.GetRecentSessionsTelemetry(ctx, sinceUnix, 100)
-	if err == nil {
+	if recentSessions, err := st.GetRecentSessionsTelemetry(ctx, sinceUnix, 100); err == nil {
 		v.recentSessions = recentSessions
 	} else {
 		v.recentSessions = nil
 	}
-
-	// 4. Command Telemetry Aggregates
-	cmdAggs, err := st.GetCommandAggregates(ctx, sinceUnix, 100)
-	if err == nil {
+	if cmdAggs, err := st.GetCommandAggregates(ctx, sinceUnix, 100); err == nil {
 		v.commandMetrics = cmdAggs
 	} else {
 		v.commandMetrics = nil
 	}
 
-	// Compute totals
 	var totalIn, totalCache, totalOut int64
 	var totalCost float64
-
 	for _, s := range v.recentSessions {
 		totalIn += s.InputTokens
 		totalCache += s.CacheReadTokens
 		totalOut += s.OutputTokens
 		totalCost += s.EstimatedCostUSD
 	}
-
 	for _, rw := range v.routineWeights {
 		totalIn += rw.TotalInputTokens
 		totalCache += rw.TotalCacheTokens
 		totalOut += rw.TotalOutputTokens
 		totalCost += rw.TotalCostUSD
 	}
-
 	v.totalInputTokens = totalIn
 	v.totalCacheTokens = totalCache
 	v.totalOutputTokens = totalOut
 	v.totalCostUSD = totalCost
-
 	if totalIn+totalCache > 0 {
 		v.cacheEfficiencyPct = (float64(totalCache) / float64(totalIn+totalCache)) * 100.0
 	} else {
 		v.cacheEfficiencyPct = 0
 	}
-
 	v.loaded = true
+}
+
+func (v *TelemetryView) applyOperationalResponse(resp *graphv1.GetOperationalTelemetryResponse) {
+	v.loading = false
+	v.loaded = true
+	if resp == nil {
+		return
+	}
+	v.statusMsg = ""
+	v.dailyBudgetUSD = resp.DailyBudgetUsd
+	v.monthlyBudgetUSD = resp.MonthlyBudgetUsd
+	v.totalInputTokens = resp.TotalInputTokens
+	v.totalCacheTokens = resp.TotalCacheReadTokens
+	v.totalOutputTokens = resp.TotalOutputTokens
+	v.totalCostUSD = resp.TotalCostUsd
+	v.cacheEfficiencyPct = resp.CacheEfficiencyPct
+
+	v.modelUsage = make([]routine.ModelUsageAgg, 0, len(resp.ModelUsage))
+	for _, m := range resp.ModelUsage {
+		v.modelUsage = append(v.modelUsage, routine.ModelUsageAgg{
+			Model:            m.Model,
+			Agent:            m.Agent,
+			SessionsCount:    int(m.SessionsCount),
+			SubagentsCount:   int(m.SubagentsCount),
+			InputTokens:      m.InputTokens,
+			CacheReadTokens:  m.CacheReadTokens,
+			OutputTokens:     m.OutputTokens,
+			EstimatedCostUSD: m.EstimatedCostUsd,
+		})
+	}
+	v.routineWeights = make([]routine.RoutineWeightAgg, 0, len(resp.RoutineWeights))
+	for _, rw := range resp.RoutineWeights {
+		v.routineWeights = append(v.routineWeights, routine.RoutineWeightAgg{
+			RoutineName:       rw.RoutineName,
+			TotalRuns:         int(rw.TotalRuns),
+			SuccessRuns:       int(rw.SuccessRuns),
+			FailedRuns:        int(rw.FailedRuns),
+			AvgDurationMs:     rw.AvgDurationMs,
+			MaxDurationMs:     rw.MaxDurationMs,
+			TotalItems:        rw.TotalItems,
+			TotalInputTokens:  rw.TotalInputTokens,
+			TotalCacheTokens:  rw.TotalCacheTokens,
+			TotalOutputTokens: rw.TotalOutputTokens,
+			TotalCostUSD:      rw.TotalCostUsd,
+			LastRunAt:         rw.LastRunAt,
+		})
+	}
+	v.recentSessions = make([]routine.SessionTelemetryRecord, 0, len(resp.RecentSessions))
+	for _, s := range resp.RecentSessions {
+		v.recentSessions = append(v.recentSessions, routine.SessionTelemetryRecord{
+			SessionID:        s.SessionId,
+			ParentSessionID:  s.ParentSessionId,
+			Agent:            s.Agent,
+			Model:            s.Model,
+			Role:             s.Role,
+			StartedAt:        s.StartedAt,
+			TurnsCount:       int(s.TurnsCount),
+			SubagentsCount:   int(s.SubagentsCount),
+			InputTokens:      s.InputTokens,
+			CacheReadTokens:  s.CacheReadTokens,
+			OutputTokens:     s.OutputTokens,
+			EstimatedCostUSD: s.EstimatedCostUsd,
+			SkillsUsed:       s.SkillsUsed,
+			IsRoutine:        s.IsRoutine,
+			RoutineName:      s.RoutineName,
+		})
+	}
+	v.commandMetrics = make([]routine.CommandTelemetryAgg, 0, len(resp.CommandMetrics))
+	for _, c := range resp.CommandMetrics {
+		v.commandMetrics = append(v.commandMetrics, routine.CommandTelemetryAgg{
+			Surface:       c.Surface,
+			Command:       c.Command,
+			TotalCalls:    int(c.TotalCalls),
+			ErrorCalls:    int(c.ErrorCalls),
+			AvgDurationMs: c.AvgDurationMs,
+			MaxDurationMs: c.MaxDurationMs,
+			LastCalledAt:  c.LastCalledAt,
+		})
+	}
 }
 
 // Update handles user interaction in TelemetryView.
 func (v *TelemetryView) Update(msg tea.Msg) (*TelemetryView, tea.Cmd) {
 	switch msg := msg.(type) {
+	case telemetryLoadedMsg:
+		v.loading = false
+		v.loaded = true
+		if msg.err != nil {
+			v.statusMsg = fmt.Sprintf("Error loading telemetry: %v", msg.err)
+		} else {
+			v.applyOperationalResponse(msg.resp)
+		}
+		return v, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "r":
-			v.Refresh()
-			return v, nil
+			return v, v.LoadAsync()
 		case "w":
 			switch v.windowDays {
 			case 7:
@@ -218,8 +306,7 @@ func (v *TelemetryView) Update(msg tea.Msg) (*TelemetryView, tea.Cmd) {
 			default:
 				v.windowDays = 7
 			}
-			v.Refresh()
-			return v, nil
+			return v, v.LoadAsync()
 		case "h", "left":
 			if v.selectedSection > 0 {
 				v.selectedSection--
@@ -260,7 +347,7 @@ func (v *TelemetryView) Update(msg tea.Msg) (*TelemetryView, tea.Cmd) {
 // View renders the dual-pane FinOps & Vault Primitives monitor.
 func (v *TelemetryView) View() string {
 	if !v.loaded {
-		v.Refresh()
+		return "Loading AI FinOps & Telemetry..."
 	}
 
 	leftW, rightW, _ := CalculateLayoutDimensions(v.width, v.height, 0, 0.50)

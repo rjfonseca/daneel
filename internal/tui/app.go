@@ -36,6 +36,7 @@ type TelemetryRecorder func(command, scope string, durationMs int64, isErr bool)
 type AppModel struct {
 	vaultRoot   string
 	engine      *search.Engine
+	backend     *Backend
 	styles      Styles
 	keyMap      KeyMap
 	activeTab   ViewType
@@ -74,6 +75,10 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 	tv := NewTelemetryView(vaultRoot, styles)
 	iv := NewIngestView(vaultRoot, engine, styles)
 
+	hooksTab := tuiCfg.Tabs.Hooks
+	if hooksTab == "" {
+		hooksTab = "7: 🤖 Agents"
+	}
 	telemetryTab := tuiCfg.Tabs.Telemetry
 	if telemetryTab == "" {
 		telemetryTab = "8: 📈 Telemetry"
@@ -85,7 +90,7 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 		tuiCfg.Tabs.People,
 		tuiCfg.Tabs.Routines,
 		tuiCfg.Tabs.Skills,
-		"Agent Activity",
+		hooksTab,
 		telemetryTab,
 		"9: 📥 Ingest",
 	}
@@ -93,6 +98,7 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 	return &AppModel{
 		vaultRoot:     vaultRoot,
 		engine:        engine,
+		backend:       NewLocalBackend(vaultRoot, nil, engine),
 		styles:        styles,
 		keyMap:        keyMap,
 		activeTab:     ViewSearch,
@@ -106,6 +112,32 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 		hooksView:     hv,
 		telemetryView: tv,
 		ingestView:    iv,
+	}
+}
+
+// SetBackend injects the shared daemon-first backend into the app and child views.
+func (m *AppModel) SetBackend(b *Backend) {
+	if b == nil {
+		return
+	}
+	m.backend = b
+	if m.searchView != nil {
+		m.searchView.SetBackend(b)
+	}
+	if m.dashboardView != nil {
+		m.dashboardView.SetBackend(b)
+	}
+	if m.workspaceView != nil {
+		m.workspaceView.SetBackend(b)
+	}
+	if m.peopleView != nil {
+		m.peopleView.SetBackend(b)
+	}
+	if m.hooksView != nil {
+		m.hooksView.SetBackend(b)
+	}
+	if m.telemetryView != nil {
+		m.telemetryView.SetBackend(b)
 	}
 }
 
@@ -145,21 +177,55 @@ func viewTypeSlug(v ViewType) string {
 	}
 }
 
-func (m *AppModel) setActiveTab(next ViewType) {
+func (m *AppModel) setActiveTab(next ViewType) tea.Cmd {
 	if m.activeTab != next {
 		m.activeTab = next
 		m.recordTelemetry("tab:"+viewTypeSlug(next), "", 0, false)
+		if m.backend != nil {
+			m.backend.ReportActiveContext("tui", "", viewTypeSlug(next))
+		}
 	}
-	if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
-		m.telemetryView.Refresh()
+	switch m.activeTab {
+	case ViewSearch:
+		if m.searchView != nil {
+			return m.searchView.EnsureLoaded()
+		}
+	case ViewDashboard:
+		if m.dashboardView != nil {
+			return m.dashboardView.EnsureLoaded()
+		}
+	case ViewWorkspace:
+		if m.workspaceView != nil {
+			return m.workspaceView.EnsureLoaded()
+		}
+	case ViewPeople:
+		if m.peopleView != nil {
+			return m.peopleView.EnsureLoaded()
+		}
+	case ViewRoutines:
+		if m.routinesView != nil {
+			return m.routinesView.EnsureLoaded()
+		}
+	case ViewHooks:
+		if m.hooksView != nil {
+			return m.hooksView.EnsureLoaded()
+		}
+	case ViewTelemetry:
+		if m.telemetryView != nil {
+			return m.telemetryView.EnsureLoaded()
+		}
 	}
+	return nil
 }
 
-// Init initializes the application and all child views.
+// Init initializes the application and triggers immediate search hydration only.
 func (m *AppModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	if m.searchView != nil {
 		cmds = append(cmds, m.searchView.Init())
+		if cmd := m.searchView.EnsureLoaded(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 	if m.ingestView != nil {
 		cmds = append(cmds, m.ingestView.Init())
@@ -182,32 +248,86 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case searchLoadedMsg:
+		if m.searchView != nil {
+			var c tea.Cmd
+			m.searchView, c = m.searchView.Update(msg)
+			cmds = append(cmds, c)
+		}
+		return m, tea.Batch(cmds...)
+	case dashboardLoadedMsg:
+		if m.dashboardView != nil {
+			var c tea.Cmd
+			m.dashboardView, c = m.dashboardView.Update(msg)
+			cmds = append(cmds, c)
+		}
+		return m, tea.Batch(cmds...)
+	case workspaceLoadedMsg:
+		if m.workspaceView != nil {
+			var c tea.Cmd
+			m.workspaceView, c = m.workspaceView.Update(msg)
+			cmds = append(cmds, c)
+		}
+		return m, tea.Batch(cmds...)
+	case peopleDirectoryLoadedMsg, personBriefingLoadedMsg:
+		if m.peopleView != nil {
+			var c tea.Cmd
+			m.peopleView, c = m.peopleView.Update(msg)
+			cmds = append(cmds, c)
+		}
+		return m, tea.Batch(cmds...)
+	case routinesLoadedMsg:
+		if m.routinesView != nil {
+			var c tea.Cmd
+			m.routinesView, c = m.routinesView.Update(msg)
+			cmds = append(cmds, c)
+		}
+		return m, tea.Batch(cmds...)
+	case hooksLoadedMsg:
+		if m.hooksView != nil {
+			var c tea.Cmd
+			m.hooksView, c = m.hooksView.Update(msg)
+			cmds = append(cmds, c)
+		}
+		return m, tea.Batch(cmds...)
+	case telemetryLoadedMsg:
+		if m.telemetryView != nil {
+			var c tea.Cmd
+			m.telemetryView, c = m.telemetryView.Update(msg)
+			cmds = append(cmds, c)
+		}
+		return m, tea.Batch(cmds...)
+
 	case TUICommandMsg:
 		switch msg.Command {
 		case "tui_switch_view":
+			var cmd tea.Cmd
 			if viewName, ok := msg.Args["view_name"].(string); ok {
 				switch viewName {
 				case "search":
-					m.setActiveTab(ViewSearch)
+					cmd = m.setActiveTab(ViewSearch)
 				case "dashboard":
-					m.setActiveTab(ViewDashboard)
+					cmd = m.setActiveTab(ViewDashboard)
 				case "workspace":
-					m.setActiveTab(ViewWorkspace)
+					cmd = m.setActiveTab(ViewWorkspace)
 				case "people":
-					m.setActiveTab(ViewPeople)
+					cmd = m.setActiveTab(ViewPeople)
 				case "dream":
-					m.setActiveTab(ViewRoutines)
+					cmd = m.setActiveTab(ViewRoutines)
+				case "hooks", "agents":
+					cmd = m.setActiveTab(ViewHooks)
 				case "telemetry", "finops":
-					m.setActiveTab(ViewTelemetry)
+					cmd = m.setActiveTab(ViewTelemetry)
 				case "ingest":
-					m.setActiveTab(ViewIngest)
+					cmd = m.setActiveTab(ViewIngest)
 				}
 			}
-			return m, nil
+			return m, cmd
 
 		case "tui_open_note":
+			var cmd tea.Cmd
 			if filepath, ok := msg.Args["filepath"].(string); ok {
-				m.setActiveTab(ViewSearch)
+				cmd = m.setActiveTab(ViewSearch)
 				if m.searchView != nil {
 					m.searchView.searchInput.SetValue(filepath)
 					// Em vez de depender do FTS5 que pode não indexar a string exata do caminho, injetamos diretamente:
@@ -223,7 +343,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.searchView.updatePreview()
 				}
 			}
-			return m, nil
+			return m, cmd
 		case "tui_highlight_lines":
 			if startF, ok1 := msg.Args["start"].(float64); ok1 {
 				if endF, ok2 := msg.Args["end"].(float64); ok2 {
@@ -315,8 +435,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i, t := range m.tabs {
 				tabLen := lipgloss.Width(m.styles.TabActive.Render(t)) + 1 // +1 for space between tabs
 				if msg.X >= x && msg.X < x+tabLen {
-					m.setActiveTab(ViewType(i))
-					return m, nil
+					return m, m.setActiveTab(ViewType(i))
 				}
 				x += tabLen
 			}
@@ -352,8 +471,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle Tab9 (9 or i)
 		if key.Matches(msg, m.keyMap.Tab9) {
-			m.setActiveTab(ViewIngest)
-			return m, nil
+			return m, m.setActiveTab(ViewIngest)
 		}
 
 		// 4. Normal Mode commands
@@ -372,28 +490,26 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ingestView, childCmd = m.ingestView.Update(msg)
 				return m, childCmd
 			}
-			m.setActiveTab((m.activeTab + 1) % ViewType(len(m.tabs)))
-			return m, nil
+			return m, m.setActiveTab((m.activeTab + 1) % ViewType(len(m.tabs)))
 
 		case "shift+tab":
 			next := m.activeTab - 1
 			if m.activeTab == 0 {
 				next = ViewType(len(m.tabs) - 1)
 			}
-			m.setActiveTab(next)
-			return m, nil
+			return m, m.setActiveTab(next)
 
 		case "T":
-			m.setActiveTab(ViewTelemetry)
-			if m.telemetryView != nil {
-				m.telemetryView.Refresh()
+			cmd := m.setActiveTab(ViewTelemetry)
+			if m.telemetryView != nil && m.telemetryView.loaded {
+				cmd = m.telemetryView.LoadAsync()
 			}
-			return m, nil
+			return m, cmd
 
 		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 			idx := int(msg.String()[0] - '1')
 			if idx >= 0 && idx < len(m.tabs) {
-				m.setActiveTab(ViewType(idx))
+				return m, m.setActiveTab(ViewType(idx))
 			}
 			return m, nil
 		}
@@ -459,8 +575,12 @@ func (m *AppModel) View() string {
 	}
 
 	// 1. Header Bar
+	connBadge := "⚪ Local"
+	if m.backend != nil && m.backend.IsDaemonConnected() {
+		connBadge = "🟢 Daemon"
+	}
 	headerTitle := m.styles.HeaderTitle.Render("🧠 R. DANEEL OLIVAW [Positronic Knowledge Engine]")
-	headerVault := m.styles.HeaderVault.Render(fmt.Sprintf("📂 Sector: %s", m.vaultRoot))
+	headerVault := m.styles.HeaderVault.Render(fmt.Sprintf("%s • 📂 Sector: %s", connBadge, m.vaultRoot))
 	header := lipgloss.JoinHorizontal(lipgloss.Center, headerTitle, headerVault)
 
 	// 2. Tab Bar

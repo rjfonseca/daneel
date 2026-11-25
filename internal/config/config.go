@@ -300,6 +300,7 @@ type TuiTabsConfig struct {
 	People    string `yaml:"people,omitempty" json:"people,omitempty"`
 	Routines  string `yaml:"routines,omitempty" json:"routines,omitempty"`
 	Skills    string `yaml:"skills,omitempty" json:"skills,omitempty"`
+	Hooks     string `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 	Telemetry string `yaml:"telemetry,omitempty" json:"telemetry,omitempty"`
 }
 
@@ -550,6 +551,7 @@ func DefaultTuiConfig() TuiConfig {
 			People:    "4: 🤝 People",
 			Routines:  "5: 🌙 Routines",
 			Skills:    "6: ⚡ Skills",
+			Hooks:     "7: 🤖 Agents",
 			Telemetry: "8: 📈 Telemetry",
 		},
 	}
@@ -638,6 +640,9 @@ func (c *Config) GetTuiConfig() TuiConfig {
 	}
 	if c.Tui.Tabs.Skills != "" {
 		def.Tabs.Skills = c.Tui.Tabs.Skills
+	}
+	if c.Tui.Tabs.Hooks != "" {
+		def.Tabs.Hooks = c.Tui.Tabs.Hooks
 	}
 	if c.Tui.Tabs.Telemetry != "" {
 		def.Tabs.Telemetry = c.Tui.Tabs.Telemetry

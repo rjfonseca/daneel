@@ -25,24 +25,49 @@ type RoutinesView struct {
 	engine        *dream.DreamEngine
 	selectedIndex int
 	statusMsg     string
+	loaded        bool
+	loading       bool
 	width         int
 	height        int
 }
 
+type routinesLoadedMsg struct {
+	report *dream.FullDreamReport
+	status string
+}
+
 // NewRoutinesView creates a new dream cycle view.
 func NewRoutinesView(vaultRoot string, styles Styles) *RoutinesView {
-	dv := &RoutinesView{
+	return &RoutinesView{
 		vaultRoot:     vaultRoot,
 		styles:        styles,
 		engine:        dream.NewDreamEngine(vaultRoot),
 		selectedIndex: 0,
 	}
-	dv.LoadCache()
-	return dv
 }
 
-// LoadCache loads the latest dream report from cache.
+// EnsureLoaded loads the cached dream handoff asynchronously on first activation.
+func (v *RoutinesView) EnsureLoaded() tea.Cmd {
+	if v.loaded || v.loading {
+		return nil
+	}
+	v.loading = true
+	return func() tea.Msg {
+		cacheFile := filepath.Join(config.ResolveVaultCacheDir(v.vaultRoot), "dream_handoff.json")
+		data, err := os.ReadFile(cacheFile) //nolint:gosec // intentional
+		if err == nil {
+			var rep dream.FullDreamReport
+			if err := json.Unmarshal(data, &rep); err == nil {
+				return routinesLoadedMsg{report: &rep}
+			}
+		}
+		return routinesLoadedMsg{}
+	}
+}
+
+// LoadCache loads the latest dream report from cache without running a full cycle.
 func (v *RoutinesView) LoadCache() {
+	v.loaded = true
 	cacheFile := filepath.Join(config.ResolveVaultCacheDir(v.vaultRoot), "dream_handoff.json")
 	data, err := os.ReadFile(cacheFile) //nolint:gosec // intentional
 	if err == nil {
@@ -52,18 +77,33 @@ func (v *RoutinesView) LoadCache() {
 			return
 		}
 	}
-
-	// Fallback to fresh run if no cache exists
-	v.RunDream()
 }
 
 // RunDream executes the dream cycle.
 func (v *RoutinesView) RunDream() {
 	today := time.Now().Format("2006-01-02")
 	rep, err := v.engine.RunFullCycle(today, true, false)
+	v.loaded = true
 	if err == nil {
 		v.report = rep
 		v.statusMsg = "✨ Dream Cycle completed successfully!"
+	}
+}
+
+func (v *RoutinesView) runDreamAsync() tea.Cmd {
+	v.loading = true
+	v.statusMsg = "⏳ Running Dream Cycle..."
+	engine := v.engine
+	return func() tea.Msg {
+		today := time.Now().Format("2006-01-02")
+		rep, err := engine.RunFullCycle(today, true, false)
+		status := ""
+		if err == nil {
+			status = "✨ Dream Cycle completed successfully!"
+		} else {
+			status = fmt.Sprintf("⚠️ Dream Cycle error: %v", err)
+		}
+		return routinesLoadedMsg{report: rep, status: status}
 	}
 }
 
@@ -75,12 +115,21 @@ func (v *RoutinesView) Init() tea.Cmd {
 // Update handles tea events for the dream view.
 func (v *RoutinesView) Update(msg tea.Msg) (*RoutinesView, tea.Cmd) {
 	switch msg := msg.(type) {
+	case routinesLoadedMsg:
+		v.loading = false
+		v.loaded = true
+		if msg.report != nil {
+			v.report = msg.report
+		}
+		if msg.status != "" {
+			v.statusMsg = msg.status
+		}
+		return v, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "d", "r":
-			v.statusMsg = "⏳ Running Dream Cycle..."
-			v.RunDream()
-			return v, nil
+			return v, v.runDreamAsync()
 		case "up", "k":
 			if v.selectedIndex > 0 {
 				v.selectedIndex--
@@ -104,8 +153,11 @@ func (v *RoutinesView) SetSize(w, h int) {
 
 // View renders the Dream Handoff screen.
 func (v *RoutinesView) View() string {
-	if v.report == nil {
+	if !v.loaded {
 		return "Loading Dream Cycle Report..."
+	}
+	if v.report == nil {
+		return "No cached Dream Cycle report yet. Press 'd' to run Dream Cycle."
 	}
 
 	_, rightWidth, _ := CalculateLayoutDimensions(v.width, v.height, 0, 0.48)
@@ -119,7 +171,7 @@ func (v *RoutinesView) View() string {
 	fmt.Fprintf(&leftSB, "   • MOCs Synchronized: %d notes connected\n\n", len(v.report.MissingMOCs))
 
 	if v.report.WorkspaceSummary != nil {
-		leftSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Info).Render("🗺️ Workspace (~/Work):\n"))
+		leftSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Info).Render("🗺️ Workspace:\n"))
 		fmt.Fprintf(&leftSB, "   • Total: %d repositories (%d clean / %d modified)\n\n",
 			v.report.WorkspaceSummary.TotalRepos,
 			v.report.WorkspaceSummary.CleanCount,

@@ -50,6 +50,22 @@ service GraphService {
 
   // Returns operational FinOps telemetry, routine weights, and command latency metrics
   rpc GetOperationalTelemetry(GetOperationalTelemetryRequest) returns (GetOperationalTelemetryResponse);
+
+  // --- TUI / WEB UNIFIED THIN-CLIENT OPS ---
+  // Returns unified 7-day Staff taxonomy, Morning Handoff digest, vault health, and backlog items
+  rpc GetDashboardSummary(GetDashboardSummaryRequest) returns (GetDashboardSummaryResponse);
+
+  // Returns workspace repositories from cached SQLite store or live Git scan
+  rpc GetWorkspaceOverview(GetWorkspaceOverviewRequest) returns (GetWorkspaceOverviewResponse);
+
+  // Returns lightweight colleague directory for 1:1 briefings
+  rpc GetPeopleDirectory(GetPeopleDirectoryRequest) returns (GetPeopleDirectoryResponse);
+
+  // Returns detailed 1:1 briefing for a specific colleague slug
+  rpc GetPersonBriefing(GetPersonBriefingRequest) returns (GetPersonBriefingResponse);
+
+  // Returns unified active/recent agent sessions (Antigravity, Claude Code, Codex, Spooler)
+  rpc GetAgentActivity(GetAgentActivityRequest) returns (GetAgentActivityResponse);
 }
 
 enum UIActionType {
@@ -143,6 +159,7 @@ message GetNoteResponse {
 message SearchNotesRequest {
   string query = 1;
   int32 limit = 2;
+  string scope = 3;
 }
 
 message SearchNotesResponse {
@@ -153,6 +170,9 @@ message SearchResult {
   string rel_path = 1;
   string title = 2;
   string snippet = 3;      // Contextual snippet containing search match
+  string scope = 4;
+  string note_type = 5;
+  string description = 6;
 }
 
 message ExecuteRoutineRequest {
@@ -421,4 +441,151 @@ message IngestPathResponse {
   repeated IngestedItem items = 1;
   int32 total_processed = 2;
   string warning = 3;
+}
+
+message GetDashboardSummaryRequest {
+  int32 days = 1;
+}
+
+message TaxonomyMetricItem {
+  string id = 1;
+  string name = 2;
+  double hours = 3;
+  double percentage = 4;
+  double target_min = 5;
+  double target_max = 6;
+}
+
+message BacklogItemProto {
+  string priority = 1;
+  string title = 2;
+  string description = 3;
+  bool completed = 4;
+}
+
+message FrictionSignalItem {
+  string date = 1;
+  string line = 2;
+}
+
+message HandoffDigest {
+  string date = 1;
+  int32 dream_cycles_count = 2;
+  repeated string autonomous_actions = 3;
+  repeated string inbox_items = 4;
+  repeated string alerts = 5;
+  repeated string suggestions = 6;
+}
+
+message GetDashboardSummaryResponse {
+  int32 window_days = 1;
+  int32 days_with_logs = 2;
+  double total_hours = 3;
+  repeated TaxonomyMetricItem taxonomy = 4;
+  repeated string drift_alerts = 5;
+  repeated FrictionSignalItem friction_signals = 6;
+  HandoffDigest handoff = 7;
+  int32 total_notes = 8;
+  int32 total_links = 9;
+  int32 orphan_notes = 10;
+  repeated BacklogItemProto backlog_items = 11;
+}
+
+message GetWorkspaceOverviewRequest {
+  bool force_rescan = 1;
+}
+
+message WorkspaceRepoItem {
+  string name = 1;
+  string rel_path = 2;
+  string category = 3;
+  string branch = 4;
+  string stack = 5;
+  string component_type = 6;
+  string commands = 7;
+  string description = 8;
+  string vault_link = 9;
+  string last_commit_date = 10;
+  int32 days_since_activity = 11;
+  bool dirty = 12;
+  int32 modified_count = 13;
+  int32 untracked_count = 14;
+  repeated string files_preview = 15;
+}
+
+message GetWorkspaceOverviewResponse {
+  string work_dir = 1;
+  int32 total_repos = 2;
+  int32 clean_count = 3;
+  int32 dirty_count = 4;
+  string scanned_at = 5;
+  bool from_cache = 6;
+  repeated WorkspaceRepoItem repos = 7;
+}
+
+message GetPeopleDirectoryRequest {}
+
+message PersonSummaryItem {
+  string name = 1;
+  string slug = 2;
+  string rel_path = 3;
+  string role = 4;
+  string squad = 5;
+  int32 interactions = 6;
+}
+
+message GetPeopleDirectoryResponse {
+  repeated PersonSummaryItem people = 1;
+}
+
+message GetPersonBriefingRequest {
+  string slug = 1;
+}
+
+message GetPersonBriefingResponse {
+  string name = 1;
+  string slug = 2;
+  string rel_path = 3;
+  string cargo = 4;
+  string squad = 5;
+  string relacao = 6;
+  repeated string recent_interactions = 7;
+  repeated string topics = 8;
+  repeated string pending_tasks = 9;
+  repeated string recent_daily_mentions = 10;
+}
+
+message GetAgentActivityRequest {
+  int32 hours = 1;
+  string session_id = 2;
+}
+
+message AgentSessionItem {
+  string session_id = 1;
+  string agent = 2;
+  string model = 3;
+  int64 started_at = 4;
+  int64 updated_at = 5;
+  int32 turns_count = 6;
+  int32 event_count = 7;
+  int64 input_tokens = 8;
+  int64 cache_read_tokens = 9;
+  int64 output_tokens = 10;
+  double estimated_cost_usd = 11;
+  string skills_used = 12;
+  bool is_active = 13;
+  string spool_file = 14;
+}
+
+message AgentEventItem {
+  string timestamp = 1;
+  string event = 2;
+  string agent = 3;
+  string cwd = 4;
+  string payload_snippet = 5;
+}
+
+message GetAgentActivityResponse {
+  repeated AgentSessionItem sessions = 1;
+  repeated AgentEventItem events = 2;
 }

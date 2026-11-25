@@ -34,17 +34,26 @@ func runTUI() error {
 		vaultRoot = cwd
 	}
 
-	searchEngine, err := search.Open(cfg.DBPath, vaultRoot)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "⚠️ Warning: failed to initialize search engine: %v\n", err)
-	}
-	defer func() {
-		if searchEngine != nil {
-			searchEngine.Close() //nolint:errcheck,gosec // fully read or safe to ignore
+	backend := tui.ConnectBackend(vaultRoot, cfg, nil)
+
+	var searchEngine *search.Engine
+	if !backend.IsDaemonConnected() {
+		var err error
+		searchEngine, err = search.Open(cfg.DBPath, vaultRoot)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️ Warning: failed to initialize search engine: %v\n", err)
+		} else {
+			backend = tui.NewLocalBackend(vaultRoot, cfg, searchEngine)
 		}
-	}()
+		defer func() {
+			if searchEngine != nil {
+				searchEngine.Close() //nolint:errcheck,gosec // fully read or safe to ignore
+			}
+		}()
+	}
 
 	appModel := tui.NewAppModel(vaultRoot, searchEngine, cfg.GetTuiConfig())
+	appModel.SetBackend(backend)
 
 	var store routine.Store
 	if st, stErr := routine.OpenDefaultStore(vaultRoot); stErr == nil && st != nil {
