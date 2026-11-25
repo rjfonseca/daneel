@@ -196,7 +196,7 @@ func (v *PeopleView) View() string {
 
 		if len(b.RecentDailyMentions) > 0 {
 			briefSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Primary).Render("📅 Recent Daily Log Mentions:") + "\n")
-			for _, m := range b.RecentDailyMentions[:2] {
+			for _, m := range b.RecentDailyMentions[:min(2, len(b.RecentDailyMentions))] {
 				fmt.Fprintf(&briefSB, "  • %s\n", m)
 			}
 		}

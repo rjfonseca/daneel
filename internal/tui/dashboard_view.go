@@ -141,7 +141,7 @@ func (v *DashboardView) View() string {
 
 	if len(v.temporalData.FrictionSignals) > 0 {
 		teleSB.WriteString("\n" + v.styles.PanelTitle.Render("⚠️ Technical Debt & Friction Signals:") + "\n")
-		for _, fs := range v.temporalData.FrictionSignals[:2] {
+		for _, fs := range v.temporalData.FrictionSignals[:min(2, len(v.temporalData.FrictionSignals))] {
 			fmt.Fprintf(&teleSB, "  • [%s] %s\n", fs.Date, fs.Line)
 		}
 	}
@@ -170,8 +170,9 @@ func (v *DashboardView) View() string {
 			}
 
 			title := item.Title
-			if len(title) > rightWidth-22 {
-				title = title[:rightWidth-25] + "..."
+			maxTitleLen := rightWidth - 22
+			if maxTitleLen > 3 && len(title) > maxTitleLen {
+				title = title[:maxTitleLen-3] + "..."
 			}
 
 			line := fmt.Sprintf("%s %s %s", prioBadge, statusIcon, title)
@@ -185,7 +186,7 @@ func (v *DashboardView) View() string {
 
 		if v.backlogIndex < len(v.backlogRep.Items) {
 			curItem := v.backlogRep.Items[v.backlogIndex]
-			backSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Border).Render(strings.Repeat("─", rightWidth-6)) + "\n")
+			backSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Border).Render(strings.Repeat("─", max(1, rightWidth-6))) + "\n")
 			backSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Primary).Render("🔍 Task Details:\n"))
 			backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Text).Render(curItem.Description) + "\n")
 		}
@@ -194,7 +195,7 @@ func (v *DashboardView) View() string {
 	}
 
 	if v.customWidgetText != "" {
-		backSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Border).Render(strings.Repeat("─", rightWidth-6)) + "\n")
+		backSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Border).Render(strings.Repeat("─", max(1, rightWidth-6))) + "\n")
 		backSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Info).Render("🤖 AI Command Center Component:\n"))
 		backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Text).Render(v.customWidgetText) + "\n")
 	}
