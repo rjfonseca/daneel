@@ -27,6 +27,7 @@ import (
 	"github.com/rjfonseca/daneel/internal/ops/backlog"
 	"github.com/rjfonseca/daneel/internal/ops/briefing"
 	"github.com/rjfonseca/daneel/internal/ops/clone"
+	"github.com/rjfonseca/daneel/internal/ops/daily"
 	"github.com/rjfonseca/daneel/internal/ops/dossier"
 	"github.com/rjfonseca/daneel/internal/ops/meetings"
 	"github.com/rjfonseca/daneel/internal/ops/workspace"
@@ -458,6 +459,60 @@ func (s *Server) handleRequest(req *JSONRPCRequest) {
 						"auto_fix": map[string]interface{}{
 							"type":        "boolean",
 							"description": "Applies automated fixes to the Vault (default: true).",
+						},
+					},
+				},
+			},
+			{
+				Name:        "get_morning_handoff",
+				Description: "Returns a read-only cumulative morning handoff aggregating all REM cycles and cognitive closures since the last morning handoff.",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"since": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional window start timestamp (RFC3339 or YYYY-MM-DD HH:MM).",
+						},
+						"date": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional ISO reference date (YYYY-MM-DD).",
+						},
+					},
+				},
+			},
+			{
+				Name:        "record_handoff_event",
+				Description: "Records an end-of-day closure or standalone cognitive action in the cumulative handoff ledger.",
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"kind": map[string]interface{}{
+							"type":        "string",
+							"description": "Event kind: evening_closure | agent_action | dream_cycle.",
+						},
+						"summary": map[string]interface{}{
+							"type":        "string",
+							"description": "Concise summary of the cognitive closure or action.",
+						},
+						"actions": map[string]interface{}{
+							"type":  "array",
+							"items": map[string]interface{}{"type": "string"},
+						},
+						"inbox_pending": map[string]interface{}{
+							"type":  "array",
+							"items": map[string]interface{}{"type": "string"},
+						},
+						"alerts": map[string]interface{}{
+							"type":  "array",
+							"items": map[string]interface{}{"type": "string"},
+						},
+						"resolved_alerts": map[string]interface{}{
+							"type":  "array",
+							"items": map[string]interface{}{"type": "string"},
+						},
+						"append_evolution": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Append chronological entry to meta/guias/agente-evolucao.md.",
 						},
 					},
 				},
@@ -1414,6 +1469,55 @@ func (s *Server) executeTool(name string, args map[string]interface{}) (string, 
 		bytes, _ := json.MarshalIndent(rep, "", "  ")
 		return string(bytes), false
 
+	case "get_morning_handoff":
+		sinceStr, _ := args["since"].(string)
+		dateStr, _ := args["date"].(string)
+		rep, err := daily.RunMorningWithOptions(s.vaultRoot, dateStr, s.cfg, daily.MorningOptions{
+			DryRun: true,
+			Since:  sinceStr,
+		})
+		if err != nil {
+			return fmt.Sprintf("Failed to build morning handoff: %v", err), true
+		}
+		bytes, _ := json.MarshalIndent(rep, "", "  ")
+		return string(bytes), false
+
+	case "record_handoff_event":
+		kindStr, _ := args["kind"].(string)
+		if strings.TrimSpace(kindStr) == "" {
+			kindStr = string(dream.HandoffKindAgentAction)
+		}
+		kind := dream.HandoffEventKind(strings.TrimSpace(kindStr))
+		switch kind {
+		case dream.HandoffKindEveningClosure, dream.HandoffKindAgentAction, dream.HandoffKindDreamCycle:
+		default:
+			return fmt.Sprintf("Invalid kind %q (expected evening_closure, agent_action, or dream_cycle)", kindStr), true
+		}
+
+		summary, _ := args["summary"].(string)
+		appendEvo, _ := args["append_evolution"].(bool)
+		now := time.Now()
+		ev := dream.HandoffEvent{
+			Kind:           kind,
+			Timestamp:      now.Format(time.RFC3339),
+			Date:           now.Format("2006-01-02"),
+			Summary:        strings.TrimSpace(summary),
+			Actions:        toStringSlice(args["actions"]),
+			InboxPending:   toStringSlice(args["inbox_pending"]),
+			Alerts:         toStringSlice(args["alerts"]),
+			ResolvedAlerts: toStringSlice(args["resolved_alerts"]),
+		}
+		if err := dream.AppendHandoffEvent(s.vaultRoot, ev); err != nil {
+			return fmt.Sprintf("Failed to append handoff event: %v", err), true
+		}
+		if appendEvo {
+			if err := dream.AppendCognitiveEvolutionLog(s.vaultRoot, ev); err != nil {
+				return fmt.Sprintf("Failed to append evolution log: %v", err), true
+			}
+		}
+		bytes, _ := json.MarshalIndent(ev, "", "  ")
+		return string(bytes), false
+
 	case "ingest_meeting_notes":
 		zipPath, _ := args["zip_path"].(string)
 		cleanInbox := true
@@ -1899,4 +2003,20 @@ func (s *Server) sendError(id interface{}, code int, message string) {
 	}
 	bytes, _ := json.Marshal(resp)
 	_, _ = fmt.Fprintln(s.out, string(bytes))
+}
+
+func toStringSlice(val interface{}) []string {
+	switch items := val.(type) {
+	case []string:
+		return items
+	case []interface{}:
+		out := make([]string, 0, len(items))
+		for _, item := range items {
+			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
 }

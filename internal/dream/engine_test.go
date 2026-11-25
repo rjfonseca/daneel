@@ -327,3 +327,20 @@ Alinhamento técnico sobre arquitetura de mensageria.
 		t.Errorf("expected %s to exist on disk", expectedPath)
 	}
 }
+
+func TestDreamEngine_AppendsHandoffLedgerEvent(t *testing.T) {
+	tmpDir := t.TempDir()
+	engine := NewDreamEngine(tmpDir)
+	if _, err := engine.RunFullCycle("2026-11-25", true, false); err != nil {
+		t.Fatalf("RunFullCycle failed: %v", err)
+	}
+
+	ledgerPath := filepath.Join(tmpDir, ".daneel", "cache", "handoff_events.jsonl")
+	raw, err := os.ReadFile(ledgerPath) //nolint:gosec
+	if err != nil {
+		t.Fatalf("expected handoff_events.jsonl to be written: %v", err)
+	}
+	if !strings.Contains(string(raw), `"kind":"dream_cycle"`) {
+		t.Errorf("expected dream_cycle event in ledger, got: %s", string(raw))
+	}
+}

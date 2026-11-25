@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/dream"
@@ -394,5 +395,95 @@ tags: [daily]
 	}
 	if string(unannotatedRead) != unannotatedContent {
 		t.Errorf("unannotated file was unexpectedly modified on disk")
+	}
+}
+
+func TestRunMorningWithOptions_CumulativeWindowAndWatermark(t *testing.T) {
+	tempVault := t.TempDir()
+	day1Time := time.Date(2026, 11, 24, 9, 0, 0, 0, time.UTC)
+
+	// 1. Morning 1 establishes watermark at day1Time
+	rep1, err := daily.RunMorningWithOptions(tempVault, "2026-11-24", &config.Config{
+		Vault: config.VaultConfig{Owner: "Ada Lovelace"},
+	}, daily.MorningOptions{Now: day1Time})
+	if err != nil {
+		t.Fatalf("Morning 1 failed: %v", err)
+	}
+	if !rep1.Created {
+		t.Fatalf("expected day 1 daily note to be created")
+	}
+
+	// 2. Append events across day 1 evening and day 2 early morning
+	_ = dream.AppendHandoffEvent(tempVault, dream.HandoffEvent{
+		Kind:         dream.HandoffKindDreamCycle,
+		Timestamp:    day1Time.Add(3 * time.Hour).Format(time.RFC3339),
+		Date:         "2026-11-24",
+		FilesScanned: 50,
+		FixedLinks:   2,
+		BrokenLinks:  1,
+		Alerts:       []string{"1 broken links pending review", "Stale calibration alert"},
+	})
+	_ = dream.AppendHandoffEvent(tempVault, dream.HandoffEvent{
+		Kind:           dream.HandoffKindEveningClosure,
+		Timestamp:      day1Time.Add(9 * time.Hour).Format(time.RFC3339),
+		Date:           "2026-11-24",
+		Summary:        "Evening wrap-up: closed 6.5h and wrote design note",
+		Actions:        []string{"Promoted architecture note"},
+		ResolvedAlerts: []string{"Stale calibration alert"},
+	})
+	_ = dream.AppendHandoffEvent(tempVault, dream.HandoffEvent{
+		Kind:         dream.HandoffKindDreamCycle,
+		Timestamp:    day1Time.Add(23 * time.Hour).Format(time.RFC3339),
+		Date:         "2026-11-25",
+		FilesScanned: 52,
+		FixedLinks:   1,
+		BrokenLinks:  0,
+	})
+
+	day2Time := day1Time.Add(24 * time.Hour)
+
+	// 3. Dry-run must return aggregated window WITHOUT writing daily/2026-11-25.md or advancing watermark
+	dryRep, err := daily.RunMorningWithOptions(tempVault, "2026-11-25", &config.Config{
+		Vault: config.VaultConfig{Owner: "Ada Lovelace"},
+	}, daily.MorningOptions{DryRun: true, Now: day2Time})
+	if err != nil {
+		t.Fatalf("Morning 2 dry-run failed: %v", err)
+	}
+	if dryRep.DreamCyclesCount != 2 {
+		t.Errorf("expected DreamCyclesCount=2, got %d", dryRep.DreamCyclesCount)
+	}
+	if len(dryRep.EveningSummaries) != 1 || !strings.Contains(dryRep.EveningSummaries[0], "Evening wrap-up") {
+		t.Errorf("expected evening summary preserved despite later morning REM cycle, got %v", dryRep.EveningSummaries)
+	}
+	if len(dryRep.Alerts) != 0 {
+		t.Errorf("expected stale alerts cleared in latest state, got %v", dryRep.Alerts)
+	}
+	if _, err := os.Stat(filepath.Join(tempVault, "daily", "2026-11-25.md")); !os.IsNotExist(err) {
+		t.Errorf("dry-run should not write daily/2026-11-25.md")
+	}
+
+	// 4. Actual Morning 2 run writes daily/2026-11-25.md with Window marker and advances watermark
+	rep2, err := daily.RunMorningWithOptions(tempVault, "2026-11-25", &config.Config{
+		Vault: config.VaultConfig{Owner: "Ada Lovelace"},
+	}, daily.MorningOptions{Now: day2Time})
+	if err != nil {
+		t.Fatalf("Morning 2 failed: %v", err)
+	}
+	if !rep2.Created {
+		t.Errorf("expected day 2 daily note to be created")
+	}
+	contentBytes, err := os.ReadFile(filepath.Join(tempVault, "daily", "2026-11-25.md"))
+	if err != nil {
+		t.Fatalf("read day 2 daily: %v", err)
+	}
+	content := string(contentBytes)
+	if !strings.Contains(content, "> **Window:** `2026-11-24T09:00:00Z` ➔ `2026-11-25T09:00:00Z`") {
+		t.Errorf("expected Window marker in day 2 handoff, got:\n%s", content)
+	}
+	if !strings.Contains(content, "Evening wrap-up: closed 6.5h and wrote design note") {
+		t.Errorf("expected evening closure summary in day 2 handoff, got:\n%s", content)
+	}
+	if !strings.Contains(content, "2 automated REM cycles") {
+		t.Errorf("expected aggregated REM cycles summary in day 2 handoff, got:\n%s", content)
 	}
 }

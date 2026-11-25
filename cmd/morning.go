@@ -11,13 +11,20 @@ import (
 	"github.com/rjfonseca/daneel/internal/ops/daily"
 )
 
-var morningDate string
+var (
+	morningDate   string
+	morningDryRun bool
+	morningSince  string
+)
 
 var morningCmd = &cobra.Command{
 	Use:   "morning",
-	Short: "Scaffolds the daily log with autonomous Dream Cycle handoff, inbox triage, and active P0/P1 priorities",
+	Short: "Scaffolds the daily log with cumulative Dream Cycle handoff, inbox triage, and active P0/P1 priorities",
 	RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive
-		rep, err := daily.RunMorning(cfg.VaultPath, morningDate, cfg)
+		rep, err := daily.RunMorningWithOptions(cfg.VaultPath, morningDate, cfg, daily.MorningOptions{
+			DryRun: morningDryRun,
+			Since:  morningSince,
+		})
 		if err != nil {
 			return fmt.Errorf("morning copilot routine failed: %w", err)
 		}
@@ -43,7 +50,11 @@ var morningCmd = &cobra.Command{
 		}
 
 		fmt.Printf("%s %s (%s)\n\n", titleStyle.Render("🌅 Copilot Morning Briefing —"), labelStyle.Render(rep.Date), badgeStyle.Render(actionStatus))
-		fmt.Printf("• Target File: %s\n\n", rep.FilePath)
+		fmt.Printf("• Target File: %s\n", rep.FilePath)
+		if rep.WindowStart != "" && rep.WindowEnd != "" {
+			fmt.Printf("• Window: %s ➔ %s (REM cycles: %d)\n", rep.WindowStart, rep.WindowEnd, rep.DreamCyclesCount)
+		}
+		fmt.Println()
 
 		if len(rep.AutonomousActions) > 0 {
 			fmt.Println(sectionStyle.Render("🤖 Autonomous Actions & Healed Graph Links:"))
@@ -102,5 +113,7 @@ var morningCmd = &cobra.Command{
 
 func init() {
 	morningCmd.Flags().StringVarP(&morningDate, "date", "d", "", "ISO reference date (YYYY-MM-DD)")
+	morningCmd.Flags().BoolVar(&morningDryRun, "dry-run", false, "Aggregate cumulative handoff without modifying files or advancing watermark")
+	morningCmd.Flags().StringVar(&morningSince, "since", "", "Override cumulative window start timestamp (RFC3339 or YYYY-MM-DD HH:MM)")
 	RootCmd.AddCommand(morningCmd)
 }
