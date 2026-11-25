@@ -956,3 +956,62 @@ func TestIngestTools(t *testing.T) {
 		t.Errorf("expected isError=true for non-existent path, got false")
 	}
 }
+
+func TestMCPMorningHandoffTools(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "cache.db")
+	engine, err := search.Open(dbPath, tempDir)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer engine.Close() //nolint:errcheck,gosec
+
+	recordReq := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"record_handoff_event","arguments":{"kind":"evening_closure","summary":"Evening closure via MCP","actions":["Updated notes"],"resolved_alerts":["Old alert"],"append_evolution":true}}}` + "\n"
+	getReq := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_morning_handoff","arguments":{"date":"2026-11-25"}}}` + "\n"
+
+	inBuf := bytes.NewBufferString(recordReq + getReq)
+	outBuf := &bytes.Buffer{}
+
+	server := &Server{
+		vaultRoot: tempDir,
+		engine:    engine,
+		in:        inBuf,
+		out:       outBuf,
+	}
+
+	if err := server.Serve(); err != nil {
+		t.Fatalf("Serve failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(outBuf.String()), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected 2 responses, got %d: %s", len(lines), outBuf.String())
+	}
+
+	var recResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[0]), &recResp)
+	if recResp.Error != nil {
+		t.Fatalf("record_handoff_event RPC error: %v", recResp.Error)
+	}
+	var recResult ToolCallResult
+	b, _ := json.Marshal(recResp.Result)
+	_ = json.Unmarshal(b, &recResult)
+	if recResult.IsError {
+		t.Fatalf("record_handoff_event returned isError=true: %+v", recResult)
+	}
+
+	var getResp JSONRPCResponse
+	_ = json.Unmarshal([]byte(lines[1]), &getResp)
+	if getResp.Error != nil {
+		t.Fatalf("get_morning_handoff RPC error: %v", getResp.Error)
+	}
+	var getResult ToolCallResult
+	b, _ = json.Marshal(getResp.Result)
+	_ = json.Unmarshal(b, &getResult)
+	if getResult.IsError || len(getResult.Content) == 0 {
+		t.Fatalf("get_morning_handoff failed: %+v", getResult)
+	}
+	if !strings.Contains(getResult.Content[0].Text, "Evening closure via MCP") {
+		t.Errorf("expected recorded evening closure in get_morning_handoff response, got: %s", getResult.Content[0].Text)
+	}
+}

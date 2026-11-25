@@ -117,4 +117,24 @@ func TestInitCmd_NoEmbeddingsFlag(t *testing.T) {
 	if parsedCfg.Embeddings.Enabled {
 		t.Errorf("expected parsed embeddings.enabled to be false")
 	}
+
+	// Verify starter skills & AGENTS.md include cumulative morning handoff and dream-cycle workflows
+	for _, rel := range []string{
+		"AGENTS.md",
+		filepath.Join(".agents", "skills", "morning-briefing", "SKILL.md"),
+		filepath.Join(".agents", "skills", "dream-cycle", "SKILL.md"),
+	} {
+		p := filepath.Join(tempDir, rel)
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			t.Errorf("expected %s to be scaffolded by daneel init", rel)
+		}
+	}
+	morningSkill, _ := os.ReadFile(filepath.Join(tempDir, ".agents", "skills", "morning-briefing", "SKILL.md"))
+	if !strings.Contains(string(morningSkill), "daneel handoff summary") {
+		t.Errorf("expected morning-briefing skill to reference 'daneel handoff summary'")
+	}
+	dreamSkill, _ := os.ReadFile(filepath.Join(tempDir, ".agents", "skills", "dream-cycle", "SKILL.md"))
+	if !strings.Contains(string(dreamSkill), "daneel handoff record") {
+		t.Errorf("expected dream-cycle skill to reference 'daneel handoff record'")
+	}
 }

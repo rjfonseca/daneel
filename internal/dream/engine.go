@@ -486,6 +486,9 @@ func (e *DreamEngine) RunFullCycle(targetDate string, autoFix bool, dryRun bool)
 		if err := safefile.WriteFile(e.vaultRoot, handoffPath, handoffData, 0600); err != nil {
 			return report, fmt.Errorf("save dream handoff: %w", err)
 		}
+		if err := AppendHandoffEvent(e.vaultRoot, BuildDreamHandoffEvent(targetDate, report)); err != nil {
+			return report, fmt.Errorf("append handoff ledger: %w", err)
+		}
 		if err := AppendEvolutionLog(e.vaultRoot, targetDate, report); err != nil {
 			return report, err
 		}

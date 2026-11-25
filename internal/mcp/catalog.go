@@ -338,6 +338,39 @@ func (c *ToolCatalog) registerDefaultTools() {
 	})
 
 	c.Register(ToolDescriptor{
+		Name:        "get_morning_handoff",
+		Category:    "routines",
+		Description: "Read-only cumulative morning handoff summary covering all REM cycles and cognitive closures since the last morning briefing.",
+		Keywords:    []string{"morning", "handoff", "briefing", "rem", "cumulative", "window"},
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"since": map[string]interface{}{"type": "string", "description": "Optional window start timestamp (RFC3339 or YYYY-MM-DD HH:MM)."},
+				"date":  map[string]interface{}{"type": "string", "description": "Optional ISO reference date (YYYY-MM-DD)."},
+			},
+		},
+	})
+
+	c.Register(ToolDescriptor{
+		Name:        "record_handoff_event",
+		Category:    "routines",
+		Description: "Records an end-of-day closure or standalone cognitive action into the cumulative handoff ledger.",
+		Keywords:    []string{"handoff", "evening", "closure", "record", "evolution"},
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"kind":             map[string]interface{}{"type": "string", "description": "evening_closure | agent_action | dream_cycle"},
+				"summary":          map[string]interface{}{"type": "string"},
+				"actions":          map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"inbox_pending":    map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"alerts":           map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"resolved_alerts":  map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+				"append_evolution": map[string]interface{}{"type": "boolean"},
+			},
+		},
+	})
+
+	c.Register(ToolDescriptor{
 		Name:        "compile_staff_dossier",
 		Category:    "routines",
 		Description: "Compiles staff engineering performance review executive dossier.",

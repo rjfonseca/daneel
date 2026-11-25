@@ -136,6 +136,7 @@ func init() {
 		{dossierCmd, llmModeNone, ""},
 		{eveningCmd, llmModeNone, ""},
 		{guardCmd, llmModeNone, ""},
+		{handoffCmd, llmModeNone, ""},
 		{harvestCmd, llmModeNone, ""},
 		{hookCmd, llmModeNone, ""},
 		{inboxCmd, llmModeNone, ""},

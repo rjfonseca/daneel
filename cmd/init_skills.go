@@ -24,6 +24,10 @@ When asked to perform complex tasks (e.g., processing meeting notes, promoting i
 To maximize speed and minimize costs, you must operate under a **Dynamic Delegation Architecture**:
 - **Lighter/Faster Models for Tactical Work**: When processing batch tasks, trivial Markdown formatting, parsing raw data (e.g., transcripts in inbox/), or performing extensive codebase/documentation searches, you MUST delegate execution to subagents running on lighter/faster models (e.g., flash, haiku, mini).
 - **Main Model for Strategic Work**: Reserve your main orchestration context (pro, opus, etc.) strictly for consolidating architectural decisions, deep refactoring, strategic planning, and complex cognitive repairs.
+
+## 5. Daily Cumulative Handoff Loop
+- **Morning Briefing (Start of Day):** Always cover **everything** that happened since the previous morning handoff (end-of-day closures, agent actions, and all overnight/morning REM cycles combined). Run ` + "`daneel handoff summary --json`" + ` (or ` + "`daneel morning`" + `) and inspect ` + "`meta/guias/agente-evolucao.md`" + ` plus recent git commits before surfacing active alerts.
+- **End-of-Day Closure (Dream Cycle):** Always append cognitive closure summaries chronologically to the end of the evolution log (` + "`daneel handoff record --kind evening_closure --append-evolution`" + `) so subsequent hourly REM ticks never mask evening work.
 `
 
 const meetingSkillMarkdown = `---
@@ -130,6 +134,50 @@ If a search unexpectedly returns no results for a documented entity:
 3. If Daneel is unavailable, search directly inside the vault's curated 'notes/' directory.
 `
 
+const morningBriefingSkillMarkdown = `---
+name: morning-briefing
+description: "Generates a cumulative morning handoff covering all REM cycles, end-of-day closures, and inbox items since the previous morning briefing."
+---
+
+# 🌅 Morning Briefing & Cumulative Handoff Skill
+
+Use this skill at the start of the workday (e.g., *"good morning"*, *"start of day"*, *"morning briefing"*).
+
+## 📋 Execution Protocol
+
+1. **Gather Cumulative Window (` + "`T_prev_handoff ➔ T_now`" + `):**
+   - Run ` + "`daneel handoff summary --json`" + ` (read-only) to retrieve every REM cycle, evening closure, agent action, and resolved alert recorded since the previous morning handoff.
+   - Cross-check recent git history since the previous morning handoff (` + "`git log --since=\"<window_start>\" --stat`" + `) and verify whether any inherited alert was already resolved within the window.
+2. **Triage ` + "`inbox/`" + `:**
+   - Process clear notes or meeting transcripts immediately; retain ambiguous items in ` + "`inbox/`" + ` and surface them under *Inbox Items Requiring Human Decision*.
+3. **Update Daily Log (` + "`daily/YYYY-MM-DD.md`" + `):**
+   - Run ` + "`daneel morning`" + ` (or update the top of ` + "`daily/YYYY-MM-DD.md`" + `) to inject the ` + "`## 🤝 Handoff do Copiloto`" + ` block with its ` + "`> **Window:**`" + ` marker, advancing the morning watermark only after the briefing is ready.
+`
+
+const dreamCycleSkillMarkdown = `---
+name: dream-cycle
+description: "Executes end-of-day wrap-up and cognitive Dream Cycle consolidation, persisting chronological closure entries so morning handoffs remain complete."
+---
+
+# 🌙 End-of-Day & Cognitive Dream Cycle Skill
+
+Use this skill when wrapping up the workday (e.g., *"good night"*, *"end of day"*, *"close the day"*, *"run dream cycle"*).
+
+## 📋 Execution Protocol
+
+1. **Time Reconciliation & Graph Hygiene:**
+   - Run ` + "`daneel evening`" + ` to reconcile explicit daily time logs into YAML frontmatter.
+   - Run ` + "`daneel dream --stats`" + ` (or ` + "`daneel tidy && daneel doctor`" + `) to heal links, update MOCs, and collect telemetry.
+2. **Inbox & Knowledge Promotion:**
+   - Promote clear drafts from ` + "`inbox/`" + ` to ` + "`notes/`" + ` and archive processed transcripts under ` + "`sources/`" + `. Keep items needing human judgment in ` + "`inbox/`" + ` and list them explicitly.
+3. **Chronological Closure Record (Append-Only):**
+   - Persist a structured evening closure entry via:
+     ` + "```bash" + `
+     daneel handoff record --kind evening_closure --summary "<concise wrap-up>" --action "<item>" --append-evolution
+     ` + "```" + `
+   - Always append chronologically to the end of the evolution log so overnight or early-morning automated REM ticks never obscure evening work.
+`
+
 func scaffoldAgentsAndSkills(targetDir string) error {
 	// 1. Write AGENTS.md
 	agentsPath := filepath.Join(targetDir, "AGENTS.md")
@@ -163,6 +211,30 @@ func scaffoldAgentsAndSkills(targetDir string) error {
 	secondBrainSkillPath := filepath.Join(secondBrainSkillDir, "SKILL.md")
 	if _, err := os.Stat(secondBrainSkillPath); os.IsNotExist(err) {
 		if err := os.WriteFile(secondBrainSkillPath, []byte(secondBrainSkillMarkdown), 0600); err != nil {
+			return err
+		}
+	}
+
+	// 5. Write Morning Briefing Skill
+	morningSkillDir := filepath.Join(skillsDir, "morning-briefing")
+	if err := os.MkdirAll(morningSkillDir, 0750); err != nil {
+		return err
+	}
+	morningSkillPath := filepath.Join(morningSkillDir, "SKILL.md")
+	if _, err := os.Stat(morningSkillPath); os.IsNotExist(err) {
+		if err := os.WriteFile(morningSkillPath, []byte(morningBriefingSkillMarkdown), 0600); err != nil {
+			return err
+		}
+	}
+
+	// 6. Write Dream Cycle Skill
+	dreamSkillDir := filepath.Join(skillsDir, "dream-cycle")
+	if err := os.MkdirAll(dreamSkillDir, 0750); err != nil {
+		return err
+	}
+	dreamSkillPath := filepath.Join(dreamSkillDir, "SKILL.md")
+	if _, err := os.Stat(dreamSkillPath); os.IsNotExist(err) {
+		if err := os.WriteFile(dreamSkillPath, []byte(dreamCycleSkillMarkdown), 0600); err != nil {
 			return err
 		}
 	}

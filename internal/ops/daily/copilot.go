@@ -2,7 +2,6 @@
 package daily
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +24,11 @@ type MorningReport struct {
 	Date              string   `json:"date"`
 	FilePath          string   `json:"file_path"`
 	Created           bool     `json:"created"`
+	WindowStart       string   `json:"window_start,omitempty"`
+	WindowEnd         string   `json:"window_end,omitempty"`
+	DreamCyclesCount  int      `json:"dream_cycles_count"`
+	EveningSummaries  []string `json:"evening_summaries,omitempty"`
+	ResolvedAlerts    []string `json:"resolved_alerts,omitempty"`
 	AutonomousActions []string `json:"autonomous_actions"`
 	InboxItems        []string `json:"inbox_items"`
 	Alerts            []string `json:"alerts"`
@@ -32,6 +36,13 @@ type MorningReport struct {
 	BacklogP0         []string `json:"backlog_p0"`
 	BacklogP1         []string `json:"backlog_p1"`
 	IngestedMeetings  []string `json:"ingested_meetings,omitempty"`
+}
+
+// MorningOptions configures RunMorningWithOptions behavior.
+type MorningOptions struct {
+	DryRun bool
+	Since  string
+	Now    time.Time
 }
 
 // EveningReport captures the result of running the evening copilot primitive.
@@ -51,8 +62,17 @@ var (
 // RunMorning scaffolds or updates daily/<date>.md with autonomous Dream Cycle handoff data,
 // inbox triage items, active P0/P1 priorities, and ingested meetings.
 func RunMorning(vaultRoot string, dateStr string, cfg *config.Config) (*MorningReport, error) {
+	return RunMorningWithOptions(vaultRoot, dateStr, cfg, MorningOptions{})
+}
+
+// RunMorningWithOptions runs the morning copilot aggregation with explicit window/dry-run options.
+func RunMorningWithOptions(vaultRoot string, dateStr string, cfg *config.Config, opts MorningOptions) (*MorningReport, error) {
+	now := opts.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
 	if dateStr == "" || dateStr == "today" {
-		dateStr = time.Now().Format("2006-01-02")
+		dateStr = now.Format("2006-01-02")
 	}
 
 	ownerName := "Partner"
@@ -60,63 +80,95 @@ func RunMorning(vaultRoot string, dateStr string, cfg *config.Config) (*MorningR
 		ownerName = strings.Fields(strings.TrimSpace(cfg.Vault.Owner))[0]
 	}
 
-	// 1. Gather Handoff data from .daneel/cache/dream_handoff.json (fallback .daneel/dream_handoff.json)
-	var dreamReport dream.FullDreamReport
-	handoffPath := filepath.Join(vaultRoot, ".daneel", "cache", "dream_handoff.json")
-	data, err := os.ReadFile(handoffPath) //nolint:gosec // intentional
+	// 1. Resolve cumulative window (since -> now) and aggregate ledger events
+	since := dream.ResolveLastMorningHandoff(vaultRoot, dateStr, now)
+	if strings.TrimSpace(opts.Since) != "" {
+		parsed, err := parseSinceTimestamp(opts.Since)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --since timestamp %q: %w", opts.Since, err)
+		}
+		since = parsed
+	}
+
+	agg, err := dream.AggregateHandoffWindow(vaultRoot, since, now)
 	if err != nil {
-		handoffPath = filepath.Join(vaultRoot, ".daneel", "dream_handoff.json")
-		data, err = os.ReadFile(handoffPath) //nolint:gosec // intentional
-	}
-	if err == nil {
-		_ = json.Unmarshal(data, &dreamReport)
+		return nil, fmt.Errorf("aggregate handoff window: %w", err)
 	}
 
-	// Autonomous actions
+	// Autonomous actions (cognitive closures, agent actions, resolved alerts, and REM summary)
 	var autonomousActions []string
-	if dreamReport.FixedLinksCount > 0 {
-		autonomousActions = append(autonomousActions, fmt.Sprintf("%d WikiLinks healed into relative Markdown links", dreamReport.FixedLinksCount))
-	}
-	if len(dreamReport.MissingMOCs) > 0 {
-		autonomousActions = append(autonomousActions, fmt.Sprintf("%d notes synchronized into thematic MOCs", len(dreamReport.MissingMOCs)))
-	}
-	if len(dreamReport.SyncedPeople) > 0 {
-		autonomousActions = append(autonomousActions, fmt.Sprintf("%d colleague timelines synchronized", len(dreamReport.SyncedPeople)))
-	}
-	if dreamReport.IngestedMeetingsCount > 0 {
-		autonomousActions = append(autonomousActions, fmt.Sprintf("%d meeting notes ingested into sources/reunioes/", dreamReport.IngestedMeetingsCount))
-	}
-
-	// Alerts
-	var alerts []string
-	if dreamReport.BrokenLinksCount > 0 {
-		alerts = append(alerts, fmt.Sprintf("%d broken links pending review", dreamReport.BrokenLinksCount))
-	}
-	if dreamReport.TemporalAnalysis != nil && len(dreamReport.TemporalAnalysis.DriftAlerts) > 0 {
-		alerts = append(alerts, dreamReport.TemporalAnalysis.DriftAlerts...)
-	}
-
-	// Suggestions
-	var suggestions []string
-	if dreamReport.Metacognition != nil {
-		for _, in := range dreamReport.Metacognition.Insights {
-			suggestions = append(suggestions, fmt.Sprintf("%s -> %s", in.Observation, in.SuggestedAction))
+	var eveningSummaries []string
+	for _, ev := range agg.EveningClosures {
+		if strings.TrimSpace(ev.Summary) != "" {
+			eveningSummaries = append(eveningSummaries, ev.Summary)
+			autonomousActions = append(autonomousActions, fmt.Sprintf("Evening closure (%s): %s", ev.Date, ev.Summary))
+		}
+		for _, act := range ev.Actions {
+			if strings.TrimSpace(act) != "" {
+				autonomousActions = append(autonomousActions, act)
+			}
 		}
 	}
-	for _, q := range dreamReport.HandoffQuestions {
+	for _, ev := range agg.AgentActions {
+		if strings.TrimSpace(ev.Summary) != "" {
+			autonomousActions = append(autonomousActions, fmt.Sprintf("Agent action: %s", ev.Summary))
+		}
+		for _, act := range ev.Actions {
+			if strings.TrimSpace(act) != "" {
+				autonomousActions = append(autonomousActions, act)
+			}
+		}
+	}
+	if len(agg.ResolvedAlerts) > 0 {
+		autonomousActions = append(autonomousActions, fmt.Sprintf("Resolved %d alert(s) in window: %s", len(agg.ResolvedAlerts), strings.Join(agg.ResolvedAlerts, "; ")))
+	}
+	if agg.DreamCyclesCount > 1 && !agg.UsedLegacyFallback {
+		autonomousActions = append(autonomousActions, fmt.Sprintf("%d automated REM cycles (%s ➔ %s): %d files scanned, %d links fixed, %d broken links",
+			agg.DreamCyclesCount, formatShortTime(agg.FirstDreamAt), formatShortTime(agg.LastDreamAt), agg.FilesScanned, agg.FixedLinksTotal, agg.BrokenLinksLatest))
+	}
+	if agg.FixedLinksTotal > 0 {
+		autonomousActions = append(autonomousActions, fmt.Sprintf("%d WikiLinks healed into relative Markdown links", agg.FixedLinksTotal))
+	}
+	if len(agg.MissingMOCs) > 0 {
+		autonomousActions = append(autonomousActions, fmt.Sprintf("%d notes synchronized into thematic MOCs", len(agg.MissingMOCs)))
+	}
+	if len(agg.SyncedPeople) > 0 {
+		autonomousActions = append(autonomousActions, fmt.Sprintf("%d colleague timelines synchronized", len(agg.SyncedPeople)))
+	}
+	if agg.IngestedMeetingsTotal > 0 {
+		autonomousActions = append(autonomousActions, fmt.Sprintf("%d meeting notes ingested into sources/reunioes/", agg.IngestedMeetingsTotal))
+	}
+	if len(agg.Syntheses) > 0 {
+		autonomousActions = append(autonomousActions, fmt.Sprintf("%d active synthesis note(s) induced", len(agg.Syntheses)))
+	}
+
+	// Alerts (latest state only; resolved alerts already filtered out)
+	alerts := append([]string(nil), agg.Alerts...)
+
+	// Suggestions
+	suggestions := append([]string(nil), agg.Insights...)
+	for _, q := range agg.HandoffQuestions {
 		suggestions = append(suggestions, q.Question)
 	}
 
-	// Inbox items
+	// Inbox items (actual filesystem + any pending notes logged by cognitive actions)
 	var inboxItems []string
+	inboxSeen := map[string]bool{}
 	inboxDir := filepath.Join(vaultRoot, "inbox")
 	if entries, err := os.ReadDir(inboxDir); err == nil {
 		for _, e := range entries {
 			if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
+				inboxSeen[e.Name()] = true
 				inboxItems = append(inboxItems, e.Name())
 			}
 		}
 		sort.Strings(inboxItems)
+	}
+	for _, pending := range agg.InboxPending {
+		if pending != "" && !inboxSeen[pending] {
+			inboxSeen[pending] = true
+			inboxItems = append(inboxItems, pending)
+		}
 	}
 
 	// Backlog items
@@ -133,10 +185,6 @@ func RunMorning(vaultRoot string, dateStr string, cfg *config.Config) (*MorningR
 			}
 		}
 	}
-	if len(backlogP0) == 0 && len(backlogP1) == 0 {
-		backlogP0 = append(backlogP0, dreamReport.BacklogP0...)
-		backlogP1 = append(backlogP1, dreamReport.BacklogP1...)
-	}
 
 	// Ingested meetings
 	var ingestedMeetings []string
@@ -152,7 +200,7 @@ func RunMorning(vaultRoot string, dateStr string, cfg *config.Config) (*MorningR
 	}
 
 	// 2. Build Handoff Block
-	handoffBlock := buildHandoffBlock(ownerName, autonomousActions, inboxItems, alerts, suggestions)
+	handoffBlock := buildHandoffBlock(ownerName, agg.WindowStart, agg.WindowEnd, autonomousActions, inboxItems, alerts, suggestions)
 
 	relPath := filepath.ToSlash(filepath.Join("daily", dateStr+".md"))
 	absDailyPath := filepath.Join(vaultRoot, "daily", dateStr+".md")
@@ -160,6 +208,11 @@ func RunMorning(vaultRoot string, dateStr string, cfg *config.Config) (*MorningR
 	rep := &MorningReport{
 		Date:              dateStr,
 		FilePath:          relPath,
+		WindowStart:       agg.WindowStart,
+		WindowEnd:         agg.WindowEnd,
+		DreamCyclesCount:  agg.DreamCyclesCount,
+		EveningSummaries:  eveningSummaries,
+		ResolvedAlerts:    append([]string(nil), agg.ResolvedAlerts...),
 		AutonomousActions: autonomousActions,
 		InboxItems:        inboxItems,
 		Alerts:            alerts,
@@ -167,6 +220,13 @@ func RunMorning(vaultRoot string, dateStr string, cfg *config.Config) (*MorningR
 		BacklogP0:         backlogP0,
 		BacklogP1:         backlogP1,
 		IngestedMeetings:  ingestedMeetings,
+	}
+
+	if opts.DryRun {
+		if _, statErr := os.Stat(absDailyPath); os.IsNotExist(statErr) {
+			rep.Created = false
+		}
+		return rep, nil
 	}
 
 	// Check if daily note exists
@@ -178,6 +238,7 @@ func RunMorning(vaultRoot string, dateStr string, cfg *config.Config) (*MorningR
 		if err := safefile.WriteFile(vaultRoot, absDailyPath, []byte(content), 0600); err != nil {
 			return nil, fmt.Errorf("failed to write daily note: %w", err)
 		}
+		_ = dream.SaveHandoffState(vaultRoot, now, relPath)
 		return rep, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to read daily note: %w", err)
@@ -192,6 +253,7 @@ func RunMorning(vaultRoot string, dateStr string, cfg *config.Config) (*MorningR
 			return nil, fmt.Errorf("failed to inject handoff block: %w", err)
 		}
 	}
+	_ = dream.SaveHandoffState(vaultRoot, now, relPath)
 
 	return rep, nil
 }
@@ -302,12 +364,28 @@ func RunEvening(vaultRoot string, dateStr string, cfg *config.Config) (*EveningR
 		}
 	}
 
+	if rep.Updated {
+		_ = dream.AppendHandoffEvent(vaultRoot, dream.HandoffEvent{
+			Kind:      dream.HandoffKindEveningClosure,
+			Timestamp: time.Now().Format(time.RFC3339),
+			Date:      dateStr,
+			Summary:   fmt.Sprintf("Evening telemetry reconciliation: %.2fh tracked", rep.TotalHours),
+			Actions: []string{
+				fmt.Sprintf("Reconciled %.2fh ([A] %.2fh, [B] %.2fh, [C] %.2fh, [D] %.2fh, [E] %.2fh)",
+					rep.TotalHours, hoursByCat["A"], hoursByCat["B"], hoursByCat["C"], hoursByCat["D"], hoursByCat["E"]),
+			},
+		})
+	}
+
 	return rep, nil
 }
 
-func buildHandoffBlock(ownerName string, autonomousActions, inboxItems, alerts, suggestions []string) string {
+func buildHandoffBlock(ownerName, windowStart, windowEnd string, autonomousActions, inboxItems, alerts, suggestions []string) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "## 🤝 Handoff do Copiloto (Daneel ➔ %s)\n", ownerName)
+	fmt.Fprintf(&sb, "## 🤝 Handoff do Copiloto (Daneel ➔ %s)\n\n", ownerName)
+	if windowStart != "" && windowEnd != "" {
+		fmt.Fprintf(&sb, "> **Window:** `%s` ➔ `%s`\n\n", windowStart, windowEnd)
+	}
 
 	sb.WriteString("### 🤖 Decisões Autônomas & Auto-Curas Realizadas\n")
 	if len(autonomousActions) > 0 {
@@ -486,4 +564,27 @@ func toFloat(val interface{}) float64 {
 		return f
 	}
 	return 0
+}
+
+func parseSinceTimestamp(raw string) (time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05", "2006-01-02 15:04", "2006-01-02"} {
+		if layout == time.RFC3339Nano || layout == time.RFC3339 {
+			if t, err := time.Parse(layout, raw); err == nil {
+				return t, nil
+			}
+		} else {
+			if t, err := time.ParseInLocation(layout, raw, time.Local); err == nil {
+				return t, nil
+			}
+		}
+	}
+	return time.Time{}, fmt.Errorf("expected RFC3339 or YYYY-MM-DD HH:MM")
+}
+
+func formatShortTime(ts string) string {
+	if t, err := time.Parse(time.RFC3339, ts); err == nil {
+		return t.Format("2006-01-02 15:04")
+	}
+	return ts
 }

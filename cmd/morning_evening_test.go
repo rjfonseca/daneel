@@ -115,4 +115,25 @@ tags: [daily]
 	if eveningRep.TotalHours != 3.5 {
 		t.Errorf("expected evening TotalHours = 3.5 in JSON report, got %v", eveningRep.TotalHours)
 	}
+
+	// 6. Test 'daneel morning --dry-run' does not write daily file
+	morningDate = "2026-11-10"
+	morningDryRun = true
+	jsonOut = true
+	defer func() {
+		morningDryRun = false
+		morningSince = ""
+	}()
+	dryOut, err := captureStdout(t, func() error {
+		return morningCmd.RunE(morningCmd, nil)
+	})
+	if err != nil {
+		t.Fatalf("morningCmd --dry-run failed: %v", err)
+	}
+	if !strings.Contains(dryOut, `"date": "2026-11-10"`) {
+		t.Errorf("expected date 2026-11-10 in dry-run JSON, got: %s", dryOut)
+	}
+	if _, err := os.Stat(filepath.Join(dailyDir, "2026-11-10.md")); !os.IsNotExist(err) {
+		t.Errorf("expected --dry-run not to create daily/2026-11-10.md")
+	}
 }
