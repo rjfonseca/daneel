@@ -151,6 +151,28 @@ func (c *HTTPClient) doWithRetry(req *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
+func resolveHarvestCachePath(vaultRoot, filename string) string {
+	if vaultRoot != "" {
+		return filepath.Join(vaultRoot, ".daneel", "cache", filename)
+	}
+	return filepath.Join(config.XDGCacheDir(), filename)
+}
+
+func loadCacheWithFallback(primaryPath string, legacyPaths ...string) map[string]string {
+	if _, err := os.Stat(primaryPath); err == nil {
+		return loadCache(primaryPath)
+	}
+	for _, legacy := range legacyPaths {
+		if legacy == "" {
+			continue
+		}
+		if _, err := os.Stat(legacy); err == nil {
+			return loadCache(legacy)
+		}
+	}
+	return make(map[string]string)
+}
+
 func loadCache(cachePath string) map[string]string {
 	cache := make(map[string]string)
 	data, err := os.ReadFile(cachePath) //nolint:gosec // intentional

@@ -29,19 +29,23 @@ const (
 	ViewIngest
 )
 
+// TelemetryRecorder receives TUI interaction events.
+type TelemetryRecorder func(command, scope string, durationMs int64, isErr bool)
+
 // AppModel is the root BubbleTea application model.
 type AppModel struct {
-	vaultRoot string
-	engine    *search.Engine
-	styles    Styles
-	keyMap    KeyMap
-	activeTab ViewType
-	tabs      []string
-	width     int
-	height    int
-	showHelp  bool
-	quitting  bool
-	statusMsg string
+	vaultRoot   string
+	engine      *search.Engine
+	styles      Styles
+	keyMap      KeyMap
+	activeTab   ViewType
+	tabs        []string
+	width       int
+	height      int
+	showHelp    bool
+	quitting    bool
+	statusMsg   string
+	telemetryFn TelemetryRecorder
 
 	// Child Views
 	searchView    *SearchView
@@ -105,6 +109,52 @@ func NewAppModel(vaultRoot string, engine *search.Engine, tuiCfg config.TuiConfi
 	}
 }
 
+// SetTelemetryRecorder configures an optional callback for TUI telemetry events.
+func (m *AppModel) SetTelemetryRecorder(fn TelemetryRecorder) {
+	m.telemetryFn = fn
+}
+
+func (m *AppModel) recordTelemetry(command, scope string, durationMs int64, isErr bool) {
+	if m.telemetryFn != nil {
+		m.telemetryFn(command, scope, durationMs, isErr)
+	}
+}
+
+func viewTypeSlug(v ViewType) string {
+	switch v {
+	case ViewSearch:
+		return "search"
+	case ViewDashboard:
+		return "dashboard"
+	case ViewWorkspace:
+		return "workspace"
+	case ViewPeople:
+		return "people"
+	case ViewRoutines:
+		return "routines"
+	case ViewSkills:
+		return "skills"
+	case ViewHooks:
+		return "hooks"
+	case ViewTelemetry:
+		return "telemetry"
+	case ViewIngest:
+		return "ingest"
+	default:
+		return fmt.Sprintf("tab_%d", int(v))
+	}
+}
+
+func (m *AppModel) setActiveTab(next ViewType) {
+	if m.activeTab != next {
+		m.activeTab = next
+		m.recordTelemetry("tab:"+viewTypeSlug(next), "", 0, false)
+	}
+	if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
+		m.telemetryView.Refresh()
+	}
+}
+
 // Init initializes the application and all child views.
 func (m *AppModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
@@ -138,29 +188,26 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if viewName, ok := msg.Args["view_name"].(string); ok {
 				switch viewName {
 				case "search":
-					m.activeTab = ViewSearch
+					m.setActiveTab(ViewSearch)
 				case "dashboard":
-					m.activeTab = ViewDashboard
+					m.setActiveTab(ViewDashboard)
 				case "workspace":
-					m.activeTab = ViewWorkspace
+					m.setActiveTab(ViewWorkspace)
 				case "people":
-					m.activeTab = ViewPeople
+					m.setActiveTab(ViewPeople)
 				case "dream":
-					m.activeTab = ViewRoutines
+					m.setActiveTab(ViewRoutines)
 				case "telemetry", "finops":
-					m.activeTab = ViewTelemetry
-					if m.telemetryView != nil && !m.telemetryView.loaded {
-						m.telemetryView.Refresh()
-					}
+					m.setActiveTab(ViewTelemetry)
 				case "ingest":
-					m.activeTab = ViewIngest
+					m.setActiveTab(ViewIngest)
 				}
 			}
 			return m, nil
 
 		case "tui_open_note":
 			if filepath, ok := msg.Args["filepath"].(string); ok {
-				m.activeTab = ViewSearch
+				m.setActiveTab(ViewSearch)
 				if m.searchView != nil {
 					m.searchView.searchInput.SetValue(filepath)
 					// Em vez de depender do FTS5 que pode não indexar a string exata do caminho, injetamos diretamente:
@@ -268,7 +315,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i, t := range m.tabs {
 				tabLen := lipgloss.Width(m.styles.TabActive.Render(t)) + 1 // +1 for space between tabs
 				if msg.X >= x && msg.X < x+tabLen {
-					m.activeTab = ViewType(i)
+					m.setActiveTab(ViewType(i))
 					return m, nil
 				}
 				x += tabLen
@@ -305,7 +352,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle Tab9 (9 or i)
 		if key.Matches(msg, m.keyMap.Tab9) {
-			m.activeTab = ViewIngest
+			m.setActiveTab(ViewIngest)
 			return m, nil
 		}
 
@@ -325,25 +372,19 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ingestView, childCmd = m.ingestView.Update(msg)
 				return m, childCmd
 			}
-			m.activeTab = (m.activeTab + 1) % ViewType(len(m.tabs))
-			if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
-				m.telemetryView.Refresh()
-			}
+			m.setActiveTab((m.activeTab + 1) % ViewType(len(m.tabs)))
 			return m, nil
 
 		case "shift+tab":
+			next := m.activeTab - 1
 			if m.activeTab == 0 {
-				m.activeTab = ViewType(len(m.tabs) - 1)
-			} else {
-				m.activeTab--
+				next = ViewType(len(m.tabs) - 1)
 			}
-			if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
-				m.telemetryView.Refresh()
-			}
+			m.setActiveTab(next)
 			return m, nil
 
 		case "T":
-			m.activeTab = ViewTelemetry
+			m.setActiveTab(ViewTelemetry)
 			if m.telemetryView != nil {
 				m.telemetryView.Refresh()
 			}
@@ -352,10 +393,7 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 			idx := int(msg.String()[0] - '1')
 			if idx >= 0 && idx < len(m.tabs) {
-				m.activeTab = ViewType(idx)
-				if m.activeTab == ViewTelemetry && m.telemetryView != nil && !m.telemetryView.loaded {
-					m.telemetryView.Refresh()
-				}
+				m.setActiveTab(ViewType(idx))
 			}
 			return m, nil
 		}

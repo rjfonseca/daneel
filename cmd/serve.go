@@ -1934,12 +1934,46 @@ var serveCmd = &cobra.Command{
 	},
 }
 
+// newWebTelemetryInterceptor records ConnectRPC calls from the Web UI into command_telemetry under surface "web".
+func newWebTelemetryInterceptor(s *GraphServer) connect.UnaryInterceptorFunc {
+	return func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			proc := req.Spec().Procedure
+			if idx := strings.LastIndex(proc, "/"); idx >= 0 && idx+1 < len(proc) {
+				proc = proc[idx+1:]
+			}
+			// Skip noisy active-context heartbeats emitted while navigating the editor.
+			if proc == "ReportActiveContext" {
+				return next(ctx, req)
+			}
+
+			start := time.Now()
+			resp, err := next(ctx, req)
+			durationMs := time.Since(start).Milliseconds()
+
+			if store := s.getRoutineStore(); store != nil {
+				_ = store.RecordCommandEvent(context.Background(), routine.CommandTelemetryEvent{
+					Surface:    "web",
+					Command:    proc,
+					StartedAt:  start.Unix(),
+					DurationMs: durationMs,
+					IsError:    err != nil,
+				})
+			}
+			return resp, err
+		}
+	}
+}
+
 // NewGalaxyHTTPServer builds and returns the configured HTTP server for ConnectRPC and WebFS.
 func NewGalaxyHTTPServer(cfg *config.Config, engine *search.Engine, port int, dClient *daemon.Client) (*http.Server, error) {
 	graphServer := &GraphServer{engine: engine, vaultDir: cfg.VaultPath, daemonClient: dClient, cfg: cfg}
 
 	mux := http.NewServeMux()
-	path, handler := graphv1connect.NewGraphServiceHandler(graphServer)
+	path, handler := graphv1connect.NewGraphServiceHandler(
+		graphServer,
+		connect.WithInterceptors(newWebTelemetryInterceptor(graphServer)),
+	)
 	mux.Handle(path, handler)
 
 	distFs, err := fs.Sub(webfs.DistFS, "dist")

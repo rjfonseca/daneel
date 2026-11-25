@@ -190,3 +190,29 @@ func TestMetacognition_EvolutionLogAndDashboard(t *testing.T) {
 		t.Errorf("expected dashboard to contain section 5 FinOps & Uso do Vault, got:\n%s", dashContent)
 	}
 }
+
+func TestMetacognition_SkipsNoOpEvolutionLog(t *testing.T) {
+	tempVault := t.TempDir()
+
+	noOpReport := &FullDreamReport{
+		Date:              "2026-11-25",
+		TotalFilesScanned: 120,
+		FixedLinksCount:   0,
+		BrokenLinksCount:  0,
+		Metacognition: &MetacognitiveReport{
+			TotalDurationMs: 150,
+			Timings: []StageTiming{
+				{Name: "Phase 1: Deterministic Graph Hygiene", DurationMs: 140, ItemsCount: 120},
+			},
+		},
+	}
+
+	if err := AppendEvolutionLog(tempVault, "2026-11-25", noOpReport); err != nil {
+		t.Fatalf("AppendEvolutionLog failed: %v", err)
+	}
+
+	logPath := filepath.Join(tempVault, "meta", "guias", "agente-evolucao.md")
+	if _, err := os.Stat(logPath); !os.IsNotExist(err) {
+		t.Fatalf("expected no-op cycle not to create/append %s", logPath)
+	}
+}

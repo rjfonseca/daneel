@@ -299,7 +299,7 @@ func (s *SQLiteStore) SetRetentionLimit(limit int) {
 	}
 }
 
-// SetCommandRetentionLimit overrides the maximum number of command telemetry events to keep.
+// SetCommandRetentionLimit overrides the maximum number of command telemetry events to keep per surface.
 func (s *SQLiteStore) SetCommandRetentionLimit(limit int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -509,7 +509,7 @@ func (s *SQLiteStore) GetLatestRun(ctx context.Context, routineName string) (*Ro
 	return &r, nil
 }
 
-// RecordCommandEvent records a CLI or MCP command execution event and retains the latest 5000 events.
+// RecordCommandEvent records a command execution event and retains the latest events per surface.
 func (s *SQLiteStore) RecordCommandEvent(ctx context.Context, ev CommandTelemetryEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -534,10 +534,10 @@ func (s *SQLiteStore) RecordCommandEvent(ctx context.Context, ev CommandTelemetr
 	if limit <= 0 {
 		limit = DefaultMaxCmdEventsRetention
 	}
-	pruneQuery := `DELETE FROM command_telemetry WHERE id NOT IN (
-		SELECT id FROM command_telemetry ORDER BY started_at DESC, id DESC LIMIT ?
+	pruneQuery := `DELETE FROM command_telemetry WHERE surface = ? AND id NOT IN (
+		SELECT id FROM command_telemetry WHERE surface = ? ORDER BY started_at DESC, id DESC LIMIT ?
 	);`
-	_, _ = s.db.ExecContext(ctx, pruneQuery, limit)
+	_, _ = s.db.ExecContext(ctx, pruneQuery, ev.Surface, ev.Surface, limit)
 
 	return nil
 }

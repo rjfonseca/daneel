@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 
 	graphv1 "github.com/rjfonseca/daneel/api/v1"
+	"github.com/rjfonseca/daneel/api/v1/graphv1connect"
 	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/dream"
 	"github.com/rjfonseca/daneel/internal/routine"
@@ -973,5 +976,67 @@ func TestGraphServer_GetGalaxy_IncludesSourcesDB(t *testing.T) {
 	}
 	if !hasLink("sources/github/acme/orion/README.md", "sources/github/acme/orion/docs.md") {
 		t.Errorf("expected link sources/github/acme/orion/README.md -> sources/github/acme/orion/docs.md in GetGalaxy response")
+	}
+}
+
+type localHandlerTransport struct {
+	handler http.Handler
+	host    string
+}
+
+func (t localHandlerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r2 := r.Clone(r.Context())
+	r2.Host = t.host
+	rec := httptest.NewRecorder()
+	t.handler.ServeHTTP(rec, r2)
+	return rec.Result(), nil
+}
+
+func TestNewGalaxyHTTPServer_RecordsWebTelemetry(t *testing.T) {
+	tempVault := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempVault, ".daneel.yaml"), []byte("vault:\n  title: test\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(tempVault, ".daneel", "cache", "vault_index.db")
+	eng, err := search.Open(dbPath, tempVault)
+	if err != nil {
+		t.Fatalf("failed to open search engine: %v", err)
+	}
+	defer func() { _ = eng.Close() }()
+
+	cfg := &config.Config{VaultPath: tempVault, DBPath: dbPath}
+	httpSrv, err := NewGalaxyHTTPServer(cfg, eng, 4321, nil)
+	if err != nil {
+		t.Fatalf("NewGalaxyHTTPServer failed: %v", err)
+	}
+
+	httpClient := &http.Client{
+		Transport: localHandlerTransport{handler: httpSrv.Handler, host: "127.0.0.1:4321"},
+	}
+	client := graphv1connect.NewGraphServiceClient(httpClient, "http://127.0.0.1:4321")
+	if _, err := client.GetGalaxy(context.Background(), connect.NewRequest(&graphv1.GetGalaxyRequest{})); err != nil {
+		t.Fatalf("GetGalaxy RPC failed: %v", err)
+	}
+
+	store, err := routine.OpenDefaultStore(tempVault)
+	if err != nil {
+		t.Fatalf("OpenDefaultStore failed: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	aggs, err := store.GetCommandAggregates(context.Background(), 0, 50)
+	if err != nil {
+		t.Fatalf("GetCommandAggregates failed: %v", err)
+	}
+
+	found := false
+	for _, a := range aggs {
+		if a.Surface == "web" && a.Command == "GetGalaxy" && a.TotalCalls == 1 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected web:GetGalaxy command telemetry event, got %+v", aggs)
 	}
 }

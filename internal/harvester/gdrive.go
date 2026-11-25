@@ -43,8 +43,9 @@ func (h *GDriveHarvester) Harvest(ctx context.Context) (*HarvestStats, error) {
 		return nil, fmt.Errorf("unable to retrieve Drive client: %v", err)
 	}
 
-	cacheFile := filepath.Join(h.cfg.VaultPath, ".agents", "cache", "gdrive_harvest_cache.json")
-	cache := loadCache(cacheFile)
+	cacheFile := resolveHarvestCachePath(h.cfg.VaultPath, "gdrive_harvest_cache.json")
+	legacyCacheFile := filepath.Join(h.cfg.VaultPath, ".agents", "cache", "gdrive_harvest_cache.json")
+	cache := loadCacheWithFallback(cacheFile, legacyCacheFile)
 
 	stats := &HarvestStats{Platform: "gdrive"}
 	for _, gCfg := range h.cfg.Harvester.GoogleDrive {

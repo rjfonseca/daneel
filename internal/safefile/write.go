@@ -8,7 +8,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
+	"time"
 )
+
+var maxBackupDirs = 50
 
 // WriteFile stages a file inside vaultRoot and keeps the old content under
 // .daneel/backups/<unique-id>/<relative-path> before replacing an existing file.
@@ -51,11 +55,50 @@ func WriteFile(vaultRoot, path string, data []byte, mode fs.FileMode) error {
 		if err := stageFile(root, backup, old, 0600); err != nil {
 			return fmt.Errorf("save backup: %w", err)
 		}
+		pruneBackups(filepath.Join(rootPath, ".daneel", "backups"), maxBackupDirs)
 	}
 	if err := root.MkdirAll(filepath.Dir(rel), 0750); err != nil {
 		return err
 	}
 	return stageFile(root, rel, data, mode)
+}
+
+type backupEntry struct {
+	name    string
+	modTime time.Time
+}
+
+func pruneBackups(backupsDir string, keep int) {
+	if keep <= 0 {
+		return
+	}
+	entries, err := os.ReadDir(backupsDir)
+	if err != nil || len(entries) <= keep {
+		return
+	}
+	var dirs []backupEntry
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		dirs = append(dirs, backupEntry{name: entry.Name(), modTime: info.ModTime()})
+	}
+	if len(dirs) <= keep {
+		return
+	}
+	sort.Slice(dirs, func(i, j int) bool {
+		if !dirs[i].modTime.Equal(dirs[j].modTime) {
+			return dirs[i].modTime.After(dirs[j].modTime)
+		}
+		return dirs[i].name > dirs[j].name
+	})
+	for _, d := range dirs[keep:] {
+		_ = os.RemoveAll(filepath.Join(backupsDir, d.name))
+	}
 }
 
 func stageFile(root *os.Root, path string, data []byte, mode fs.FileMode) error {

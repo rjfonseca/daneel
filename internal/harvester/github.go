@@ -67,8 +67,9 @@ func (h *GitHubHarvester) HarvestUser(userName string, limit int) (*HarvestStats
 func (h *GitHubHarvester) harvestRepos(repos []ghRepo) (*HarvestStats, error) {
 	start := time.Now()
 	outputDir := filepath.Join(h.vaultRoot, "sources", "github")
-	cacheFile := filepath.Join(h.vaultRoot, ".agents", "cache", "github_harvest_cache.json")
-	cache := loadCache(cacheFile)
+	cacheFile := resolveHarvestCachePath(h.vaultRoot, "github_harvest_cache.json")
+	legacyCacheFile := filepath.Join(h.vaultRoot, ".agents", "cache", "github_harvest_cache.json")
+	cache := loadCacheWithFallback(cacheFile, legacyCacheFile)
 
 	stats := &HarvestStats{
 		Platform:      "GitHub",

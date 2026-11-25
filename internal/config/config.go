@@ -450,7 +450,7 @@ func DefaultCategories() []CategoryConfig {
 		{ID: "organizacao", Title: "Organization & Tribes", Desc: "Squad topologies, engineering epics, and company initiatives"},
 		{ID: "pessoas", Title: "People & Network", Desc: "1:1s history, mentorships, peer relationships, and team profiles"},
 		{ID: "carreira", Title: "Career & Leadership", Desc: "Staff engineering, goals, evaluations, career frameworks, and personal growth"},
-		{ID: "processors", Title: "Processes & Methodologies", Desc: "RFCs, PRDs, code reviews, agile methodologies, and GTD"},
+		{ID: "processos", Title: "Processes & Methodologies", Desc: "RFCs, PRDs, code reviews, agile methodologies, and GTD"}, //nolint:misspell // canonical Portuguese vault category
 		{ID: "seguranca", Title: "Security & Networking", Desc: "Real IP rate limiting, SSL/TLS, SPIFFE, SSH Agent, and CVE management"},
 		{ID: "sistemas", Title: "Systems & Services", Desc: "Local repositories, API catalogs, and microservices"},
 	}

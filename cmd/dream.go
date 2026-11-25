@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/dream"
 	"github.com/rjfonseca/daneel/internal/lore"
 	"github.com/rjfonseca/daneel/internal/routine"
@@ -378,7 +379,7 @@ func finalizeDreamFinOps(ctx context.Context, vPath string, dreamStartTime time.
 		report.Metacognition.SubagentsCount = matched.Record.SubagentsCount
 		report.Metacognition.Model = matched.Record.Model
 
-		handoffPath := filepath.Join(vPath, ".daneel", "dream_handoff.json")
+		handoffPath := filepath.Join(config.ResolveVaultCacheDir(vPath), "dream_handoff.json")
 		if data, err := json.MarshalIndent(report, "", "  "); err == nil {
 			_ = safefile.WriteFile(vPath, handoffPath, data, 0600)
 		}

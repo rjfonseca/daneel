@@ -179,3 +179,33 @@ func TestAppModelTelemetryTab(t *testing.T) {
 		t.Errorf("expected activeTab to be ViewTelemetry after tui_switch_view 'finops', got %v", app.activeTab)
 	}
 }
+
+func TestAppModel_RecordsTabSwitchTelemetry(t *testing.T) {
+	tempDir := t.TempDir()
+	app := NewAppModel(tempDir, nil, config.TuiConfig{})
+
+	var recorded []string
+	app.SetTelemetryRecorder(func(command, scope string, durationMs int64, isErr bool) {
+		recorded = append(recorded, command)
+	})
+
+	// Press '1' when already on ViewSearch: should not emit duplicate switch event
+	newModel, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	app = newModel.(*AppModel)
+
+	// Switch to Dashboard ('2'), Telemetry ('T'), Ingest ('i')
+	for _, k := range []string{"2", "T", "i"} {
+		newModel, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)})
+		app = newModel.(*AppModel)
+	}
+
+	want := []string{"tab:dashboard", "tab:telemetry", "tab:ingest"}
+	if len(recorded) != len(want) {
+		t.Fatalf("expected recorded events %v, got %v", want, recorded)
+	}
+	for i := range want {
+		if recorded[i] != want[i] {
+			t.Errorf("event[%d]: expected %q, got %q", i, want[i], recorded[i])
+		}
+	}
+}
