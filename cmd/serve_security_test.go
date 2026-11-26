@@ -60,6 +60,7 @@ func TestGalaxyHTTPBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cleanupGalaxyHTTPServer(t, server)
 	if server.Addr != "127.0.0.1:4321" {
 		t.Errorf("unsafe listener: %s", server.Addr)
 	}

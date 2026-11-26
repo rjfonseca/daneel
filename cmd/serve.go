@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -37,14 +38,17 @@ import (
 )
 
 type GraphServer struct {
-	engine       *search.Engine
-	vaultDir     string
-	daemonClient *daemon.Client
-	cfg          *config.Config
-	routineStore routine.Store
+	engine         *search.Engine
+	vaultDir       string
+	daemonClient   *daemon.Client
+	cfg            *config.Config
+	routineStoreMu sync.Mutex
+	routineStore   routine.Store
 }
 
 func (s *GraphServer) getRoutineStore() routine.Store {
+	s.routineStoreMu.Lock()
+	defer s.routineStoreMu.Unlock()
 	if s.routineStore != nil {
 		return s.routineStore
 	}
@@ -57,6 +61,30 @@ func (s *GraphServer) getRoutineStore() routine.Store {
 		s.routineStore = st
 	}
 	return s.routineStore
+}
+
+// Close releases any lazily opened routineStore handle held by GraphServer.
+func (s *GraphServer) Close() error {
+	s.routineStoreMu.Lock()
+	defer s.routineStoreMu.Unlock()
+	if s.routineStore == nil {
+		return nil
+	}
+	err := s.routineStore.Close()
+	s.routineStore = nil
+	return err
+}
+
+type closeableHTTPHandler struct {
+	http.Handler
+	closeFn func() error
+}
+
+func (h *closeableHTTPHandler) Close() error {
+	if h.closeFn == nil {
+		return nil
+	}
+	return h.closeFn()
 }
 
 func loadGalaxyLinks(ctx context.Context, dbs []*sql.DB) ([]*graphv1.Link, map[string]int32, error) {
@@ -1932,6 +1960,11 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer func() {
+			if c, ok := server.Handler.(io.Closer); ok {
+				_ = c.Close()
+			}
+		}()
 
 		fmt.Printf("🚀 Galaxy Visualizer running at http://localhost:%d\n", servePort)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -2002,11 +2035,13 @@ func NewGalaxyHTTPServer(cfg *config.Config, engine *search.Engine, port int, dC
 	}).Handler(mux)
 
 	portStr := fmt.Sprintf("127.0.0.1:%d", port)
-	return &http.Server{
+	srv := &http.Server{
 		Addr:              portStr,
-		Handler:           localRequests(port, corsHandler),
+		Handler:           &closeableHTTPHandler{Handler: localRequests(port, corsHandler), closeFn: graphServer.Close},
 		ReadHeaderTimeout: 10 * time.Second,
-	}, nil
+	}
+	srv.RegisterOnShutdown(func() { _ = graphServer.Close() })
+	return srv, nil
 }
 
 func init() {

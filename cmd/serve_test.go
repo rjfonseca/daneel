@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -26,6 +27,20 @@ func cleanupGraphServerRoutineStore(t *testing.T, server *GraphServer) {
 		if server.routineStore != nil {
 			if err := server.routineStore.Close(); err != nil {
 				t.Errorf("close fixture routine store: %v", err)
+			}
+		}
+	})
+}
+
+func cleanupGalaxyHTTPServer(t *testing.T, srv *http.Server) {
+	t.Helper()
+	t.Cleanup(func() {
+		if srv == nil {
+			return
+		}
+		if closer, ok := srv.Handler.(io.Closer); ok {
+			if err := closer.Close(); err != nil {
+				t.Errorf("close galaxy http server handler: %v", err)
 			}
 		}
 	})
@@ -1009,6 +1024,7 @@ func TestNewGalaxyHTTPServer_RecordsWebTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGalaxyHTTPServer failed: %v", err)
 	}
+	cleanupGalaxyHTTPServer(t, httpSrv)
 
 	httpClient := &http.Client{
 		Transport: localHandlerTransport{handler: httpSrv.Handler, host: "127.0.0.1:4321"},

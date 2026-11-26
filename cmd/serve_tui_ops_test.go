@@ -47,6 +47,7 @@ func TestNewGalaxyHTTPServer_RecordsTUISurfaceTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewGalaxyHTTPServer failed: %v", err)
 	}
+	cleanupGalaxyHTTPServer(t, httpSrv)
 
 	httpClient := &http.Client{
 		Transport: surfaceHeaderTransport{

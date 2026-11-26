@@ -39,13 +39,16 @@ func TestDreamCmd_NoAgentFlag(t *testing.T) {
 }
 
 func TestDreamCmd_StatsAndSynthesize(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	tempVault := t.TempDir()
 
 	_ = os.MkdirAll(filepath.Join(tempVault, "notes", "ia"), 0750)
 	_ = os.MkdirAll(filepath.Join(tempVault, "daily"), 0750)
 
 	dailyNote := filepath.Join(tempVault, "daily", "2026-08-20.md")
-	_ = os.WriteFile(dailyNote, []byte("---\ndata: 2026-08-20\ntempo-A_Estrategico: 3\n---\n# Daily\n[[Emerging System]]\n"), 0600)
+	_ = os.WriteFile(dailyNote, []byte("---\ndata: 2026-08-20\ntempo-A_Estrategico: 3\n---\n# Daily\n\n## Conhecimento\n- Emerging System architecture patterns\n"), 0600)
 
 	cfg = &config.Config{
 		VaultPath: tempVault,
@@ -64,10 +67,14 @@ func TestDreamCmd_StatsAndSynthesize(t *testing.T) {
 		t.Fatalf("dreamCmd with --stats --synthesize failed: %v", err)
 	}
 
-	// Verify evolution log was written
+	// Verify evolution log was written and reflects the induced synthesis
 	evoPath := filepath.Join(tempVault, "meta", "guias", "agente-evolucao.md")
-	if _, err := os.Stat(evoPath); os.IsNotExist(err) {
-		t.Errorf("expected evolution log at %s, but file does not exist", evoPath)
+	data, err := os.ReadFile(evoPath) //nolint:gosec
+	if err != nil {
+		t.Fatalf("expected evolution log at %s, got error: %v", evoPath, err)
+	}
+	if !strings.Contains(string(data), "Emerging System") {
+		t.Errorf("expected evolution log to reference Emerging System, got:\n%s", string(data))
 	}
 }
 
