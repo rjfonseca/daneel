@@ -111,15 +111,17 @@ export function computeEdgeDisplay(
   // 3. Modo: Foco Estrito no Setor Ativo
   if (ctx.mode === 'focus') {
     if (ctx.focusedCategory) {
-      const cleanFocused = ctx.focusedCategory.replace('__CAT_', '').toLowerCase();
+      const cleanFocused = ctx.focusedCategory.replace('__SECTOR_', '').replace('__CAT_', '').toLowerCase();
       const srcCat = (data.sourceCategory || '').toLowerCase();
       const tgtCat = (data.targetCategory || '').toLowerCase();
-      const inSector = (srcCat === cleanFocused || srcCat.startsWith(cleanFocused + '/')) ||
-                       (tgtCat === cleanFocused || tgtCat.startsWith(cleanFocused + '/'));
+      const srcSec = typeof data.sourceSectorKey === 'string' ? data.sourceSectorKey.toLowerCase() : '';
+      const tgtSec = typeof data.targetSectorKey === 'string' ? data.targetSectorKey.toLowerCase() : '';
+      const srcMatches = srcCat === cleanFocused || srcCat.startsWith(cleanFocused + '/') || srcSec === cleanFocused;
+      const tgtMatches = tgtCat === cleanFocused || tgtCat.startsWith(cleanFocused + '/') || tgtSec === cleanFocused;
+      const inSector = srcMatches || tgtMatches;
 
       if (inSector) {
-        const isInternal = (srcCat === cleanFocused || srcCat.startsWith(cleanFocused + '/')) &&
-                           (tgtCat === cleanFocused || tgtCat.startsWith(cleanFocused + '/'));
+        const isInternal = srcMatches && tgtMatches;
         return {
           hidden: false,
           color: isInternal ? 'rgba(147, 197, 253, 0.16)' : 'rgba(99, 102, 241, 0.06)',

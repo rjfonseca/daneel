@@ -285,12 +285,16 @@ export class TrafficSimulator {
       ctx.lineWidth = ship.size * 0.9;
       ctx.stroke();
 
+      // Halo translúcido sem shadowBlur (60fps HiDPI friendly)
+      ctx.beginPath();
+      ctx.arc(currentX, currentY, ship.size * 2.4, 0, 2 * Math.PI);
+      ctx.fillStyle = ship.color.replace('0.95', `${(alpha * 0.24).toFixed(2)}`);
+      ctx.fill();
+
       // Ponto de luz frontal (núcleo da nave / fóton)
       ctx.beginPath();
       ctx.arc(currentX, currentY, ship.size, 0, 2 * Math.PI);
       ctx.fillStyle = `rgba(255, 255, 255, ${(alpha * 0.95).toFixed(2)})`;
-      ctx.shadowColor = ship.color;
-      ctx.shadowBlur = 10;
       ctx.fill();
     }
 

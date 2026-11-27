@@ -208,6 +208,7 @@ func TestCaptureNoteHTTPBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cleanupGalaxyHTTPServer(t, server)
 	request := func(host, origin string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodPost, "http://"+host+"/graph.v1.GraphService/CaptureNote", strings.NewReader(`{"title":"Idea","contentMarkdown":"Body"}`))
 		req.Header.Set("Content-Type", "application/json")

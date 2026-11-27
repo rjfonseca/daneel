@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -37,14 +38,17 @@ import (
 )
 
 type GraphServer struct {
-	engine       *search.Engine
-	vaultDir     string
-	daemonClient *daemon.Client
-	cfg          *config.Config
-	routineStore routine.Store
+	engine         *search.Engine
+	vaultDir       string
+	daemonClient   *daemon.Client
+	cfg            *config.Config
+	routineStoreMu sync.Mutex
+	routineStore   routine.Store
 }
 
 func (s *GraphServer) getRoutineStore() routine.Store {
+	s.routineStoreMu.Lock()
+	defer s.routineStoreMu.Unlock()
 	if s.routineStore != nil {
 		return s.routineStore
 	}
@@ -57,6 +61,30 @@ func (s *GraphServer) getRoutineStore() routine.Store {
 		s.routineStore = st
 	}
 	return s.routineStore
+}
+
+// Close releases any lazily opened routineStore handle held by GraphServer.
+func (s *GraphServer) Close() error {
+	s.routineStoreMu.Lock()
+	defer s.routineStoreMu.Unlock()
+	if s.routineStore == nil {
+		return nil
+	}
+	err := s.routineStore.Close()
+	s.routineStore = nil
+	return err
+}
+
+type closeableHTTPHandler struct {
+	http.Handler
+	closeFn func() error
+}
+
+func (h *closeableHTTPHandler) Close() error {
+	if h.closeFn == nil {
+		return nil
+	}
+	return h.closeFn()
 }
 
 func loadGalaxyLinks(ctx context.Context, dbs []*sql.DB) ([]*graphv1.Link, map[string]int32, error) {
@@ -551,7 +579,11 @@ func (s *GraphServer) SearchNotes(
 	ctx context.Context,
 	req *connect.Request[graphv1.SearchNotesRequest],
 ) (*connect.Response[graphv1.SearchNotesResponse], error) {
-	results, err := s.engine.Search(ctx, req.Msg.Query, "all", int(req.Msg.Limit))
+	scope := strings.TrimSpace(req.Msg.Scope)
+	if scope == "" {
+		scope = "all"
+	}
+	results, err := s.engine.Search(ctx, req.Msg.Query, scope, int(req.Msg.Limit))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -559,9 +591,12 @@ func (s *GraphServer) SearchNotes(
 	var pbResults []*graphv1.SearchResult
 	for _, r := range results {
 		pbResults = append(pbResults, &graphv1.SearchResult{
-			RelPath: r.RelPath,
-			Title:   r.Title,
-			Snippet: r.Snippet,
+			RelPath:     r.RelPath,
+			Title:       r.Title,
+			Snippet:     r.Snippet,
+			Scope:       r.Scope,
+			NoteType:    r.Type,
+			Description: r.Description,
 		})
 	}
 
@@ -1925,6 +1960,11 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer func() {
+			if c, ok := server.Handler.(io.Closer); ok {
+				_ = c.Close()
+			}
+		}()
 
 		fmt.Printf("🚀 Galaxy Visualizer running at http://localhost:%d\n", servePort)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -1934,12 +1974,51 @@ var serveCmd = &cobra.Command{
 	},
 }
 
+// newWebTelemetryInterceptor records ConnectRPC calls from the Web UI (or TUI/CLI/MCP via X-Daneel-Surface) into command_telemetry.
+func newWebTelemetryInterceptor(s *GraphServer) connect.UnaryInterceptorFunc {
+	return func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			proc := req.Spec().Procedure
+			if idx := strings.LastIndex(proc, "/"); idx >= 0 && idx+1 < len(proc) {
+				proc = proc[idx+1:]
+			}
+			// Skip noisy active-context heartbeats emitted while navigating the editor.
+			if proc == "ReportActiveContext" {
+				return next(ctx, req)
+			}
+
+			surface := strings.ToLower(strings.TrimSpace(req.Header().Get("X-Daneel-Surface")))
+			if surface != "tui" && surface != "cli" && surface != "mcp" {
+				surface = "web"
+			}
+
+			start := time.Now()
+			resp, err := next(ctx, req)
+			durationMs := time.Since(start).Milliseconds()
+
+			if store := s.getRoutineStore(); store != nil {
+				_ = store.RecordCommandEvent(context.Background(), routine.CommandTelemetryEvent{
+					Surface:    surface,
+					Command:    proc,
+					StartedAt:  start.Unix(),
+					DurationMs: durationMs,
+					IsError:    err != nil,
+				})
+			}
+			return resp, err
+		}
+	}
+}
+
 // NewGalaxyHTTPServer builds and returns the configured HTTP server for ConnectRPC and WebFS.
 func NewGalaxyHTTPServer(cfg *config.Config, engine *search.Engine, port int, dClient *daemon.Client) (*http.Server, error) {
 	graphServer := &GraphServer{engine: engine, vaultDir: cfg.VaultPath, daemonClient: dClient, cfg: cfg}
 
 	mux := http.NewServeMux()
-	path, handler := graphv1connect.NewGraphServiceHandler(graphServer)
+	path, handler := graphv1connect.NewGraphServiceHandler(
+		graphServer,
+		connect.WithInterceptors(newWebTelemetryInterceptor(graphServer)),
+	)
 	mux.Handle(path, handler)
 
 	distFs, err := fs.Sub(webfs.DistFS, "dist")
@@ -1951,16 +2030,18 @@ func NewGalaxyHTTPServer(cfg *config.Config, engine *search.Engine, port int, dC
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins: []string{fmt.Sprintf("http://localhost:%d", port), fmt.Sprintf("http://127.0.0.1:%d", port), "http://localhost:5173", "http://127.0.0.1:5173"},
 		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders: []string{"Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms", "X-User-Agent", "Grpc-Timeout"},
+		AllowedHeaders: []string{"Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms", "X-User-Agent", "X-Daneel-Surface", "Grpc-Timeout"},
 		ExposedHeaders: []string{"Grpc-Status", "Grpc-Message", "Grpc-Status-Details-Bin"},
 	}).Handler(mux)
 
 	portStr := fmt.Sprintf("127.0.0.1:%d", port)
-	return &http.Server{
+	srv := &http.Server{
 		Addr:              portStr,
-		Handler:           localRequests(port, corsHandler),
+		Handler:           &closeableHTTPHandler{Handler: localRequests(port, corsHandler), closeFn: graphServer.Close},
 		ReadHeaderTimeout: 10 * time.Second,
-	}, nil
+	}
+	srv.RegisterOnShutdown(func() { _ = graphServer.Close() })
+	return srv, nil
 }
 
 func init() {

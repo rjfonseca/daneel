@@ -2,12 +2,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	"github.com/rjfonseca/daneel/internal/routine"
 	"github.com/rjfonseca/daneel/internal/search"
 	"github.com/rjfonseca/daneel/internal/tui"
 )
@@ -31,17 +34,42 @@ func runTUI() error {
 		vaultRoot = cwd
 	}
 
-	searchEngine, err := search.Open(cfg.DBPath, vaultRoot)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "⚠️ Warning: failed to initialize search engine: %v\n", err)
-	}
-	defer func() {
-		if searchEngine != nil {
-			searchEngine.Close() //nolint:errcheck,gosec // fully read or safe to ignore
+	backend := tui.ConnectBackend(vaultRoot, cfg, nil)
+
+	var searchEngine *search.Engine
+	if !backend.IsDaemonConnected() {
+		var err error
+		searchEngine, err = search.Open(cfg.DBPath, vaultRoot)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️ Warning: failed to initialize search engine: %v\n", err)
+		} else {
+			backend = tui.NewLocalBackend(vaultRoot, cfg, searchEngine)
 		}
-	}()
+		defer func() {
+			if searchEngine != nil {
+				searchEngine.Close() //nolint:errcheck,gosec // fully read or safe to ignore
+			}
+		}()
+	}
 
 	appModel := tui.NewAppModel(vaultRoot, searchEngine, cfg.GetTuiConfig())
+	appModel.SetBackend(backend)
+
+	var store routine.Store
+	if st, stErr := routine.OpenDefaultStore(vaultRoot); stErr == nil && st != nil {
+		store = st
+		defer func() { _ = store.Close() }()
+		appModel.SetTelemetryRecorder(func(command, scope string, durationMs int64, isErr bool) {
+			_ = store.RecordCommandEvent(context.Background(), routine.CommandTelemetryEvent{
+				Surface:    "tui",
+				Command:    command,
+				Scope:      scope,
+				StartedAt:  time.Now().Unix(),
+				DurationMs: durationMs,
+				IsError:    isErr,
+			})
+		})
+	}
 
 	p := tea.NewProgram(
 		appModel,
@@ -51,8 +79,19 @@ func runTUI() error {
 
 	tui.StartMCPServer(p)
 
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("error running TUI: %w", err)
+	start := time.Now()
+	_, runErr := p.Run()
+	if store != nil {
+		_ = store.RecordCommandEvent(context.Background(), routine.CommandTelemetryEvent{
+			Surface:    "tui",
+			Command:    "session",
+			StartedAt:  start.Unix(),
+			DurationMs: time.Since(start).Milliseconds(),
+			IsError:    runErr != nil,
+		})
+	}
+	if runErr != nil {
+		return fmt.Errorf("error running TUI: %w", runErr)
 	}
 
 	return nil

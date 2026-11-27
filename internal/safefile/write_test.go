@@ -86,3 +86,32 @@ func TestWriteRejectsExternalPaths(t *testing.T) {
 		t.Fatal("external target was touched")
 	}
 }
+
+func TestWritePrunesOldBackups(t *testing.T) {
+	origMax := maxBackupDirs
+	maxBackupDirs = 2
+	defer func() { maxBackupDirs = origMax }()
+
+	root := t.TempDir()
+	path := filepath.Join(root, "notes", "note.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("v0"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 1; i <= 4; i++ {
+		if err := WriteFile(root, path, []byte("v"+string(rune('0'+i))), 0600); err != nil {
+			t.Fatalf("write v%d: %v", i, err)
+		}
+	}
+
+	entries, err := os.ReadDir(filepath.Join(root, ".daneel", "backups"))
+	if err != nil {
+		t.Fatalf("readdir backups: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 backups retained after pruning, got %d", len(entries))
+	}
+}

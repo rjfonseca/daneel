@@ -2,6 +2,14 @@ import type Sigma from 'sigma';
 import type { ConstellationResult } from '../lib/constellationFilter';
 import type { EdgeVisibilityMode } from '../lib/edgeFiltering';
 import type { CalloutBoundingBox } from '../lib/canvasMath';
+import type {
+  GalaxyScopeMode,
+  LodTelemetry,
+  SemanticLodState,
+  SuperNodeMeta,
+  TrustScope,
+} from '../lib/semanticZoomLod';
+import type { SuperEdgeIndex } from '../lib/superEdges';
 
 export interface GalaxyNode {
   id: string;
@@ -14,6 +22,7 @@ export interface GalaxyNode {
   status?: string;
   icon?: string;
   description?: string;
+  noteType?: string;
   size?: number;
   x?: number;
   y?: number;
@@ -30,6 +39,11 @@ export interface GalaxyNode {
   repository?: string;
   isArms?: boolean;
   isCat?: boolean;
+  trustScope?: TrustScope;
+  sectorKey?: string;
+  clusterKey?: string;
+  isClusterAlpha?: boolean;
+  recentCount?: number;
 }
 
 export interface GalaxyLink {
@@ -62,6 +76,11 @@ export interface HoverTooltipNode {
   ring?: string;
   status?: string;
   icon?: string;
+  isSuperNode?: boolean;
+  repoCount?: number;
+  noteCount?: number;
+  recentCount?: number;
+  bridgeCount?: number;
 }
 
 export interface HoverTooltipState {
@@ -72,6 +91,8 @@ export interface HoverTooltipState {
 export interface SigmaContextState {
   sigma: Sigma | null;
   frameLabelsCount: number;
+  frameRootLabelsCount?: number;
+  frameConstellationNeighborLabelsCount?: number;
   frameCalloutBoxes: CalloutBoundingBox[];
   renderedNebulaCenters: Array<{ x: number; y: number }>;
   maxNebulas: number;
@@ -79,6 +100,7 @@ export interface SigmaContextState {
   focusedCluster?: string | null;
   edgeMode: EdgeVisibilityMode;
   hoveredNodeId: string | null;
+  hoveredNeighborIds?: Set<string>;
   selectedNodeId: string | null;
   constellation: ConstellationResult | null;
   showRings: boolean;
@@ -86,6 +108,10 @@ export interface SigmaContextState {
   showSectorLabels?: boolean;
   showNebulaLabels?: boolean;
   galaxyCenter: { x: number; y: number };
+  scopeMode: GalaxyScopeMode;
+  lodState: SemanticLodState | null;
+  superNodeRegistry: Map<string, SuperNodeMeta>;
+  superEdgeIndex: SuperEdgeIndex | null;
 }
 
 export interface NeighborRef {
@@ -124,6 +150,9 @@ export interface GalaxyControllerProps {
   showNebulaLabels?: boolean;
   drawerWidth?: number;
   reducedMotion?: boolean;
+  scopeMode: GalaxyScopeMode;
+  onLodTelemetryChange?: (telemetry: LodTelemetry) => void;
+  onAutoUnfocus?: (opts: { clearCluster: boolean; clearSector: boolean; clearConstellation?: boolean }) => void;
 }
 
 export interface GalaxyDataState {

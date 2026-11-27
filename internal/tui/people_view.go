@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	graphv1 "github.com/rjfonseca/daneel/api/v1"
 	"github.com/rjfonseca/daneel/internal/ops/briefing"
 )
 
@@ -34,15 +36,29 @@ func (p personItem) FilterValue() string { return p.Name }
 type PeopleView struct {
 	vaultRoot    string
 	styles       Styles
+	backend      *Backend
 	service      *briefing.PreflightService
 	peopleList   []personItem
 	listModel    *DaneelList
 	currentBrief *briefing.PersonProfile
+	loaded       bool
+	loading      bool
 	width        int
 	height       int
 }
 
-// NewPeopleView creates a new people view.
+type peopleDirectoryLoadedMsg struct {
+	people []personItem
+	err    error
+}
+
+type personBriefingLoadedMsg struct {
+	slug    string
+	profile *briefing.PersonProfile
+	err     error
+}
+
+// NewPeopleView creates a new people view without synchronous vault scanning.
 func NewPeopleView(vaultRoot string, styles Styles) *PeopleView {
 	pv := &PeopleView{
 		vaultRoot: vaultRoot,
@@ -50,8 +66,85 @@ func NewPeopleView(vaultRoot string, styles Styles) *PeopleView {
 		service:   briefing.NewPreflightService(vaultRoot),
 	}
 	pv.listModel = NewDaneelList([]list.Item{}, 30, 10, styles)
-	pv.Refresh()
 	return pv
+}
+
+// SetBackend injects the daemon-first backend.
+func (v *PeopleView) SetBackend(b *Backend) {
+	v.backend = b
+}
+
+// EnsureLoaded triggers async directory loading on first activation.
+func (v *PeopleView) EnsureLoaded() tea.Cmd {
+	if v.loaded || v.loading {
+		return nil
+	}
+	return v.LoadAsync()
+}
+
+// LoadAsync loads the lightweight colleague directory via daemon or local metadata.
+func (v *PeopleView) LoadAsync() tea.Cmd {
+	v.loading = true
+	backend := v.backend
+	if backend == nil {
+		backend = NewLocalBackend(v.vaultRoot, nil, nil)
+	}
+	return func() tea.Msg {
+		resp, err := backend.GetPeopleDirectory(context.Background())
+		if err != nil {
+			return peopleDirectoryLoadedMsg{err: err}
+		}
+		var items []personItem
+		if resp != nil {
+			for _, p := range resp.People {
+				items = append(items, personItem{
+					Name:         p.Name,
+					Slug:         p.Slug,
+					Cargo:        p.Role,
+					Squad:        p.Squad,
+					Interactions: int(p.Interactions),
+				})
+			}
+		}
+		return peopleDirectoryLoadedMsg{people: items}
+	}
+}
+
+func (v *PeopleView) loadSelectedBriefingAsync() tea.Cmd {
+	if v.listModel.Index() < 0 || v.listModel.Index() >= len(v.peopleList) {
+		return nil
+	}
+	p := v.peopleList[v.listModel.Index()]
+	backend := v.backend
+	if backend == nil {
+		backend = NewLocalBackend(v.vaultRoot, nil, nil)
+	}
+	slug := p.Slug
+	return func() tea.Msg {
+		resp, err := backend.GetPersonBriefing(context.Background(), slug)
+		if err != nil || resp == nil {
+			return personBriefingLoadedMsg{slug: slug, err: err}
+		}
+		return personBriefingLoadedMsg{
+			slug:    slug,
+			profile: briefingFromProto(resp),
+		}
+	}
+}
+
+func briefingFromProto(resp *graphv1.GetPersonBriefingResponse) *briefing.PersonProfile {
+	return &briefing.PersonProfile{
+		Name:                resp.Name,
+		Slug:                resp.Slug,
+		RelPath:             resp.RelPath,
+		Cargo:               resp.Cargo,
+		Squad:               resp.Squad,
+		Relacao:             resp.Relacao,
+		RecentInteractions:  append([]string(nil), resp.RecentInteractions...),
+		Topics:              append([]string(nil), resp.Topics...),
+		PendingTasks:        append([]string(nil), resp.PendingTasks...),
+		RecentDailyMentions: append([]string(nil), resp.RecentDailyMentions...),
+	}
 }
 
 // Refresh reloads all people profiles from notes/pessoas/.
@@ -122,10 +215,33 @@ func (v *PeopleView) Update(msg tea.Msg) (*PeopleView, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case peopleDirectoryLoadedMsg:
+		v.loading = false
+		v.loaded = true
+		if msg.err == nil {
+			v.peopleList = msg.people
+			var listItems []list.Item //nolint:prealloc
+			for _, p := range msg.people {
+				listItems = append(listItems, p)
+			}
+			v.listModel.SetItems(listItems)
+			v.listModel.Select(0)
+			return v, v.loadSelectedBriefingAsync()
+		}
+		return v, nil
+
+	case personBriefingLoadedMsg:
+		if msg.err == nil && msg.profile != nil {
+			if v.listModel.Index() >= 0 && v.listModel.Index() < len(v.peopleList) &&
+				v.peopleList[v.listModel.Index()].Slug == msg.slug {
+				v.currentBrief = msg.profile
+			}
+		}
+		return v, nil
+
 	case tea.KeyMsg:
 		if msg.String() == "r" {
-			v.Refresh()
-			return v, nil
+			return v, v.LoadAsync()
 		}
 	case ListItemSelectedMsg:
 		// Optional: handled globally, or open in editor
@@ -135,7 +251,7 @@ func (v *PeopleView) Update(msg tea.Msg) (*PeopleView, tea.Cmd) {
 	v.listModel, cmd = v.listModel.Update(msg)
 
 	if v.listModel.Index() != oldIndex {
-		v.updateCurrentBrief()
+		return v, tea.Batch(cmd, v.loadSelectedBriefingAsync())
 	}
 
 	return v, cmd
@@ -156,6 +272,9 @@ func (v *PeopleView) SetSize(w, h int) {
 
 // View renders the 1:1 People Hub.
 func (v *PeopleView) View() string {
+	if !v.loaded && len(v.peopleList) == 0 {
+		return "Loading 1:1 People Directory..."
+	}
 	if len(v.peopleList) == 0 {
 		return "No people profiles found in notes/pessoas/."
 	}
@@ -196,7 +315,7 @@ func (v *PeopleView) View() string {
 
 		if len(b.RecentDailyMentions) > 0 {
 			briefSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Primary).Render("📅 Recent Daily Log Mentions:") + "\n")
-			for _, m := range b.RecentDailyMentions[:2] {
+			for _, m := range b.RecentDailyMentions[:min(2, len(b.RecentDailyMentions))] {
 				fmt.Fprintf(&briefSB, "  • %s\n", m)
 			}
 		}

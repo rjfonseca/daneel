@@ -2,60 +2,138 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	graphv1 "github.com/rjfonseca/daneel/api/v1"
 	"github.com/rjfonseca/daneel/internal/dream"
 	"github.com/rjfonseca/daneel/internal/ops/backlog"
 	"github.com/rjfonseca/daneel/internal/vault"
 )
 
-// DashboardView presents the Staff Engineering Radar, Telemetry bars, and Active Backlog.
+// DashboardView presents the Staff Engineering Radar, Telemetry bars, Morning Handoff, and Active Backlog.
 type DashboardView struct {
 	vaultRoot        string
 	styles           Styles
+	backend          *Backend
+	summary          *graphv1.GetDashboardSummaryResponse
 	temporalData     *dream.TemporalWindowData
-	stratRadar       *dream.StrategicRadar
 	backlogRep       *backlog.BacklogReport
 	vaultMetrics     *vault.VaultMetrics
 	backlogIndex     int
+	showCompleted    bool
+	loaded           bool
+	loading          bool
 	width            int
 	height           int
 	customWidgetText string
 }
 
-// NewDashboardView creates a new dashboard view.
-func NewDashboardView(vaultRoot string, styles Styles) *DashboardView {
-	dv := &DashboardView{
-		vaultRoot:    vaultRoot,
-		styles:       styles,
-		backlogIndex: 0,
-	}
-	dv.Refresh()
-	return dv
+type dashboardLoadedMsg struct {
+	summary *graphv1.GetDashboardSummaryResponse
+	err     error
 }
 
-// Refresh reloads telemetry and backlog from the vault.
+// NewDashboardView creates a new dashboard view without synchronous startup I/O.
+func NewDashboardView(vaultRoot string, styles Styles) *DashboardView {
+	return &DashboardView{
+		vaultRoot: vaultRoot,
+		styles:    styles,
+	}
+}
+
+// SetBackend injects the daemon-first backend for unified dashboard telemetry.
+func (v *DashboardView) SetBackend(b *Backend) {
+	v.backend = b
+}
+
+// EnsureLoaded triggers async loading on first activation.
+func (v *DashboardView) EnsureLoaded() tea.Cmd {
+	if v.loaded || v.loading {
+		return nil
+	}
+	return v.LoadAsync()
+}
+
+// LoadAsync fetches the dashboard summary asynchronously via daemon or local builders.
+func (v *DashboardView) LoadAsync() tea.Cmd {
+	v.loading = true
+	backend := v.backend
+	if backend == nil {
+		backend = NewLocalBackend(v.vaultRoot, nil, nil)
+	}
+	return func() tea.Msg {
+		resp, err := backend.GetDashboardSummary(context.Background(), 7)
+		return dashboardLoadedMsg{summary: resp, err: err}
+	}
+}
+
+// Refresh synchronously reloads dashboard data from the backend.
 func (v *DashboardView) Refresh() {
-	today := time.Now().Format("2006-01-02")
-	learnings := dream.LoadLearnings(v.vaultRoot)
+	backend := v.backend
+	if backend == nil {
+		backend = NewLocalBackend(v.vaultRoot, nil, nil)
+	}
+	if resp, err := backend.GetDashboardSummary(context.Background(), 7); err == nil && resp != nil {
+		v.applySummary(resp)
+	}
+}
 
-	temp, _ := dream.AnalyzeTemporalWindow(v.vaultRoot, today, 7)
-	v.temporalData = temp
-
-	if temp != nil {
-		v.stratRadar = dream.CrossSynthesizeTechBusiness(v.vaultRoot, today, temp, nil, learnings)
+func (v *DashboardView) applySummary(resp *graphv1.GetDashboardSummaryResponse) {
+	v.loading = false
+	v.loaded = true
+	v.summary = resp
+	if resp == nil {
+		return
 	}
 
-	bRep, _ := backlog.GetActiveBacklog(v.vaultRoot)
+	bRep := &backlog.BacklogReport{
+		Items: make([]backlog.BacklogItem, 0, len(resp.BacklogItems)),
+	}
+	for _, item := range resp.BacklogItems {
+		bRep.Items = append(bRep.Items, backlog.BacklogItem{
+			Priority:    item.Priority,
+			Title:       item.Title,
+			Description: item.Description,
+			Completed:   item.Completed,
+		})
+	}
 	v.backlogRep = bRep
+	v.clampBacklogIndex()
+}
 
-	vm := vault.CalculateVaultMetrics(v.vaultRoot)
-	v.vaultMetrics = &vm
+func (v *DashboardView) filteredBacklog() []backlog.BacklogItem {
+	if v.backlogRep == nil {
+		return nil
+	}
+	if v.showCompleted {
+		return v.backlogRep.Items
+	}
+	var open []backlog.BacklogItem
+	for _, item := range v.backlogRep.Items {
+		if !item.Completed {
+			open = append(open, item)
+		}
+	}
+	return open
+}
+
+func (v *DashboardView) clampBacklogIndex() {
+	items := v.filteredBacklog()
+	if len(items) == 0 {
+		v.backlogIndex = 0
+		return
+	}
+	if v.backlogIndex >= len(items) {
+		v.backlogIndex = len(items) - 1
+	}
+	if v.backlogIndex < 0 {
+		v.backlogIndex = 0
+	}
 }
 
 // Init initializes the view.
@@ -66,10 +144,21 @@ func (v *DashboardView) Init() tea.Cmd {
 // Update handles tea messages for the dashboard.
 func (v *DashboardView) Update(msg tea.Msg) (*DashboardView, tea.Cmd) {
 	switch msg := msg.(type) {
+	case dashboardLoadedMsg:
+		v.loading = false
+		v.loaded = true
+		if msg.err == nil && msg.summary != nil {
+			v.applySummary(msg.summary)
+		}
+		return v, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "r":
-			v.Refresh()
+			return v, v.LoadAsync()
+		case "c":
+			v.showCompleted = !v.showCompleted
+			v.clampBacklogIndex()
 			return v, nil
 		case "up", "k":
 			if v.backlogIndex > 0 {
@@ -77,7 +166,8 @@ func (v *DashboardView) Update(msg tea.Msg) (*DashboardView, tea.Cmd) {
 			}
 			return v, nil
 		case "down", "j":
-			if v.backlogRep != nil && v.backlogIndex < len(v.backlogRep.Items)-1 {
+			items := v.filteredBacklog()
+			if v.backlogIndex < len(items)-1 {
 				v.backlogIndex++
 			}
 			return v, nil
@@ -94,110 +184,17 @@ func (v *DashboardView) SetSize(w, h int) {
 
 // View renders the Staff Dashboard.
 func (v *DashboardView) View() string {
-	if v.temporalData == nil {
-		return "Loading Staff Telemetry & Radar..."
+	if !v.loaded && v.summary == nil && v.temporalData == nil {
+		return "Loading Staff Telemetry & Dashboard..."
 	}
 
-	leftWidth, rightWidth, _ := CalculateLayoutDimensions(v.width, v.height, 0, 0.50)
+	leftWidth, rightWidth, availH := CalculateLayoutDimensions(v.width, v.height, 0, 0.50)
 
 	var teleSB strings.Builder
-	fmt.Fprintf(&teleSB, "%s (7-Day Window — %.1fh total across %d days):\n\n",
-		v.styles.PanelTitle.Render("📊 Staff Engineering Telemetry"),
-		v.temporalData.TotalHours,
-		v.temporalData.DaysWithLogs)
-
-	pctA := v.temporalData.Percentages["A"]
-	pctB := v.temporalData.Percentages["B"]
-	pctC := v.temporalData.Percentages["C"]
-	pctE := v.temporalData.Percentages["E"]
-
-	teleSB.WriteString(v.renderProgressBar("[A] Strategic    ", pctA, ">= 30%", v.styles.Theme.Primary, leftWidth-8))
-	teleSB.WriteString("\n")
-	teleSB.WriteString(v.renderProgressBar("[B] Local Impact ", pctB, ">= 30%", v.styles.Theme.Info, leftWidth-8))
-	teleSB.WriteString("\n")
-	teleSB.WriteString(v.renderProgressBar("[C] Glue Work    ", pctC, "<= 30%", v.styles.Theme.Secondary, leftWidth-8))
-	teleSB.WriteString("\n")
-	teleSB.WriteString(v.renderProgressBar("[E] Overhead     ", pctE, "<= 10%", v.styles.Theme.Warning, leftWidth-8))
-	teleSB.WriteString("\n\n")
-
-	if len(v.temporalData.DriftAlerts) > 0 {
-		for _, da := range v.temporalData.DriftAlerts {
-			teleSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Error).Bold(true).Render("⚠️ Staff Drift: ") + da + "\n")
-		}
-	} else {
-		teleSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Success).Bold(true).Render("✅ Healthy time allocation aligned with Staff Engineering targets.\n"))
-	}
-
-	if v.stratRadar != nil && len(v.stratRadar.TractionSummary) > 0 {
-		teleSB.WriteString("\n" + v.styles.PanelTitle.Render("🏢 Corporate Strategic Radar:") + "\n")
-		limit := 4
-		if len(v.stratRadar.TractionSummary) < limit {
-			limit = len(v.stratRadar.TractionSummary)
-		}
-		for _, tr := range v.stratRadar.TractionSummary[:limit] {
-			fmt.Fprintf(&teleSB, "  • %-22s %s (%d mentions)\n", tr.Initiative, tr.Status, tr.Count)
-		}
-	}
-
-	if len(v.temporalData.FrictionSignals) > 0 {
-		teleSB.WriteString("\n" + v.styles.PanelTitle.Render("⚠️ Technical Debt & Friction Signals:") + "\n")
-		for _, fs := range v.temporalData.FrictionSignals[:2] {
-			fmt.Fprintf(&teleSB, "  • [%s] %s\n", fs.Date, fs.Line)
-		}
-	}
-
-	if v.vaultMetrics != nil {
-		teleSB.WriteString("\n" + v.styles.PanelTitle.Render("🧠 Second Brain Health & Metrics:") + "\n")
-		fmt.Fprintf(&teleSB, "  • Total Notes: %s\n", lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("%d", v.vaultMetrics.TotalNotes)))
-		fmt.Fprintf(&teleSB, "  • Total Links: %d (%.2f links/note)\n", v.vaultMetrics.TotalLinks, v.vaultMetrics.LinksPerNote)
-
-		orphanStyle := lipgloss.NewStyle().Foreground(v.styles.Theme.Success)
-		if v.vaultMetrics.OrphanNotes > 10 {
-			orphanStyle = lipgloss.NewStyle().Foreground(v.styles.Theme.Warning)
-		}
-		fmt.Fprintf(&teleSB, "  • Orphan Notes: %s\n", orphanStyle.Render(fmt.Sprintf("%d", v.vaultMetrics.OrphanNotes)))
-	}
+	v.renderLeftPane(&teleSB, leftWidth)
 
 	var backSB strings.Builder
-	backSB.WriteString(v.styles.PanelTitle.Render("📌 Active Backlog & Current Focus") + "\n\n")
-
-	if v.backlogRep != nil && len(v.backlogRep.Items) > 0 {
-		for i, item := range v.backlogRep.Items {
-			prioBadge := v.renderPriorityBadge(item.Priority)
-			statusIcon := "[ ]"
-			if item.Completed {
-				statusIcon = "[x]"
-			}
-
-			title := item.Title
-			if len(title) > rightWidth-22 {
-				title = title[:rightWidth-25] + "..."
-			}
-
-			line := fmt.Sprintf("%s %s %s", prioBadge, statusIcon, title)
-			if i == v.backlogIndex {
-				backSB.WriteString(v.styles.ListItemSelected.Width(rightWidth - 4).Render("▸ " + line))
-			} else {
-				backSB.WriteString(v.styles.ListItem.Width(rightWidth - 4).Render("  " + line))
-			}
-			backSB.WriteString("\n")
-		}
-
-		if v.backlogIndex < len(v.backlogRep.Items) {
-			curItem := v.backlogRep.Items[v.backlogIndex]
-			backSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Border).Render(strings.Repeat("─", rightWidth-6)) + "\n")
-			backSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Primary).Render("🔍 Task Details:\n"))
-			backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Text).Render(curItem.Description) + "\n")
-		}
-	} else {
-		backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.TextMuted).Render("No active tasks in backlog.\n"))
-	}
-
-	if v.customWidgetText != "" {
-		backSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Border).Render(strings.Repeat("─", rightWidth-6)) + "\n")
-		backSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Info).Render("🤖 AI Command Center Component:\n"))
-		backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Text).Render(v.customWidgetText) + "\n")
-	}
+	v.renderRightPane(&backSB, rightWidth, availH)
 
 	return RenderSplitLayout(SplitLayoutConfig{
 		Width:        v.width,
@@ -209,6 +206,238 @@ func (v *DashboardView) View() string {
 		LeftStyle:    v.styles.Panel,
 		RightStyle:   v.styles.Panel,
 	})
+}
+
+func (v *DashboardView) renderLeftPane(teleSB *strings.Builder, leftWidth int) {
+	windowDays := 7
+	daysWithLogs := 0
+	totalHours := 0.0
+	var driftAlerts []string
+	var frictionSignals []*graphv1.FrictionSignalItem
+
+	if v.summary != nil {
+		if v.summary.WindowDays > 0 {
+			windowDays = int(v.summary.WindowDays)
+		}
+		daysWithLogs = int(v.summary.DaysWithLogs)
+		totalHours = v.summary.TotalHours
+		driftAlerts = v.summary.DriftAlerts
+		frictionSignals = v.summary.FrictionSignals
+	} else if v.temporalData != nil {
+		if v.temporalData.WindowDays > 0 {
+			windowDays = v.temporalData.WindowDays
+		}
+		daysWithLogs = v.temporalData.DaysWithLogs
+		totalHours = v.temporalData.TotalHours
+		driftAlerts = v.temporalData.DriftAlerts
+		for _, fs := range v.temporalData.FrictionSignals {
+			frictionSignals = append(frictionSignals, &graphv1.FrictionSignalItem{Date: fs.Date, Line: fs.Line})
+		}
+	}
+
+	fmt.Fprintf(teleSB, "%s (%d-Day Window — %.1fh across %d logs):\n\n",
+		v.styles.PanelTitle.Render("📊 Staff Engineering Telemetry"),
+		windowDays, totalHours, daysWithLogs)
+
+	if v.summary != nil && len(v.summary.Taxonomy) > 0 {
+		for _, tax := range v.summary.Taxonomy {
+			label, target, color := v.taxonomyStyle(tax.Id, tax.TargetMin, tax.TargetMax)
+			teleSB.WriteString(v.renderProgressBar(label, tax.Percentage, target, color, leftWidth-8))
+			teleSB.WriteString("\n")
+		}
+	} else if v.temporalData != nil {
+		pctA := firstPercentage(v.temporalData.Percentages, "A_Estrategico", "A")
+		pctB := firstPercentage(v.temporalData.Percentages, "B_ImpactoLocal", "B")
+		pctC := firstPercentage(v.temporalData.Percentages, "C_GlueWork", "C")
+		pctE := firstPercentage(v.temporalData.Percentages, "E_Overhead", "E")
+
+		teleSB.WriteString(v.renderProgressBar("[A] Strategic    ", pctA, ">= 30%", v.styles.Theme.Primary, leftWidth-8) + "\n")
+		teleSB.WriteString(v.renderProgressBar("[B] Local Impact ", pctB, ">= 30%", v.styles.Theme.Info, leftWidth-8) + "\n")
+		teleSB.WriteString(v.renderProgressBar("[C] Glue Work    ", pctC, "<= 30%", v.styles.Theme.Secondary, leftWidth-8) + "\n")
+		teleSB.WriteString(v.renderProgressBar("[E] Overhead     ", pctE, "<= 10%", v.styles.Theme.Warning, leftWidth-8) + "\n")
+	}
+	teleSB.WriteString("\n")
+
+	if len(driftAlerts) > 0 {
+		for _, da := range driftAlerts {
+			teleSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Error).Bold(true).Render("⚠️ Drift: ") + da + "\n")
+		}
+	} else {
+		teleSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Success).Bold(true).Render("✅ Time allocation aligned with Staff targets.\n"))
+	}
+
+	if v.summary != nil && v.summary.Handoff != nil {
+		h := v.summary.Handoff
+		teleSB.WriteString("\n" + v.styles.PanelTitle.Render(fmt.Sprintf("🤝 Morning Handoff (%s):", h.Date)) + "\n")
+		fmt.Fprintf(teleSB, "  • REM Cycles: %d | Inbox: %d | Alerts: %d\n",
+			h.DreamCyclesCount, len(h.InboxItems), len(h.Alerts))
+		for i, act := range h.AutonomousActions {
+			if i >= 2 {
+				break
+			}
+			fmt.Fprintf(teleSB, "  • %s\n", truncateText(act, max(20, leftWidth-8)))
+		}
+		for i, al := range h.Alerts {
+			if i >= 2 {
+				break
+			}
+			teleSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Warning).Render("  ! "+truncateText(al, max(20, leftWidth-8))) + "\n")
+		}
+		if len(h.Suggestions) > 0 {
+			teleSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.TextMuted).Render("  💡 "+truncateText(h.Suggestions[0], max(20, leftWidth-8))) + "\n")
+		}
+	}
+
+	if len(frictionSignals) > 0 {
+		teleSB.WriteString("\n" + v.styles.PanelTitle.Render("⚠️ Friction Signals:") + "\n")
+		for _, fs := range frictionSignals[:min(2, len(frictionSignals))] {
+			fmt.Fprintf(teleSB, "  • [%s] %s\n", fs.Date, truncateText(fs.Line, max(20, leftWidth-18)))
+		}
+	}
+
+	var notes, links, orphans int
+	if v.summary != nil && v.summary.TotalNotes > 0 {
+		notes = int(v.summary.TotalNotes)
+		links = int(v.summary.TotalLinks)
+		orphans = int(v.summary.OrphanNotes)
+	} else if v.vaultMetrics != nil {
+		notes = v.vaultMetrics.TotalNotes
+		links = v.vaultMetrics.TotalLinks
+		orphans = v.vaultMetrics.OrphanNotes
+	}
+	if notes > 0 {
+		ratio := float64(links) / float64(notes)
+		teleSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Info).Bold(true).
+			Render(fmt.Sprintf("🧠 Vault: %d notes • %d links (%.2f/note) • %d orphans\n", notes, links, ratio, orphans)))
+	}
+}
+
+func (v *DashboardView) renderRightPane(backSB *strings.Builder, rightWidth, availH int) {
+	items := v.filteredBacklog()
+	openCount := 0
+	if v.backlogRep != nil {
+		for _, it := range v.backlogRep.Items {
+			if !it.Completed {
+				openCount++
+			}
+		}
+	}
+
+	modeLabel := "open — 'c': show done"
+	if v.showCompleted {
+		modeLabel = "all — 'c': open only"
+	}
+	backSB.WriteString(v.styles.PanelTitle.Render(fmt.Sprintf("📌 Active Backlog (%d open)", openCount)) + " " +
+		lipgloss.NewStyle().Foreground(v.styles.Theme.TextMuted).Render("["+modeLabel+"]") + "\n\n")
+
+	if len(items) > 0 {
+		maxVisible := availH - 12
+		if maxVisible < 3 {
+			maxVisible = 3
+		}
+		start := 0
+		if v.backlogIndex >= maxVisible {
+			start = v.backlogIndex - maxVisible + 1
+		}
+		end := min(len(items), start+maxVisible)
+
+		for i := start; i < end; i++ {
+			item := items[i]
+			prioBadge := v.renderPriorityBadge(item.Priority)
+			statusIcon := "[ ]"
+			if item.Completed {
+				statusIcon = "[x]"
+			}
+
+			title := item.Title
+			maxTitleLen := rightWidth - 22
+			if maxTitleLen > 3 && len(title) > maxTitleLen {
+				title = title[:maxTitleLen-3] + "..."
+			}
+
+			line := fmt.Sprintf("%s %s %s", prioBadge, statusIcon, title)
+			if i == v.backlogIndex {
+				backSB.WriteString(v.styles.ListItemSelected.Width(max(10, rightWidth-4)).Render("▸ " + line))
+			} else {
+				backSB.WriteString(v.styles.ListItem.Width(max(10, rightWidth-4)).Render("  " + line))
+			}
+			backSB.WriteString("\n")
+		}
+		if end < len(items) || start > 0 {
+			backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.TextMuted).
+				Render(fmt.Sprintf("  (%d–%d of %d)\n", start+1, end, len(items))))
+		}
+
+		if v.backlogIndex < len(items) {
+			curItem := items[v.backlogIndex]
+			backSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Border).Render(strings.Repeat("─", max(1, rightWidth-6))) + "\n")
+			backSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Primary).Render("🔍 Task Details:\n"))
+			desc := curItem.Description
+			if desc == "" {
+				desc = curItem.Title
+			}
+			backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Text).Width(max(10, rightWidth-4)).Render(desc) + "\n")
+		}
+	} else {
+		backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.TextMuted).Render("No open tasks in active backlog.\n"))
+	}
+
+	if v.customWidgetText != "" {
+		backSB.WriteString("\n" + lipgloss.NewStyle().Foreground(v.styles.Theme.Border).Render(strings.Repeat("─", max(1, rightWidth-6))) + "\n")
+		backSB.WriteString(lipgloss.NewStyle().Bold(true).Foreground(v.styles.Theme.Info).Render("🤖 AI Command Center Component:\n"))
+		backSB.WriteString(lipgloss.NewStyle().Foreground(v.styles.Theme.Text).Render(v.customWidgetText) + "\n")
+	}
+}
+
+func (v *DashboardView) taxonomyStyle(id string, targetMin, targetMax float64) (string, string, lipgloss.Color) {
+	upper := strings.ToUpper(strings.TrimSpace(id))
+	target := ""
+	if targetMin > 0 {
+		target = fmt.Sprintf(">= %.0f%%", targetMin)
+	} else if targetMax > 0 {
+		target = fmt.Sprintf("<= %.0f%%", targetMax)
+	}
+
+	switch {
+	case strings.HasPrefix(upper, "A"):
+		if target == "" {
+			target = ">= 30%"
+		}
+		return "[A] Strategic    ", target, v.styles.Theme.Primary
+	case strings.HasPrefix(upper, "B"):
+		if target == "" {
+			target = ">= 30%"
+		}
+		return "[B] Local Impact ", target, v.styles.Theme.Info
+	case strings.HasPrefix(upper, "C"):
+		if target == "" {
+			target = "<= 30%"
+		}
+		return "[C] Glue Work    ", target, v.styles.Theme.Secondary
+	case strings.HasPrefix(upper, "E"):
+		if target == "" {
+			target = "<= 10%"
+		}
+		return "[E] Overhead     ", target, v.styles.Theme.Warning
+	default:
+		return fmt.Sprintf("[%-1s] %-13s", id[:min(1, len(id))], id), target, v.styles.Theme.Text
+	}
+}
+
+func firstPercentage(m map[string]float64, keys ...string) float64 {
+	for _, k := range keys {
+		if val, ok := m[k]; ok {
+			return val
+		}
+	}
+	return 0
+}
+
+func truncateText(s string, maxLen int) string {
+	if maxLen <= 3 || len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
 
 func (v *DashboardView) renderProgressBar(label string, pct float64, target string, color lipgloss.Color, maxWidth int) string {

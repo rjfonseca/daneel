@@ -6,8 +6,15 @@ The Daneel Galaxy Visualizer transforms thousands of notes, cross-references, an
 
 The frontend follows a strictly typed, modular design:
 
-- **`GalaxyController.tsx`**: Manages Sigma camera events, hover handlers, label click detection, and animation synchronization.
-- **`OverlayCanvas.tsx`**: High-performance 2D Canvas layer overlaid on the WebGL canvas, rendering orbital perimeter rings, dynamic nebula labels, and cosmic photon particles.
+- **`GalaxyController.tsx`**: Coordinates Sigma lifecycle, ForceAtlas2 stabilization, LOD recomputation triggers, and event delegation.
+- **`web/src/lib/galaxy/` Deep Modules**:
+  - **`stellarShader.ts`** (wrapped by `nodeStellarProgram.ts`): Pixel-accurate WebGL1 SDF shader converting framed-graph `v_radius` via `u_correctionRatio * 2.0` into CSS pixels, with crisp photosphere AA, pixel-bounded corona, spherical limb darkening, and procedural granulation on deep zoom.
+  - **`smoothCamera.ts`**: Logarithmic zoom-space programmatic camera interpolation (van Wijk & Nuij) and framerate-independent momentum-damped cursor-anchored wheel zoom.
+  - **`focusZoomExit.ts`**: Pure 2-step hierarchical auto-unfocus state machine (`Cluster → Sector → Full Galaxy`) on zoom-out without camera reset yank.
+  - **`galaxyReducers.ts`**: Extracted `nodeReducer` and zero-allocation `edgeReducer` using precomputed sector/cluster keys and `HIDDEN_EDGE`.
+  - **`sectorVisibility.ts`**: Batched Graphology `updateEachNodeAttributes` / `updateEachEdgeAttributes` visibility transitions.
+  - **`hoverController.ts`**: O(deg) hover highlighting using `sigmaContext.hoveredNeighborIds` and `partialGraph` + `skipIndexation: true`.
+- **`OverlayCanvas.tsx`**: Coalesced 2D Canvas layer (<= 1 draw/frame, shadowBlur-free translucent glows, auto-paused on `document.hidden`) rendering orbital perimeter rings, collapsed super-nodes/bridges, and cosmic photon particles.
 - **`BottomTemporalHotbar.tsx`**: Cybernetic HUD hotbar docked at the bottom of the galaxy, providing a weekly timeline (Mon–Sun), activity indicators for daily logs, active day highlight, Weekly Synthesis resolution (`[◈ W{week}]`), and Seldon Vault Anchors for pinned notes with Asimovian overflow popover (`[+N Anchors ▾]`). Supported by global hotkeys (`1` for Today's note, `2` for Weekly Synthesis note).
 - **`trafficSimulation.ts`**: Simulates cosmic photon ships navigating edges, strictly respecting constellation and sector visibility filters so zero phantom photons fly in empty space.
 - **`nodeStellarProgram.ts`**: Custom WebGL vertex and fragment shaders rendering astrophysical star cores, limb darkening, and coronal gas bloom.
@@ -21,16 +28,20 @@ The frontend follows a strictly typed, modular design:
 - **Premature Interaction Guard**: An overlay (`data-testid="cosmic-loading-overlay"`) prevents user clicks during layout convergence to avoid corrupted node positions.
 - **Preserve Navigation**: Once layout finishes, camera reset animations are suppressed if the user has already initiated a search or selected a node.
 
-## 3. WebGL Stellar Shader Invariants
+## 3. WebGL Stellar Shader & Smooth Camera Invariants
 
-Located in [`web/src/lib/nodeStellarProgram.ts`](../../web/src/lib/nodeStellarProgram.ts):
+Located in [`web/src/lib/galaxy/stellarShader.ts`](../../web/src/lib/galaxy/stellarShader.ts) and [`web/src/lib/nodeStellarProgram.ts`](../../web/src/lib/nodeStellarProgram.ts):
 
 > [!IMPORTANT]
-> **Anti-Blur Coronal Clamping**: Optical effects (glow, bloom, coronal gas) must **never** scale linearly with camera zoom. Coronal gas thickness is strictly clamped to:
+> **Pixel-Space SDF & Anti-Blur Coronal Clamping**: In Sigma.js v3 `NodeCircleProgram`, `v_radius` and `v_diffVector` are in normalized framed-graph units, where `1 CSS px = u_correctionRatio * 2.0`. Always convert to CSS pixels first, then clamp coronal gas thickness:
 > ```glsl
-> float corona = clamp(v_radius * 0.18, 1.5, 3.5);
+> float onePx = max(u_correctionRatio * 2.0, 1e-6);
+> float radiusPx = v_radius / onePx;
+> float coronaPx = clamp(radiusPx * 0.18, 1.5, 3.5);
 > ```
-> This guarantees that under deep zoom, adjacent fusion cores maintain needle-sharp separation without melting into blurry blobs.
+> This guarantees that under deep zoom, stars maintain needle-sharp anti-aliased photospheres with spherical limb darkening and procedural surface detail instead of melting into blurry blobs.
+
+- **Log-Space Smooth Zoom (`smoothCamera.ts`)**: Programmatic flights interpolate `ratio` exponentially (`r0 * (r1 / r0)^p`) with zoom-compensated pan weights, while wheel/trackpad events accumulate momentum without frame drops, with `hideEdgesOnMove: false`, `hideLabelsOnMove: false`, and `250ms` debounced `history.replaceState`.
 
 ## 4. Loading boundaries
 

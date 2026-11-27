@@ -23,6 +23,8 @@ import (
 type SearchView struct {
 	vaultRoot      string
 	engine         *search.Engine
+	backend        *Backend
+	loaded         bool
 	styles         Styles
 	searchInput    textinput.Model
 	viewport       viewport.Model
@@ -68,8 +70,51 @@ func NewSearchView(vaultRoot string, engine *search.Engine, styles Styles) *Sear
 		inputMode:     false,
 	}
 
-	sv.performSearch()
+	if engine != nil {
+		sv.performSearch()
+		sv.loaded = true
+	}
 	return sv
+}
+
+type searchLoadedMsg struct {
+	results []search.SearchResult
+	err     error
+}
+
+// SetBackend injects the daemon-first backend for remote search and note preview.
+func (v *SearchView) SetBackend(b *Backend) {
+	v.backend = b
+}
+
+// EnsureLoaded triggers async initial search when no synchronous engine ran at construction time.
+func (v *SearchView) EnsureLoaded() tea.Cmd {
+	if v.loaded {
+		return nil
+	}
+	return v.LoadAsync()
+}
+
+// LoadAsync performs search asynchronously without blocking the UI thread.
+func (v *SearchView) LoadAsync() tea.Cmd {
+	query := strings.TrimSpace(v.searchInput.Value())
+	if query == "" {
+		query = "arquitetura OR sistemas OR staff OR kubernetes"
+	}
+	scope := v.selectedScope
+	backend := v.backend
+	engine := v.engine
+	return func() tea.Msg {
+		if backend != nil {
+			res, err := backend.SearchNotes(context.Background(), query, scope, 30)
+			return searchLoadedMsg{results: res, err: err}
+		}
+		if engine != nil {
+			res, err := engine.Search(context.Background(), query, scope, 30)
+			return searchLoadedMsg{results: res, err: err}
+		}
+		return searchLoadedMsg{}
+	}
 }
 
 // Init initializes the view.
@@ -87,6 +132,15 @@ func (v *SearchView) Update(msg tea.Msg) (*SearchView, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case searchLoadedMsg:
+		v.loaded = true
+		if msg.err == nil {
+			v.results = msg.results
+			v.selectedIndex = 0
+			v.updatePreview()
+		}
+		return v, nil
+
 	case tea.KeyMsg:
 		// 1. When in Search / Insert Mode
 		if v.inputMode {
@@ -360,10 +414,20 @@ func (v *SearchView) performSearch() {
 		query = "arquitetura OR sistemas OR staff OR kubernetes"
 	}
 
+	if v.backend != nil {
+		if res, err := v.backend.SearchNotes(context.Background(), query, v.selectedScope, 30); err == nil {
+			v.results = res
+			v.loaded = true
+			v.updatePreview()
+			return
+		}
+	}
+
 	if v.engine != nil {
 		res, err := v.engine.Search(context.Background(), query, v.selectedScope, 30)
 		if err == nil {
 			v.results = res
+			v.loaded = true
 			v.updatePreview()
 		}
 	}
@@ -376,14 +440,22 @@ func (v *SearchView) updatePreview() {
 	}
 
 	res := v.results[v.selectedIndex]
-	absPath := filepath.Join(v.vaultRoot, res.RelPath)
-	data, err := os.ReadFile(absPath) //nolint:gosec // intentional
-	if err != nil {
-		v.viewport.SetContent(fmt.Sprintf("Failed to read note: %v", err))
-		return
+	var content string
+	if v.backend != nil {
+		if c, err := v.backend.GetNote(context.Background(), res.RelPath); err == nil {
+			content = c
+			v.backend.ReportActiveContext("tui", res.RelPath, "search")
+		}
 	}
-
-	content := string(data)
+	if content == "" {
+		absPath := filepath.Join(v.vaultRoot, res.RelPath)
+		data, err := os.ReadFile(absPath) //nolint:gosec // intentional
+		if err != nil {
+			v.viewport.SetContent(fmt.Sprintf("Failed to read note: %v", err))
+			return
+		}
+		content = string(data)
+	}
 	if v.highlightStart > 0 && v.highlightEnd >= v.highlightStart {
 		lines := strings.Split(content, "\n")
 		for i := v.highlightStart - 1; i < v.highlightEnd && i < len(lines); i++ {

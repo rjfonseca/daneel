@@ -77,6 +77,21 @@ const (
 	// GraphServiceGetOperationalTelemetryProcedure is the fully-qualified name of the GraphService's
 	// GetOperationalTelemetry RPC.
 	GraphServiceGetOperationalTelemetryProcedure = "/graph.v1.GraphService/GetOperationalTelemetry"
+	// GraphServiceGetDashboardSummaryProcedure is the fully-qualified name of the GraphService's
+	// GetDashboardSummary RPC.
+	GraphServiceGetDashboardSummaryProcedure = "/graph.v1.GraphService/GetDashboardSummary"
+	// GraphServiceGetWorkspaceOverviewProcedure is the fully-qualified name of the GraphService's
+	// GetWorkspaceOverview RPC.
+	GraphServiceGetWorkspaceOverviewProcedure = "/graph.v1.GraphService/GetWorkspaceOverview"
+	// GraphServiceGetPeopleDirectoryProcedure is the fully-qualified name of the GraphService's
+	// GetPeopleDirectory RPC.
+	GraphServiceGetPeopleDirectoryProcedure = "/graph.v1.GraphService/GetPeopleDirectory"
+	// GraphServiceGetPersonBriefingProcedure is the fully-qualified name of the GraphService's
+	// GetPersonBriefing RPC.
+	GraphServiceGetPersonBriefingProcedure = "/graph.v1.GraphService/GetPersonBriefing"
+	// GraphServiceGetAgentActivityProcedure is the fully-qualified name of the GraphService's
+	// GetAgentActivity RPC.
+	GraphServiceGetAgentActivityProcedure = "/graph.v1.GraphService/GetAgentActivity"
 )
 
 // GraphServiceClient is a client for the graph.v1.GraphService service.
@@ -112,6 +127,17 @@ type GraphServiceClient interface {
 	GetRoutineHistory(context.Context, *connect.Request[v1.GetRoutineHistoryRequest]) (*connect.Response[v1.GetRoutineHistoryResponse], error)
 	// Returns operational FinOps telemetry, routine weights, and command latency metrics
 	GetOperationalTelemetry(context.Context, *connect.Request[v1.GetOperationalTelemetryRequest]) (*connect.Response[v1.GetOperationalTelemetryResponse], error)
+	// --- TUI / WEB UNIFIED THIN-CLIENT OPS ---
+	// Returns unified 7-day Staff taxonomy, Morning Handoff digest, vault health, and backlog items
+	GetDashboardSummary(context.Context, *connect.Request[v1.GetDashboardSummaryRequest]) (*connect.Response[v1.GetDashboardSummaryResponse], error)
+	// Returns workspace repositories from cached SQLite store or live Git scan
+	GetWorkspaceOverview(context.Context, *connect.Request[v1.GetWorkspaceOverviewRequest]) (*connect.Response[v1.GetWorkspaceOverviewResponse], error)
+	// Returns lightweight colleague directory for 1:1 briefings
+	GetPeopleDirectory(context.Context, *connect.Request[v1.GetPeopleDirectoryRequest]) (*connect.Response[v1.GetPeopleDirectoryResponse], error)
+	// Returns detailed 1:1 briefing for a specific colleague slug
+	GetPersonBriefing(context.Context, *connect.Request[v1.GetPersonBriefingRequest]) (*connect.Response[v1.GetPersonBriefingResponse], error)
+	// Returns unified active/recent agent sessions (Antigravity, Claude Code, Codex, Spooler)
+	GetAgentActivity(context.Context, *connect.Request[v1.GetAgentActivityRequest]) (*connect.Response[v1.GetAgentActivityResponse], error)
 }
 
 // NewGraphServiceClient constructs a client for the graph.v1.GraphService service. By default, it
@@ -215,6 +241,36 @@ func NewGraphServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(graphServiceMethods.ByName("GetOperationalTelemetry")),
 			connect.WithClientOptions(opts...),
 		),
+		getDashboardSummary: connect.NewClient[v1.GetDashboardSummaryRequest, v1.GetDashboardSummaryResponse](
+			httpClient,
+			baseURL+GraphServiceGetDashboardSummaryProcedure,
+			connect.WithSchema(graphServiceMethods.ByName("GetDashboardSummary")),
+			connect.WithClientOptions(opts...),
+		),
+		getWorkspaceOverview: connect.NewClient[v1.GetWorkspaceOverviewRequest, v1.GetWorkspaceOverviewResponse](
+			httpClient,
+			baseURL+GraphServiceGetWorkspaceOverviewProcedure,
+			connect.WithSchema(graphServiceMethods.ByName("GetWorkspaceOverview")),
+			connect.WithClientOptions(opts...),
+		),
+		getPeopleDirectory: connect.NewClient[v1.GetPeopleDirectoryRequest, v1.GetPeopleDirectoryResponse](
+			httpClient,
+			baseURL+GraphServiceGetPeopleDirectoryProcedure,
+			connect.WithSchema(graphServiceMethods.ByName("GetPeopleDirectory")),
+			connect.WithClientOptions(opts...),
+		),
+		getPersonBriefing: connect.NewClient[v1.GetPersonBriefingRequest, v1.GetPersonBriefingResponse](
+			httpClient,
+			baseURL+GraphServiceGetPersonBriefingProcedure,
+			connect.WithSchema(graphServiceMethods.ByName("GetPersonBriefing")),
+			connect.WithClientOptions(opts...),
+		),
+		getAgentActivity: connect.NewClient[v1.GetAgentActivityRequest, v1.GetAgentActivityResponse](
+			httpClient,
+			baseURL+GraphServiceGetAgentActivityProcedure,
+			connect.WithSchema(graphServiceMethods.ByName("GetAgentActivity")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -235,6 +291,11 @@ type graphServiceClient struct {
 	deleteRoutine           *connect.Client[v1.DeleteRoutineRequest, v1.DeleteRoutineResponse]
 	getRoutineHistory       *connect.Client[v1.GetRoutineHistoryRequest, v1.GetRoutineHistoryResponse]
 	getOperationalTelemetry *connect.Client[v1.GetOperationalTelemetryRequest, v1.GetOperationalTelemetryResponse]
+	getDashboardSummary     *connect.Client[v1.GetDashboardSummaryRequest, v1.GetDashboardSummaryResponse]
+	getWorkspaceOverview    *connect.Client[v1.GetWorkspaceOverviewRequest, v1.GetWorkspaceOverviewResponse]
+	getPeopleDirectory      *connect.Client[v1.GetPeopleDirectoryRequest, v1.GetPeopleDirectoryResponse]
+	getPersonBriefing       *connect.Client[v1.GetPersonBriefingRequest, v1.GetPersonBriefingResponse]
+	getAgentActivity        *connect.Client[v1.GetAgentActivityRequest, v1.GetAgentActivityResponse]
 }
 
 // GetGalaxy calls graph.v1.GraphService.GetGalaxy.
@@ -312,6 +373,31 @@ func (c *graphServiceClient) GetOperationalTelemetry(ctx context.Context, req *c
 	return c.getOperationalTelemetry.CallUnary(ctx, req)
 }
 
+// GetDashboardSummary calls graph.v1.GraphService.GetDashboardSummary.
+func (c *graphServiceClient) GetDashboardSummary(ctx context.Context, req *connect.Request[v1.GetDashboardSummaryRequest]) (*connect.Response[v1.GetDashboardSummaryResponse], error) {
+	return c.getDashboardSummary.CallUnary(ctx, req)
+}
+
+// GetWorkspaceOverview calls graph.v1.GraphService.GetWorkspaceOverview.
+func (c *graphServiceClient) GetWorkspaceOverview(ctx context.Context, req *connect.Request[v1.GetWorkspaceOverviewRequest]) (*connect.Response[v1.GetWorkspaceOverviewResponse], error) {
+	return c.getWorkspaceOverview.CallUnary(ctx, req)
+}
+
+// GetPeopleDirectory calls graph.v1.GraphService.GetPeopleDirectory.
+func (c *graphServiceClient) GetPeopleDirectory(ctx context.Context, req *connect.Request[v1.GetPeopleDirectoryRequest]) (*connect.Response[v1.GetPeopleDirectoryResponse], error) {
+	return c.getPeopleDirectory.CallUnary(ctx, req)
+}
+
+// GetPersonBriefing calls graph.v1.GraphService.GetPersonBriefing.
+func (c *graphServiceClient) GetPersonBriefing(ctx context.Context, req *connect.Request[v1.GetPersonBriefingRequest]) (*connect.Response[v1.GetPersonBriefingResponse], error) {
+	return c.getPersonBriefing.CallUnary(ctx, req)
+}
+
+// GetAgentActivity calls graph.v1.GraphService.GetAgentActivity.
+func (c *graphServiceClient) GetAgentActivity(ctx context.Context, req *connect.Request[v1.GetAgentActivityRequest]) (*connect.Response[v1.GetAgentActivityResponse], error) {
+	return c.getAgentActivity.CallUnary(ctx, req)
+}
+
 // GraphServiceHandler is an implementation of the graph.v1.GraphService service.
 type GraphServiceHandler interface {
 	// Returns the galaxy graph structure (nodes and links)
@@ -345,6 +431,17 @@ type GraphServiceHandler interface {
 	GetRoutineHistory(context.Context, *connect.Request[v1.GetRoutineHistoryRequest]) (*connect.Response[v1.GetRoutineHistoryResponse], error)
 	// Returns operational FinOps telemetry, routine weights, and command latency metrics
 	GetOperationalTelemetry(context.Context, *connect.Request[v1.GetOperationalTelemetryRequest]) (*connect.Response[v1.GetOperationalTelemetryResponse], error)
+	// --- TUI / WEB UNIFIED THIN-CLIENT OPS ---
+	// Returns unified 7-day Staff taxonomy, Morning Handoff digest, vault health, and backlog items
+	GetDashboardSummary(context.Context, *connect.Request[v1.GetDashboardSummaryRequest]) (*connect.Response[v1.GetDashboardSummaryResponse], error)
+	// Returns workspace repositories from cached SQLite store or live Git scan
+	GetWorkspaceOverview(context.Context, *connect.Request[v1.GetWorkspaceOverviewRequest]) (*connect.Response[v1.GetWorkspaceOverviewResponse], error)
+	// Returns lightweight colleague directory for 1:1 briefings
+	GetPeopleDirectory(context.Context, *connect.Request[v1.GetPeopleDirectoryRequest]) (*connect.Response[v1.GetPeopleDirectoryResponse], error)
+	// Returns detailed 1:1 briefing for a specific colleague slug
+	GetPersonBriefing(context.Context, *connect.Request[v1.GetPersonBriefingRequest]) (*connect.Response[v1.GetPersonBriefingResponse], error)
+	// Returns unified active/recent agent sessions (Antigravity, Claude Code, Codex, Spooler)
+	GetAgentActivity(context.Context, *connect.Request[v1.GetAgentActivityRequest]) (*connect.Response[v1.GetAgentActivityResponse], error)
 }
 
 // NewGraphServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -444,6 +541,36 @@ func NewGraphServiceHandler(svc GraphServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(graphServiceMethods.ByName("GetOperationalTelemetry")),
 		connect.WithHandlerOptions(opts...),
 	)
+	graphServiceGetDashboardSummaryHandler := connect.NewUnaryHandler(
+		GraphServiceGetDashboardSummaryProcedure,
+		svc.GetDashboardSummary,
+		connect.WithSchema(graphServiceMethods.ByName("GetDashboardSummary")),
+		connect.WithHandlerOptions(opts...),
+	)
+	graphServiceGetWorkspaceOverviewHandler := connect.NewUnaryHandler(
+		GraphServiceGetWorkspaceOverviewProcedure,
+		svc.GetWorkspaceOverview,
+		connect.WithSchema(graphServiceMethods.ByName("GetWorkspaceOverview")),
+		connect.WithHandlerOptions(opts...),
+	)
+	graphServiceGetPeopleDirectoryHandler := connect.NewUnaryHandler(
+		GraphServiceGetPeopleDirectoryProcedure,
+		svc.GetPeopleDirectory,
+		connect.WithSchema(graphServiceMethods.ByName("GetPeopleDirectory")),
+		connect.WithHandlerOptions(opts...),
+	)
+	graphServiceGetPersonBriefingHandler := connect.NewUnaryHandler(
+		GraphServiceGetPersonBriefingProcedure,
+		svc.GetPersonBriefing,
+		connect.WithSchema(graphServiceMethods.ByName("GetPersonBriefing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	graphServiceGetAgentActivityHandler := connect.NewUnaryHandler(
+		GraphServiceGetAgentActivityProcedure,
+		svc.GetAgentActivity,
+		connect.WithSchema(graphServiceMethods.ByName("GetAgentActivity")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/graph.v1.GraphService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GraphServiceGetGalaxyProcedure:
@@ -476,6 +603,16 @@ func NewGraphServiceHandler(svc GraphServiceHandler, opts ...connect.HandlerOpti
 			graphServiceGetRoutineHistoryHandler.ServeHTTP(w, r)
 		case GraphServiceGetOperationalTelemetryProcedure:
 			graphServiceGetOperationalTelemetryHandler.ServeHTTP(w, r)
+		case GraphServiceGetDashboardSummaryProcedure:
+			graphServiceGetDashboardSummaryHandler.ServeHTTP(w, r)
+		case GraphServiceGetWorkspaceOverviewProcedure:
+			graphServiceGetWorkspaceOverviewHandler.ServeHTTP(w, r)
+		case GraphServiceGetPeopleDirectoryProcedure:
+			graphServiceGetPeopleDirectoryHandler.ServeHTTP(w, r)
+		case GraphServiceGetPersonBriefingProcedure:
+			graphServiceGetPersonBriefingHandler.ServeHTTP(w, r)
+		case GraphServiceGetAgentActivityProcedure:
+			graphServiceGetAgentActivityHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -543,4 +680,24 @@ func (UnimplementedGraphServiceHandler) GetRoutineHistory(context.Context, *conn
 
 func (UnimplementedGraphServiceHandler) GetOperationalTelemetry(context.Context, *connect.Request[v1.GetOperationalTelemetryRequest]) (*connect.Response[v1.GetOperationalTelemetryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.GetOperationalTelemetry is not implemented"))
+}
+
+func (UnimplementedGraphServiceHandler) GetDashboardSummary(context.Context, *connect.Request[v1.GetDashboardSummaryRequest]) (*connect.Response[v1.GetDashboardSummaryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.GetDashboardSummary is not implemented"))
+}
+
+func (UnimplementedGraphServiceHandler) GetWorkspaceOverview(context.Context, *connect.Request[v1.GetWorkspaceOverviewRequest]) (*connect.Response[v1.GetWorkspaceOverviewResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.GetWorkspaceOverview is not implemented"))
+}
+
+func (UnimplementedGraphServiceHandler) GetPeopleDirectory(context.Context, *connect.Request[v1.GetPeopleDirectoryRequest]) (*connect.Response[v1.GetPeopleDirectoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.GetPeopleDirectory is not implemented"))
+}
+
+func (UnimplementedGraphServiceHandler) GetPersonBriefing(context.Context, *connect.Request[v1.GetPersonBriefingRequest]) (*connect.Response[v1.GetPersonBriefingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.GetPersonBriefing is not implemented"))
+}
+
+func (UnimplementedGraphServiceHandler) GetAgentActivity(context.Context, *connect.Request[v1.GetAgentActivityRequest]) (*connect.Response[v1.GetAgentActivityResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("graph.v1.GraphService.GetAgentActivity is not implemented"))
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -258,4 +260,32 @@ func concurrentHarvestBudget() time.Duration {
 		return 2500 * time.Millisecond
 	}
 	return 1000 * time.Millisecond
+}
+
+func TestResolveHarvestCachePath_UsesDaneelCacheWithLegacyFallback(t *testing.T) {
+	vaultRoot := t.TempDir()
+	legacyDir := filepath.Join(vaultRoot, ".agents", "cache")
+	if err := os.MkdirAll(legacyDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	legacyFile := filepath.Join(legacyDir, "github_harvest_cache.json")
+	if err := os.WriteFile(legacyFile, []byte(`{"acme/repo":"sha-123"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	primaryPath := resolveHarvestCachePath(vaultRoot, "github_harvest_cache.json")
+	expectedPrimary := filepath.Join(vaultRoot, ".daneel", "cache", "github_harvest_cache.json")
+	if primaryPath != expectedPrimary {
+		t.Fatalf("expected primary cache path %s, got %s", expectedPrimary, primaryPath)
+	}
+
+	loaded := loadCacheWithFallback(primaryPath, legacyFile)
+	if loaded["acme/repo"] != "sha-123" {
+		t.Fatalf("expected fallback to load legacy cache entry, got %+v", loaded)
+	}
+
+	saveCache(primaryPath, loaded)
+	if _, err := os.Stat(primaryPath); err != nil {
+		t.Fatalf("expected primary cache file to be saved at %s: %v", primaryPath, err)
+	}
 }

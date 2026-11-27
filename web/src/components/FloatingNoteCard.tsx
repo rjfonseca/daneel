@@ -229,8 +229,8 @@ export const FloatingNoteCard: React.FC<FloatingNoteCardProps> = ({
         className="p-5 sm:p-6 border-b border-gray-800/80 bg-linear-to-b from-indigo-950/30 to-transparent flex flex-col gap-3 select-none"
         title="Double-click to maximize or restore"
       >
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
             {isConstellationActive && (
               <button
                 onClick={onResetConstellation}
@@ -262,7 +262,7 @@ export const FloatingNoteCard: React.FC<FloatingNoteCardProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center gap-1 shrink-0" onClick={(event) => event.stopPropagation()}>
             {onTogglePin && (
               <button
                 onClick={onTogglePin}

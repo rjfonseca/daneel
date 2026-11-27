@@ -47,8 +47,8 @@ func DefaultLearnings() *AgentLearnings {
 		CategoryPreferences: map[string]string{
 			"agent": "notes/ia", "mcp": "notes/ia", "rag": "notes/ia",
 			"prompt": "notes/ia", "gateway": "notes/sistemas", "proxy": "notes/sistemas",
-			"keycloak": "notes/sistemas", "service": "notes/sistemas", "rfc": "notes/processors",
-			"prd": "notes/processors", "sla": "notes/processors", "pdi": "notes/carreira",
+			"keycloak": "notes/sistemas", "service": "notes/sistemas", "rfc": "notes/processos", //nolint:misspell // canonical Portuguese vault category
+			"prd": "notes/processos", "sla": "notes/processos", "pdi": "notes/carreira", //nolint:misspell // canonical Portuguese vault category
 			"roadmap": "notes/carreira",
 		},
 		StaffTaxonomyRules: map[string][]string{

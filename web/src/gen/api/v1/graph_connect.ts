@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CaptureNoteRequest, CaptureNoteResponse, DeleteRoutineRequest, DeleteRoutineResponse, ExecuteRoutineRequest, GetCognitiveTelemetryRequest, GetCognitiveTelemetryResponse, GetGalaxyRequest, GetGalaxyResponse, GetNoteRequest, GetNoteResponse, GetOperationalTelemetryRequest, GetOperationalTelemetryResponse, GetRoutineHistoryRequest, GetRoutineHistoryResponse, GetRoutinesOverviewRequest, GetRoutinesOverviewResponse, GetStaffTelemetryRequest, GetStaffTelemetryResponse, IngestPathRequest, IngestPathResponse, ReportActiveContextRequest, ReportActiveContextResponse, RoutineOutputEvent, SearchNotesRequest, SearchNotesResponse, SubscribeUIEventsRequest, UIEvent, UpsertRoutineRequest, UpsertRoutineResponse } from "./graph_pb.js";
+import { CaptureNoteRequest, CaptureNoteResponse, DeleteRoutineRequest, DeleteRoutineResponse, ExecuteRoutineRequest, GetAgentActivityRequest, GetAgentActivityResponse, GetCognitiveTelemetryRequest, GetCognitiveTelemetryResponse, GetDashboardSummaryRequest, GetDashboardSummaryResponse, GetGalaxyRequest, GetGalaxyResponse, GetNoteRequest, GetNoteResponse, GetOperationalTelemetryRequest, GetOperationalTelemetryResponse, GetPeopleDirectoryRequest, GetPeopleDirectoryResponse, GetPersonBriefingRequest, GetPersonBriefingResponse, GetRoutineHistoryRequest, GetRoutineHistoryResponse, GetRoutinesOverviewRequest, GetRoutinesOverviewResponse, GetStaffTelemetryRequest, GetStaffTelemetryResponse, GetWorkspaceOverviewRequest, GetWorkspaceOverviewResponse, IngestPathRequest, IngestPathResponse, ReportActiveContextRequest, ReportActiveContextResponse, RoutineOutputEvent, SearchNotesRequest, SearchNotesResponse, SubscribeUIEventsRequest, UIEvent, UpsertRoutineRequest, UpsertRoutineResponse } from "./graph_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -176,6 +176,62 @@ export const GraphService = {
       name: "GetOperationalTelemetry",
       I: GetOperationalTelemetryRequest,
       O: GetOperationalTelemetryResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * --- TUI / WEB UNIFIED THIN-CLIENT OPS ---
+     * Returns unified 7-day Staff taxonomy, Morning Handoff digest, vault health, and backlog items
+     *
+     * @generated from rpc graph.v1.GraphService.GetDashboardSummary
+     */
+    getDashboardSummary: {
+      name: "GetDashboardSummary",
+      I: GetDashboardSummaryRequest,
+      O: GetDashboardSummaryResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Returns workspace repositories from cached SQLite store or live Git scan
+     *
+     * @generated from rpc graph.v1.GraphService.GetWorkspaceOverview
+     */
+    getWorkspaceOverview: {
+      name: "GetWorkspaceOverview",
+      I: GetWorkspaceOverviewRequest,
+      O: GetWorkspaceOverviewResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Returns lightweight colleague directory for 1:1 briefings
+     *
+     * @generated from rpc graph.v1.GraphService.GetPeopleDirectory
+     */
+    getPeopleDirectory: {
+      name: "GetPeopleDirectory",
+      I: GetPeopleDirectoryRequest,
+      O: GetPeopleDirectoryResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Returns detailed 1:1 briefing for a specific colleague slug
+     *
+     * @generated from rpc graph.v1.GraphService.GetPersonBriefing
+     */
+    getPersonBriefing: {
+      name: "GetPersonBriefing",
+      I: GetPersonBriefingRequest,
+      O: GetPersonBriefingResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Returns unified active/recent agent sessions (Antigravity, Claude Code, Codex, Spooler)
+     *
+     * @generated from rpc graph.v1.GraphService.GetAgentActivity
+     */
+    getAgentActivity: {
+      name: "GetAgentActivity",
+      I: GetAgentActivityRequest,
+      O: GetAgentActivityResponse,
       kind: MethodKind.Unary,
     },
   }

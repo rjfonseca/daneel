@@ -430,9 +430,22 @@ func TestStore_CommandTelemetry(t *testing.T) {
 		t.Errorf("expected last called at %d, got %d", now-10, cliSearch.LastCalledAt)
 	}
 
-	// Test command telemetry retention pruning
+	// Test per-surface command telemetry retention pruning:
+	// setting limit to 2 retains up to 2 events per surface so high-volume cli calls
+	// do not evict web, tui, or mcp events.
+	if err := store.RecordCommandEvent(ctx, CommandTelemetryEvent{
+		Surface: "web", Command: "GetGalaxy", Scope: "", StartedAt: now - 5, DurationMs: 18, IsError: false,
+	}); err != nil {
+		t.Fatalf("failed to record web command event: %v", err)
+	}
+	if err := store.RecordCommandEvent(ctx, CommandTelemetryEvent{
+		Surface: "tui", Command: "session", Scope: "", StartedAt: now - 4, DurationMs: 500, IsError: false,
+	}); err != nil {
+		t.Fatalf("failed to record tui command event: %v", err)
+	}
+
 	store.SetCommandRetentionLimit(2)
-	// Recording one more event should prune down to 2 events.
+	// Recording more cli events should prune only cli down to 2, preserving web/tui/mcp.
 	if err := store.RecordCommandEvent(ctx, CommandTelemetryEvent{
 		Surface: "cli", Command: "doctor", Scope: "", StartedAt: now, DurationMs: 50, IsError: false,
 	}); err != nil {
@@ -442,12 +455,21 @@ func TestStore_CommandTelemetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get aggregates after prune: %v", err)
 	}
-	totalEvents := 0
+	surfaceTotals := map[string]int{}
 	for _, a := range aggsAfterPrune {
-		totalEvents += a.TotalCalls
+		surfaceTotals[a.Surface] += a.TotalCalls
 	}
-	if totalEvents != 2 {
-		t.Errorf("expected 2 total events retained, got %d", totalEvents)
+	if surfaceTotals["cli"] != 2 {
+		t.Errorf("expected 2 cli events retained, got %d (%+v)", surfaceTotals["cli"], aggsAfterPrune)
+	}
+	if surfaceTotals["mcp"] != 2 {
+		t.Errorf("expected 2 mcp events preserved, got %d (%+v)", surfaceTotals["mcp"], aggsAfterPrune)
+	}
+	if surfaceTotals["web"] != 1 {
+		t.Errorf("expected 1 web event preserved, got %d (%+v)", surfaceTotals["web"], aggsAfterPrune)
+	}
+	if surfaceTotals["tui"] != 1 {
+		t.Errorf("expected 1 tui event preserved, got %d (%+v)", surfaceTotals["tui"], aggsAfterPrune)
 	}
 }
 

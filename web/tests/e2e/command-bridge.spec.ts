@@ -126,9 +126,10 @@ test('keeps More disclosures, note reading, dialogs, and visible focus coherent'
   await expect(search).toBeHidden();
   await page.keyboard.press('Control+k');
   await expect(search).toBeVisible();
+  await expect.poll(() => search.evaluate(element => element.contains(document.activeElement))).toBe(true);
   for (let index = 0; index < 8; index += 1) {
     await page.keyboard.press('Tab');
-    expect(await search.evaluate(element => element.contains(document.activeElement))).toBe(true);
+    await expect.poll(() => search.evaluate(element => element.contains(document.activeElement))).toBe(true);
   }
   await page.keyboard.press('Escape');
   await expect(search).toBeHidden();

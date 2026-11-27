@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rjfonseca/daneel/internal/config"
 	"github.com/rjfonseca/daneel/internal/ops/workspace"
 )
 
@@ -153,6 +154,11 @@ func (e *Engine) ensureProjectsHydrated(ctx context.Context) {
 
 	home, _ := os.UserHomeDir()
 	workRoot := filepath.Join(home, "Work")
+	if cfg, cfgErr := config.LoadConfig(e.vaultRoot, "", false); cfgErr == nil && cfg != nil {
+		if resolved := cfg.GetWorkDir(); resolved != "" {
+			workRoot = resolved
+		}
+	}
 	if _, err := os.Stat(workRoot); os.IsNotExist(err) {
 		return
 	}

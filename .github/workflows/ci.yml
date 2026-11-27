@@ -65,6 +65,8 @@ jobs:
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: "0"
     strategy:
       fail-fast: false
       matrix:
@@ -91,7 +93,9 @@ jobs:
         run: go test -v -cover ./...
 
       - name: Install pinned Task runner
-        run: go install github.com/go-task/task/v3/cmd/task@v3.54.0
+        uses: arduino/setup-task@v2
+        with:
+          version: "3.54.0"
 
       - name: Verify Git hook test isolation
         run: python -m unittest discover -s scripts -p test_task_git_isolation.py
@@ -209,6 +213,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
+          cache: true
       - uses: actions/setup-node@v5
         with:
           node-version: "26.11.1"
@@ -216,17 +221,33 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
-      - run: npx playwright install --with-deps chromium
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('./web/package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+      - name: Install Playwright Chromium (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
         working-directory: web
-      - run: npm test
+      - name: Install Playwright OS dependencies (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: web
       - run: npm run build
         working-directory: web
+      - name: Build isolated E2E backend binary
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/daneel-e2e" .
       - name: Verify camera and application invariants
         shell: bash
         run: npx playwright test 2>&1 | tee "$RUNNER_TEMP/browser-test.log"
         env:
           DANEEL_E2E_PREVIEW: "1"
+          DANEEL_E2E_BINARY: ${{ runner.temp }}/daneel-e2e
           DEBUG: pw:webserver
         working-directory: web
       - name: Preserve failure evidence

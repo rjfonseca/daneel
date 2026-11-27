@@ -86,4 +86,36 @@ describe('ViewControlsPanel', () => {
     fireEvent.click(increaseBtn);
     expect(onUpdateMaxNebulas).toHaveBeenCalledWith(7);
   });
+
+  it('renders Knowledge scope controls and live LOD telemetry', () => {
+    const onChange = vi.fn();
+    render(
+      <ViewControlsPanel
+        isOpen
+        onClose={vi.fn()}
+        view={DEFAULT_GALAXY_VIEW}
+        onChange={onChange}
+        maxNebulas={6}
+        onUpdateMaxNebulas={vi.fn()}
+        lodTelemetry={{
+          tier: 'overview',
+          visibleStars: 784,
+          totalStars: 12218,
+          groupedStars: 11434,
+          collapsedGroups: 18,
+        }}
+      />
+    );
+
+    expect(screen.getByTestId('scope-mode-hybrid')).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByTestId('scope-mode-curated')).toHaveAttribute('title', 'Show curated vault notes only');
+    expect(screen.getByTestId('lod-telemetry')).toHaveTextContent('TIER 0 · OVERVIEW');
+    expect(screen.getByTestId('lod-telemetry')).toHaveTextContent('784 visible');
+
+    fireEvent.click(screen.getByTestId('scope-mode-curated'));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ scopeMode: 'curated' }));
+
+    fireEvent.click(screen.getByTestId('scope-mode-all'));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ scopeMode: 'all' }));
+  });
 });

@@ -67,4 +67,31 @@ Daneel applies progressive LOD disclosure to visual labels:
 4. **Interactive Sector Tethers**:
    - Hovering over any sector anchor illuminates its gravitational tether edges in the sector's neon color, visualizing its member repository topology.
 
+## 5. Semantic Zoom Node Tiers, Knowledge Scope & Super-Nodes (ADR 0044)
+
+To prevent thousands of harvested `sources/` notes from drowning the curated knowledge core (`notes/`, `daily/`, `meta/`, `inbox/`), Daneel implements progressive node disclosure in [`semanticZoomLod.ts`](../../web/src/lib/semanticZoomLod.ts):
+
+### 5.1 Knowledge Scope Layering
+
+Controlled in `ViewControlsPanel` (`Curated` | `Hybrid` *(default)* | `All`):
+- **`Curated`**: Shows curated vault notes and ARMS stations only; hides `sources/*` stars and super-nodes.
+- **`Hybrid`**: Keeps curated stars always visible while folding `sources/*` into interactive Super-Nodes that unfold dynamically by zoom altitude and viewport frustum.
+- **`All`**: Disables node collapsing and displays the full starfield.
+
+### 5.2 Three-Tier Semantic Zoom with Hysteresis & Viewport Culling
+
+1. **Tier 0 — Overview (`ratio >= 0.50`, return `> 0.58`)**: `sources/*` notes collapse into glowing **Sector Super-Nodes** (`__SECTOR_*`) rendered with logarithmic halos, concentric dashed orbital rings, 7-day activity arcs, and compact count pills.
+2. **Tier 1 — Sector (`0.20 <= ratio < 0.50`, return `> 0.26`)**: Only sectors inside the viewport frustum (`±10%` enter / `±35%` exit margin, capped at `MAX_EXPANDED_SECTORS = 8`) unfold into **Repository Cluster Super-Nodes** (`__CAT_*`) and high-signal anchor stars.
+3. **Tier 2 — Cluster (`ratio < 0.20`)**: Only clusters inside the viewport (capped at `MAX_EXPANDED_CLUSTERS = 12`) unfold to reveal all individual stars. Zooming out or panning past the exit margin automatically re-collapses groups.
+
+### 5.2.1 Hierarchical Auto-Unfocus on Zoom-Out (`focusZoomExit.ts`)
+
+When the user explicitly focuses a Cluster or Sector (by clicking a callout, Super-Node, or search result), zooming back out past its adaptive viewport threshold (`calculateFocusExitRatio`) automatically exits focus **in place** without yanking the camera back to overview `(0.5, 0.5, 1.0)`:
+- **2-Step Exit**: `Cluster` $\rightarrow$ `Sector` (revealing sibling clusters) $\rightarrow$ `Full Galaxy` (handing seamlessly back to Semantic Zoom LOD).
+- **Reading Guard**: Auto-unfocus is suppressed while a note constellation (`activeNote`) is open or during the programmatic entry flight.
+
+### 5.3 Weighted Aggregated Super-Edges
+
+[`superEdges.ts`](../../web/src/lib/superEdges.ts) precomputes cross-cluster link densities once at graph load without altering ForceAtlas2 physics, and [`superNodeRenderer.ts`](../../web/src/lib/superNodeRenderer.ts) renders curved Bézier bridges between collapsed Super-Nodes and curated hubs.
+
 

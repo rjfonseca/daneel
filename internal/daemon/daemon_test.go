@@ -581,3 +581,44 @@ func TestDaemonSocket_SearchHybridIPC(t *testing.T) {
 		t.Fatalf("unexpected IPC search results: %+v", res)
 	}
 }
+
+func TestDaemonSocket_GetServerInfo(t *testing.T) {
+	setupClientSocketFixture(t)
+
+	hub := NewHub()
+	srv := NewServer(hub)
+	srv.SetHTTPAddr("http://127.0.0.1:4321")
+	srv.SetVaultDir("/tmp/test-vault")
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.ListenAndServe()
+	}()
+	t.Cleanup(func() {
+		srv.Stop()
+		if err := <-errCh; err != nil {
+			_ = err
+		}
+	})
+
+	for i := 0; i < 50; i++ {
+		if IsDaemonRunning() {
+			break
+		}
+		time.Sleep(15 * time.Millisecond)
+	}
+
+	client, err := NewClient()
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	info, err := client.GetServerInfoContext(context.Background())
+	if err != nil {
+		t.Fatalf("GetServerInfoContext failed: %v", err)
+	}
+	if info.HTTPAddr != "http://127.0.0.1:4321" || info.VaultPath != "/tmp/test-vault" {
+		t.Fatalf("unexpected server info: %+v", info)
+	}
+}

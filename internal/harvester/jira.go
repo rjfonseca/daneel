@@ -95,11 +95,9 @@ func (h *JiraHarvester) Harvest(ctx context.Context) (*HarvestStats, error) { //
 
 	auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, h.token)))
 
-	cachePath := filepath.Join(os.Getenv("HOME"), ".cache", "daneel", "jira_harvest_cache.json")
-	if xdgCache := os.Getenv("XDG_CACHE_HOME"); xdgCache != "" {
-		cachePath = filepath.Join(xdgCache, "daneel", "jira_harvest_cache.json")
-	}
-	cache := loadCache(cachePath)
+	cachePath := resolveHarvestCachePath(h.vaultPath, "jira_harvest_cache.json")
+	legacyCachePath := filepath.Join(config.XDGCacheDir(), "jira_harvest_cache.json")
+	cache := loadCacheWithFallback(cachePath, legacyCachePath)
 	defer func() { saveCache(cachePath, cache) }()
 
 	// Validate authentication first
@@ -182,9 +180,7 @@ func (h *JiraHarvester) Harvest(ctx context.Context) (*HarvestStats, error) { //
 			}
 
 			// Add to MOC
-			// Make relative path for MOC
-			// if targetDir is "sources/jira/meus-ativos" and MOC is in "notes/processors/moc-tickets.md"
-			// Wait, the MOC will be placed in notes/processors/moc-tickets.md.
+			// Make relative path for MOC under notes/<category>/moc-tickets-ativos.md
 			relPath := fmt.Sprintf("../../%s/%s.md", query.TargetDir, issue.Key)
 			mocContent += fmt.Sprintf("- [%s](%s) [%s] — %s\n", issue.Key, relPath, issue.Fields.Status.Name, issue.Fields.Summary)
 		}
@@ -192,13 +188,13 @@ func (h *JiraHarvester) Harvest(ctx context.Context) (*HarvestStats, error) { //
 	}
 
 	// Write MOC
-	mocDir := filepath.Join(h.vaultPath, "notes", "processors")
-	os.MkdirAll(mocDir, 0750) //nolint:errcheck,gosec
+	mocDir := filepath.Join(h.vaultPath, "notes", "processos") //nolint:misspell // canonical Portuguese vault category
+	os.MkdirAll(mocDir, 0750)                                  //nolint:errcheck,gosec
 	mocFile := filepath.Join(mocDir, "moc-tickets-ativos.md")
 	os.WriteFile(mocFile, []byte(mocContent), 0600) //nolint:errcheck,gosec
 
 	stats.DurationMs = time.Since(start).Milliseconds()
-	stats.OutputDir = filepath.Join(h.vaultPath, "notes", "processors", "moc-tickets-ativos.md")
+	stats.OutputDir = filepath.Join(h.vaultPath, "notes", "processos", "moc-tickets-ativos.md") //nolint:misspell // canonical Portuguese vault category
 
 	return stats, nil
 }

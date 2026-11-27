@@ -118,19 +118,19 @@ When the right-side detail drawer (440px width) is open:
 
 ## 5. Stellar WebGL Shader Guidelines
 
-Location: [`web/src/lib/nodeStellarProgram.ts`](web/src/lib/nodeStellarProgram.ts)
+Location: [`web/src/lib/nodeStellarProgram.ts`](web/src/lib/nodeStellarProgram.ts) and [`web/src/lib/galaxy/stellarShader.ts`](web/src/lib/galaxy/stellarShader.ts)
 
 ### 5.1 Physical Pixel-Bounded Proportions
 - **Anti-Blur**: Optical effects (glow, bloom, coronal gas) must **NEVER** scale proportionally to the radius without limits.
-- Screen physical radius is provided by `v_radius`.
-- Coronal gas thickness must be bounded with `clamp(v_radius * 0.18, 1.5, 3.5)` physical pixels.
-- This ensures that under deep zoom, adjacent stars maintain crisp, distinct fusion cores without dissolving into a murky blur.
+- Sigma.js v3 `NodeCircleProgram` emits `v_radius` and `v_diffVector` in **normalized framed-graph coordinates**, where 1 CSS pixel equals `u_correctionRatio * 2.0`. Always convert to true CSS screen pixels (`radiusPx = v_radius / max(u_correctionRatio * 2.0, 1e-6)`) before bounding pixel widths.
+- Coronal gas thickness must be bounded in CSS pixels with `clamp(radiusPx * 0.18, 1.5, 3.5)` while keeping the anti-aliased photosphere disc crisp (`discRadiusPx = max(radiusPx - coronaPx, radiusPx * 0.55)`).
+- This ensures that under deep zoom, adjacent stars maintain crisp, distinct fusion cores with zoom-adaptive limb darkening and zero blur collapse.
 
 ---
 
 ## 6. ForceAtlas2 Stabilization & Lifecycle
 
-- ForceAtlas2 layout executes for ~8.5 seconds on initial galaxy load.
+- ForceAtlas2 stabilization scales adaptively with graph size via `computeLayoutSettlePlan` (`~1.8s` for small vaults `<= 250` nodes up to `~8.5s` for large vaults `>= 2000` nodes, and `~0.4s` when cached layout covers `>= 90%` of memory nodes).
 - **Premature Interaction Guard**: The UI displays an overlay (`data-testid="cosmic-loading-overlay"`) until layout completes (`isReady = true`).
 - **Preserve User Navigation**: When layout finishes, the `animatedReset` callback must **NOT** trigger if `selectedNodeId` or `focusedSector` is active, avoiding cancelling user-initiated focal animations.
 

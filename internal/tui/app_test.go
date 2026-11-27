@@ -179,3 +179,76 @@ func TestAppModelTelemetryTab(t *testing.T) {
 		t.Errorf("expected activeTab to be ViewTelemetry after tui_switch_view 'finops', got %v", app.activeTab)
 	}
 }
+
+func TestAppModel_RecordsTabSwitchTelemetry(t *testing.T) {
+	tempDir := t.TempDir()
+	app := NewAppModel(tempDir, nil, config.TuiConfig{})
+
+	var recorded []string
+	app.SetTelemetryRecorder(func(command, scope string, durationMs int64, isErr bool) {
+		recorded = append(recorded, command)
+	})
+
+	// Press '1' when already on ViewSearch: should not emit duplicate switch event
+	newModel, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("1")})
+	app = newModel.(*AppModel)
+
+	// Switch to Dashboard ('2'), Telemetry ('T'), Ingest ('i')
+	for _, k := range []string{"2", "T", "i"} {
+		newModel, _ = app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)})
+		app = newModel.(*AppModel)
+	}
+
+	want := []string{"tab:dashboard", "tab:telemetry", "tab:ingest"}
+	if len(recorded) != len(want) {
+		t.Fatalf("expected recorded events %v, got %v", want, recorded)
+	}
+	for i := range want {
+		if recorded[i] != want[i] {
+			t.Errorf("event[%d]: expected %q, got %q", i, want[i], recorded[i])
+		}
+	}
+}
+
+func TestAppModel_LazyStartupAndDaemonHeader(t *testing.T) {
+	tempDir := t.TempDir()
+	app := NewAppModel(tempDir, nil, config.DefaultTuiConfig())
+
+	if app.dashboardView.loaded || app.workspaceView.loaded || app.peopleView.loaded ||
+		app.routinesView.loaded || app.hooksView.loaded || app.telemetryView.loaded {
+		t.Fatal("expected secondary tabs not to be synchronously loaded during NewAppModel")
+	}
+
+	if len(app.tabs) <= int(ViewHooks) || app.tabs[ViewHooks] != "7: 🤖 Agents" {
+		t.Fatalf("expected tab 7 to be '7: 🤖 Agents', got %v", app.tabs)
+	}
+
+	app.SetSize(120, 40)
+	localHeader := app.View()
+	if !strings.Contains(localHeader, "⚪ Local") {
+		t.Errorf("expected offline header badge '⚪ Local', got:\n%s", localHeader)
+	}
+
+	backend := NewLocalBackend(tempDir, nil, nil)
+	backend.SetRPCClient(&stubGraphClient{}, "http://127.0.0.1:4321")
+	app.SetBackend(backend)
+
+	daemonHeader := app.View()
+	if !strings.Contains(daemonHeader, "🟢 Daemon") {
+		t.Errorf("expected connected header badge '🟢 Daemon', got:\n%s", daemonHeader)
+	}
+
+	newModel, cmd := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("7")})
+	app = newModel.(*AppModel)
+	if app.activeTab != ViewHooks {
+		t.Fatalf("expected ViewHooks after pressing '7', got %v", app.activeTab)
+	}
+	if cmd == nil {
+		t.Fatal("expected pressing '7' to return an async lazy-load tea.Cmd for HooksView")
+	}
+}
+
+func (m *AppModel) SetSize(w, h int) {
+	newModel, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	*m = *newModel.(*AppModel)
+}

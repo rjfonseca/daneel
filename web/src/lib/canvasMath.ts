@@ -280,33 +280,39 @@ export function renderNeonCallout(
   options?: NeonCalloutOptions
 ): void {
   const lineWidth = options?.lineWidth ?? 1.5;
-  const glowBlur = options?.glowBlur ?? 8;
 
   ctx.save();
 
-  // 1. Leader line: origin -> diagonal mid -> horizontal shelf end
+  // 1. Leader line: origin -> diagonal mid -> horizontal shelf end (translucent glow underlay, zero shadowBlur)
   ctx.beginPath();
   ctx.moveTo(origin.x, origin.y);
   ctx.lineTo(geom.midX, geom.midY);
   ctx.lineTo(geom.endX, geom.endY);
 
   ctx.strokeStyle = neonColor;
+  ctx.globalAlpha = 0.22;
+  ctx.lineWidth = lineWidth + 2.4;
+  ctx.stroke();
+
+  ctx.globalAlpha = 1.0;
   ctx.lineWidth = lineWidth;
-  ctx.shadowColor = neonColor;
-  ctx.shadowBlur = glowBlur;
   ctx.stroke();
 
   // 2. Terminal anchor point at elbow joint
   if (options?.drawTerminalPoint) {
     ctx.beginPath();
-    ctx.arc(geom.midX, geom.midY, 2, 0, Math.PI * 2);
+    ctx.arc(geom.midX, geom.midY, 4, 0, Math.PI * 2);
     ctx.fillStyle = neonColor;
-    ctx.shadowBlur = glowBlur * 1.5;
+    ctx.globalAlpha = 0.25;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(geom.midX, geom.midY, 2, 0, Math.PI * 2);
+    ctx.globalAlpha = 1.0;
     ctx.fill();
   }
 
-  // 3. Glowing neon text along shelf
-  ctx.shadowBlur = glowBlur * 1.8;
+  // 3. Crisp neon text along shelf
   ctx.fillStyle = neonColor;
   ctx.textBaseline = geom.textBaseline;
   ctx.textAlign = geom.textAlign;
@@ -343,8 +349,6 @@ export function drawSectorBeacon(
   ctx.strokeStyle = neonColor;
   ctx.lineWidth = 1;
   ctx.globalAlpha = 0.35;
-  ctx.shadowColor = neonColor;
-  ctx.shadowBlur = 6;
   ctx.stroke();
 
   // Diamond reticle
@@ -356,7 +360,6 @@ export function drawSectorBeacon(
   ctx.closePath();
   ctx.fillStyle = neonColor;
   ctx.globalAlpha = 0.85;
-  ctx.shadowBlur = 8;
   ctx.fill();
 
   // Center core pinprick
@@ -381,7 +384,6 @@ export function renderCosmicCardCallout(
   options?: CosmicCardCalloutOptions
 ): void {
   const lineWidth = options?.lineWidth ?? 1.5;
-  const glowBlur = options?.glowBlur ?? 8;
   const subHeader = options?.subHeader ?? '◈ SECTOR';
 
   let telemetry = options?.telemetry ?? '';
@@ -404,22 +406,30 @@ export function renderCosmicCardCallout(
 
   ctx.save();
 
-  // 1. Leader Line from origin to card shelf
+  // 1. Leader Line from origin to card shelf (2-pass translucent glow, zero shadowBlur)
   ctx.beginPath();
   ctx.moveTo(origin.x, origin.y);
   ctx.lineTo(geom.midX, geom.midY);
   ctx.lineTo(geom.endX, geom.endY);
   ctx.strokeStyle = neonColor;
+  ctx.globalAlpha = 0.22;
+  ctx.lineWidth = lineWidth + 2.4;
+  ctx.stroke();
+
+  ctx.globalAlpha = 1.0;
   ctx.lineWidth = lineWidth;
-  ctx.shadowColor = neonColor;
-  ctx.shadowBlur = glowBlur;
   ctx.stroke();
 
   // 2. Terminal anchor point at elbow joint
   ctx.beginPath();
-  ctx.arc(geom.midX, geom.midY, 2.5, 0, Math.PI * 2);
+  ctx.arc(geom.midX, geom.midY, 4.5, 0, Math.PI * 2);
   ctx.fillStyle = neonColor;
-  ctx.shadowBlur = glowBlur * 1.5;
+  ctx.globalAlpha = 0.24;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(geom.midX, geom.midY, 2.5, 0, Math.PI * 2);
+  ctx.globalAlpha = 1.0;
   ctx.fill();
 
   // 3. Cybernetic HUD Glass Card Background
@@ -428,19 +438,19 @@ export function renderCosmicCardCallout(
   drawPill(ctx, cardX, cardY, cardW, cardH, 4);
   ctx.fill();
 
-  // Card Border
+  // Soft outer border glow + crisp inner border
   ctx.strokeStyle = neonColor;
+  ctx.globalAlpha = 0.22;
+  ctx.lineWidth = 3.2;
+  ctx.stroke();
+  ctx.globalAlpha = 1.0;
   ctx.lineWidth = 1.2;
-  ctx.shadowColor = neonColor;
-  ctx.shadowBlur = glowBlur;
   ctx.stroke();
 
   // Corner Accents (Cybernetic brackets at corners)
   const tick = 4;
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 1.5;
-  ctx.shadowBlur = 4;
-  ctx.shadowColor = '#ffffff';
 
   // Top-left corner tick
   ctx.beginPath();
@@ -471,8 +481,6 @@ export function renderCosmicCardCallout(
   ctx.stroke();
 
   // 4. Text Contents
-  ctx.shadowBlur = 0; // reset blur for crisp text
-
   // Top Sub-header: [◈ SECTOR] or [◈ NEBULA] on left
   ctx.font = 'bold 8px monospace';
   ctx.fillStyle = neonColor;
@@ -493,8 +501,6 @@ export function renderCosmicCardCallout(
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'bottom';
-  ctx.shadowColor = neonColor;
-  ctx.shadowBlur = 6;
   ctx.fillText(title, cardX + 8, cardY + cardH - 4);
 
   ctx.restore();

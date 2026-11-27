@@ -62,6 +62,7 @@ type Server struct {
 	listener     net.Listener
 	hub          *Hub
 	httpSrv      *http.Server
+	httpAddr     string
 	spooler      *spooler.Spooler
 	vaultDir     string
 	searchHybrid func(ctx context.Context, payload SearchHybridPayload) ([]search.SearchResult, error)
@@ -75,6 +76,11 @@ func NewServer(hub *Hub) *Server {
 // SetHTTPServer attaches an HTTP server to the daemon server for coordinated shutdown.
 func (s *Server) SetHTTPServer(srv *http.Server) {
 	s.httpSrv = srv
+}
+
+// SetHTTPAddr sets the HTTP address served by the daemon for client discovery.
+func (s *Server) SetHTTPAddr(addr string) {
+	s.httpAddr = addr
 }
 
 // SetSpooler attaches a spooler to the daemon server.
@@ -153,6 +159,12 @@ func (s *Server) dispatch(conn net.Conn, req Request) {
 	switch req.Method {
 	case "ping":
 		resp.Result = "pong"
+		s.sendResponse(conn, resp)
+	case "get_server_info":
+		resp.Result = ServerInfo{
+			HTTPAddr:  s.httpAddr,
+			VaultPath: s.vaultDir,
+		}
 		s.sendResponse(conn, resp)
 	case "get_active_context":
 		resp.Result = s.hub.GetActiveContext()
@@ -549,4 +561,24 @@ func (c *Client) SearchHybridContext(ctx context.Context, payload SearchHybridPa
 		return nil, err
 	}
 	return results, nil
+}
+
+// GetServerInfoContext queries the daemon's HTTP ConnectRPC endpoint and vault path.
+func (c *Client) GetServerInfoContext(ctx context.Context) (*ServerInfo, error) {
+	resp, err := c.sendRequestContext(ctx, "get_server_info", nil)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Error != "" {
+		return nil, errors.New(resp.Error)
+	}
+	b, err := json.Marshal(resp.Result)
+	if err != nil {
+		return nil, err
+	}
+	var info ServerInfo
+	if err := json.Unmarshal(b, &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
 }

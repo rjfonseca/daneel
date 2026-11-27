@@ -1,6 +1,5 @@
 import { lazy, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { Settings } from 'sigma/settings';
-import type { NodeDisplayData } from 'sigma/types';
 import { DeferredPanel } from './components/DeferredPanel';
 import { SigmaContainer } from '@react-sigma/core';
 import '@react-sigma/core/lib/style.css';
@@ -10,17 +9,24 @@ import {
   loadMaxNebulas,
   saveMaxNebulas,
   resolveProjectCategory,
-  isRootNoteCategory,
   getCategoryDisplayName,
   getSectorDisplayName,
 } from './lib/nebulas';
 import { preprocessWikiLinks, resolveInternalLink } from './lib/linkResolver';
 import { classifyStar } from './lib/stellarClassification';
-import { computeEdgeDisplay, type EdgeVisibilityMode, type EdgeData } from './lib/edgeFiltering';
+import { type EdgeVisibilityMode } from './lib/edgeFiltering';
 import { computeConstellation, type ConstellationResult } from './lib/constellationFilter';
 import { NodeStellarProgram } from './lib/nodeStellarProgram';
 import { sigmaContext } from './lib/sigmaContext';
 import { client } from './lib/apiClient';
+import {
+  loadScopeMode,
+  saveScopeMode,
+  type GalaxyScopeMode,
+  type LodTelemetry,
+} from './lib/semanticZoomLod';
+import { createGalaxyReducers } from './lib/galaxy/galaxyReducers';
+import { MAX_CAMERA_RATIO, MIN_CAMERA_RATIO } from './lib/galaxy/smoothCamera';
 
 // Renderers
 import { drawCustomLabel, drawHover } from './renderers/canvasCustomLabels';
@@ -38,7 +44,6 @@ import { decodeNavigationHash, getDirectedRelations, getExplorerNodes, isMemoryN
 // Domain Types
 import type {
   GalaxyNode,
-  GalaxyLink,
   HoverTooltipNode,
   HoverTooltipState,
   SearchResultItem,
@@ -69,8 +74,9 @@ const KnowledgeReviewPanel = lazy(() => import('./components/KnowledgeReviewPane
 
 const RECENT_NOTES_KEY = 'daneel:recent-notes:v1';
 const SAVED_SEARCHES_KEY = 'daneel:saved-searches:v1';
+const HUD_ROOT_STYLE = { '--hud-content-top': '128px' } as React.CSSProperties;
 const INITIAL_NAVIGATION: NavigationSnapshot = {
-  target: null, camera: null, activeFilter: 'All', edgeMode: 'focus',
+  target: null, camera: null, activeFilter: 'All', edgeMode: 'focus', scopeMode: 'hybrid',
   showRings: true, showSectorLabels: true, showNebulaLabels: true,
   isCosmicMode: true, reducedMotion: false, drawerWidth: 440, scrollTop: 0,
 };
@@ -103,6 +109,8 @@ export default function App() {
   const [hoverTooltip, setHoverTooltip] = useState<HoverTooltipState | null>(null);
   const [maxNebulas, setMaxNebulas] = useState<number>(() => loadMaxNebulas());
   const [edgeMode, setEdgeMode] = useState<EdgeVisibilityMode>('focus');
+  const [scopeMode, setScopeMode] = useState<GalaxyScopeMode>(() => loadScopeMode());
+  const [lodTelemetry, setLodTelemetry] = useState<LodTelemetry | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const [copied, setCopied] = useState(false);
   const [galaxyApi, setGalaxyApi] = useState<GalaxyApi | null>(null);
@@ -188,6 +196,24 @@ export default function App() {
     sigmaContext.sigma?.refresh({ schedule: true });
   }, [focusedSector, activeNote, galaxyApi]);
 
+  const handleAutoUnfocus = useCallback((opts: { clearCluster: boolean; clearSector: boolean; clearConstellation?: boolean }) => {
+    if (opts.clearConstellation) {
+      setConstellation(null);
+      sigmaContext.constellation = null;
+      setTargetNodeId(prev => (prev && !prev.startsWith('__SECTOR_') && !prev.startsWith('__CAT_') ? null : prev));
+    }
+    if (opts.clearCluster) {
+      setFocusedCluster(null);
+      sigmaContext.focusedCluster = null;
+      setTargetNodeId(prev => (prev && prev.startsWith('__CAT_') ? null : prev));
+    }
+    if (opts.clearSector) {
+      setFocusedSector(null);
+      sigmaContext.focusedSector = null;
+      setTargetNodeId(prev => (prev && (prev.startsWith('__SECTOR_') || prev.startsWith('__CAT_')) ? null : prev));
+    }
+  }, []);
+
   const activeSectorName = useMemo(() => {
     if (activeNote) {
       const cat = activeNote.category || activeNote.id || '';
@@ -211,7 +237,10 @@ export default function App() {
       }
     }
     if (focusedCluster) {
-      return getCategoryDisplayName(focusedCluster);
+      const clusterDisplay = getCategoryDisplayName(focusedCluster);
+      if (clusterDisplay && clusterDisplay !== activeSectorName) {
+        return clusterDisplay;
+      }
     }
     return null;
   }, [focusedCluster, activeNote, activeSectorName]);
@@ -220,6 +249,12 @@ export default function App() {
     setEdgeMode(mode);
     sigmaContext.edgeMode = mode;
     sigmaContext.sigma?.refresh({ schedule: true });
+  }, []);
+
+  const handleScopeModeChange = useCallback((mode: GalaxyScopeMode) => {
+    setScopeMode(mode);
+    saveScopeMode(mode);
+    sigmaContext.scopeMode = mode;
   }, []);
 
   const processedMarkdown = useMemo(() => {
@@ -359,6 +394,7 @@ export default function App() {
     currentSnapshot.current = snapshot;
     setActiveFilter(snapshot.activeFilter);
     handleEdgeModeChange(snapshot.edgeMode);
+    if (snapshot.scopeMode) handleScopeModeChange(snapshot.scopeMode);
     setShowRings(snapshot.showRings);
     setShowSectorLabels(snapshot.showSectorLabels);
     setShowNebulaLabels(snapshot.showNebulaLabels);
@@ -430,22 +466,30 @@ export default function App() {
   useEffect(() => {
     if (!deepLinkHandled.current) return;
     currentSnapshot.current = {
-      ...currentSnapshot.current, activeFilter, edgeMode, showRings,
+      ...currentSnapshot.current, activeFilter, edgeMode, scopeMode, showRings,
       showSectorLabels, showNebulaLabels, isCosmicMode, reducedMotion, drawerWidth,
     };
     navigation.replace(currentSnapshot.current);
-  }, [activeFilter, edgeMode, showRings, showSectorLabels, showNebulaLabels, isCosmicMode, reducedMotion, drawerWidth, navigation]);
+  }, [activeFilter, edgeMode, scopeMode, showRings, showSectorLabels, showNebulaLabels, isCosmicMode, reducedMotion, drawerWidth, navigation]);
 
   useEffect(() => {
     const camera = sigmaContext.sigma?.getCamera();
     if (!camera) return;
+    let replaceTimer: number | null = null;
     const updated = () => {
       if (!deepLinkHandled.current || pendingCameraRestore.current !== null) return;
       currentSnapshot.current = { ...currentSnapshot.current, camera: camera.getState() };
-      navigation.replace(currentSnapshot.current);
+      if (replaceTimer !== null) window.clearTimeout(replaceTimer);
+      replaceTimer = window.setTimeout(() => {
+        replaceTimer = null;
+        navigation.replace(currentSnapshot.current);
+      }, 250);
     };
     camera.on('updated', updated);
-    return () => { camera.off('updated', updated); };
+    return () => {
+      camera.off('updated', updated);
+      if (replaceTimer !== null) window.clearTimeout(replaceTimer);
+    };
   }, [galaxyApi, navigation]);
 
   useEffect(() => () => {
@@ -578,16 +622,19 @@ export default function App() {
   }, [searchQuery]);
 
   const viewState: GalaxyViewState = useMemo(() => ({
-    edgeMode, showSectorLabels, showNebulaLabels, isCosmicMode, showRings, reducedMotion,
-  }), [edgeMode, showSectorLabels, showNebulaLabels, isCosmicMode, showRings, reducedMotion]);
+    edgeMode, scopeMode, showSectorLabels, showNebulaLabels, isCosmicMode, showRings, reducedMotion,
+  }), [edgeMode, scopeMode, showSectorLabels, showNebulaLabels, isCosmicMode, showRings, reducedMotion]);
   const handleViewChange = useCallback((next: GalaxyViewState) => {
     handleEdgeModeChange(next.edgeMode);
+    if (next.scopeMode !== scopeMode) {
+      handleScopeModeChange(next.scopeMode);
+    }
     setShowSectorLabels(next.showSectorLabels);
     setShowNebulaLabels(next.showNebulaLabels);
     setIsCosmicMode(next.isCosmicMode);
     setShowRings(next.showRings);
     setReducedMotion(next.reducedMotion);
-  }, [handleEdgeModeChange]);
+  }, [handleEdgeModeChange, handleScopeModeChange, scopeMode]);
 
   const { toastNotification: remoteToast, clearToast: clearRemoteToast } = useUIEventSync({
     setSelectedNodeId: (id: string | null) => { if (id) focusNode(id); },
@@ -657,8 +704,10 @@ export default function App() {
     defaultDrawNodeLabel: drawCustomLabel,
     defaultDrawNodeHover: drawHover,
     renderEdgeLabels: false,
-    hideEdgesOnMove: true,
-    hideLabelsOnMove: true,
+    hideEdgesOnMove: false,
+    hideLabelsOnMove: false,
+    minCameraRatio: MIN_CAMERA_RATIO,
+    maxCameraRatio: MAX_CAMERA_RATIO,
     defaultNodeType: "circle",
     nodeProgramClasses: {
       circle: NodeStellarProgram,
@@ -668,213 +717,11 @@ export default function App() {
     labelGridCellSize: 120,
     minEdgeThickness: 0.1,
     zIndex: true,
-    nodeReducer: (node: string, dataAttrs: Partial<GalaxyNode> & Partial<NodeDisplayData> & { isRoot?: boolean; alwaysRenderLabel?: boolean }) => {
-      const base = { ...dataAttrs, key: node };
-      if (node.startsWith('__CAT_') || node.startsWith('__SECTOR_')) {
-        if (node.startsWith('__CAT_')) {
-          const catName = node.replace('__CAT_', '');
-          const isRoot = isRootNoteCategory(catName) || Boolean(base.isRoot);
-          if (isRoot) {
-            return {
-              ...base,
-              forceLabel: true,
-              alwaysRenderLabel: true,
-              labelDensityWeight: 35000,
-              zIndex: 30,
-            };
-          }
-        }
-        if (node.startsWith('__SECTOR_')) {
-          return {
-            ...base,
-            forceLabel: base.forceLabel ?? true,
-            alwaysRenderLabel: base.alwaysRenderLabel ?? true,
-            zIndex: 25,
-          };
-        }
-        return base;
-      }
-
-      // ARMS Toggle: oculta completamente estações e anéis quando desativado
-      if (!sigmaContext.showRings && (base.ring === 'skills' || base.ring === 'routines' || base.ring === 'harvesters')) {
-        return { ...base, hidden: true, label: '' };
-      }
-
-      // Constelação isolada sob demanda
-      const constel = sigmaContext.constellation;
-      if (constel) {
-        if (node === constel.centerNodeId) {
-          return {
-            ...base,
-            zIndex: 35,
-            size: ((base.size as number) || 1) * 1.35,
-            highlighted: true,
-            forceLabel: true,
-          };
-        }
-        if (constel.visibleNodes.has(node)) {
-          const hop = constel.hopDistances.get(node);
-          return {
-            ...base,
-            zIndex: hop === 1 ? 25 : 15,
-            size: hop === 1 ? ((base.size as number) || 1) * 1.15 : base.size,
-            forceLabel: false,
-          };
-        }
-        // Oculta nós de fundo para evidenciar a constelação sem poluição visual
-        return {
-          ...base,
-          hidden: true,
-          label: '',
-        };
-      }
-
-      // Cluster focado: isola apenas estrelas pertencentes ao cluster/nebulosa
-      if (sigmaContext.focusedCluster) {
-        const clusterCat = sigmaContext.focusedCluster.replace('__CAT_', '').toLowerCase();
-        const cleanCluster = clusterCat.replace(/^(notes|sources)\//, '');
-        const noteCat = String(base.originalCategory || base.category || 'root').toLowerCase();
-        const cleanNoteCat = noteCat.replace(/^(notes|sources)\//, '');
-        const belongsToCluster =
-          noteCat === clusterCat ||
-          noteCat.startsWith(clusterCat + '/') ||
-          cleanNoteCat === cleanCluster ||
-          cleanNoteCat.startsWith(cleanCluster + '/');
-        if (!belongsToCluster) {
-          return { ...base, hidden: true, label: '' };
-        }
-        return {
-          ...base,
-          size: Math.max(3.5, ((base.size as number) || 2) * 1.5),
-          zIndex: 15,
-        };
-      }
-
-      // Setor focado: isola apenas nós pertencentes ao setor da nebulosa
-      if (sigmaContext.focusedSector) {
-        const sectorCat = sigmaContext.focusedSector.replace('__SECTOR_', '').replace('__CAT_', '').toLowerCase();
-        const cleanSector = sectorCat.replace(/^(notes|sources)\//, '');
-        const noteCat = String(base.originalCategory || base.category || 'root').toLowerCase();
-        const cleanNoteCat = noteCat.replace(/^(notes|sources)\//, '');
-        const noteSector = resolveProjectCategory(noteCat).sector.toLowerCase();
-        const cleanNoteSector = noteSector.replace(/^(notes|sources)\//, '');
-        const belongsToSector =
-          noteCat === sectorCat ||
-          noteCat.startsWith(sectorCat + '/') ||
-          cleanNoteCat === cleanSector ||
-          cleanNoteCat.startsWith(cleanSector + '/') ||
-          noteSector === sectorCat ||
-          cleanNoteSector === cleanSector;
-        if (!belongsToSector) {
-          return { ...base, hidden: true, label: '' };
-        }
-        return {
-          ...base,
-          size: Math.max(3.5, ((base.size as number) || 2) * 1.5),
-          zIndex: 15,
-        };
-      }
-
-      // Estações ARMS: força renderização de rótulos táticos mesmo em zoomout
-      if (base.ring === 'skills' || base.ring === 'routines' || base.ring === 'harvesters') {
-        return {
-          ...base,
-          forceLabel: true,
-          zIndex: 18,
-        };
-      }
-
-      return base;
-    },
-    edgeReducer: (edge: string, dataAttrs: Partial<GalaxyLink>) => {
-      if (dataAttrs.originalHidden === true || edge.startsWith('__CAT_') || edge.startsWith('__SECTOR_')) {
-        return { hidden: true, color: 'rgba(0,0,0,0)', size: 0.1, zIndex: 0 };
-      }
-
-      // ARMS Toggle: oculta arestas orbitais
-      if (!sigmaContext.showRings && (dataAttrs.isOrbital || dataAttrs.ring)) {
-        return { hidden: true, color: 'rgba(0,0,0,0)', size: 0.1, zIndex: 0 };
-      }
-
-      const constel = sigmaContext.constellation;
-      if (constel) {
-        const s = dataAttrs.source as string;
-        const t = dataAttrs.target as string;
-        if (constel.visibleNodes.has(s) && constel.visibleNodes.has(t)) {
-          const isDirectCenter = s === constel.centerNodeId || t === constel.centerNodeId;
-          return {
-            hidden: false,
-            color: isDirectCenter ? 'rgba(186, 230, 253, 0.40)' : 'rgba(56, 189, 248, 0.12)',
-            size: isDirectCenter ? 0.25 : 0.10,
-            zIndex: isDirectCenter ? 20 : 10,
-          };
-        }
-        return {
-          hidden: true,
-          color: 'rgba(0,0,0,0)',
-          size: 0.1,
-          zIndex: 0,
-        };
-      }
-
-      // Cluster focado: oculta arestas que conectam nós fora do cluster
-      if (sigmaContext.focusedCluster) {
-        const clusterCat = sigmaContext.focusedCluster.replace('__CAT_', '').toLowerCase();
-        const cleanCluster = clusterCat.replace(/^(notes|sources)\//, '');
-        const sCat = String(dataAttrs.sourceCategory || '').toLowerCase();
-        const tCat = String(dataAttrs.targetCategory || '').toLowerCase();
-        const cleanSCat = sCat.replace(/^(notes|sources)\//, '');
-        const cleanTCat = tCat.replace(/^(notes|sources)\//, '');
-        const sBelongs = sCat === clusterCat || sCat.startsWith(clusterCat + '/') || cleanSCat === cleanCluster || cleanSCat.startsWith(cleanCluster + '/');
-        const tBelongs = tCat === clusterCat || tCat.startsWith(clusterCat + '/') || cleanTCat === cleanCluster || cleanTCat.startsWith(cleanCluster + '/');
-        if (!sBelongs || !tBelongs) {
-          return { hidden: true, color: 'rgba(0,0,0,0)', size: 0.1, zIndex: 0 };
-        }
-      } else if (sigmaContext.focusedSector) {
-        // Setor focado: oculta arestas que conectam nós fora do setor
-        const sectorCat = sigmaContext.focusedSector.replace('__SECTOR_', '').replace('__CAT_', '').toLowerCase();
-        const cleanSector = sectorCat.replace(/^(notes|sources)\//, '');
-        const sCat = String(dataAttrs.sourceCategory || '').toLowerCase();
-        const tCat = String(dataAttrs.targetCategory || '').toLowerCase();
-        const cleanSCat = sCat.replace(/^(notes|sources)\//, '');
-        const cleanTCat = tCat.replace(/^(notes|sources)\//, '');
-        const sSector = resolveProjectCategory(sCat).sector.toLowerCase();
-        const tSector = resolveProjectCategory(tCat).sector.toLowerCase();
-        const cleanSSector = sSector.replace(/^(notes|sources)\//, '');
-        const cleanTSector = tSector.replace(/^(notes|sources)\//, '');
-        const sBelongs =
-          sCat === sectorCat ||
-          sCat.startsWith(sectorCat + '/') ||
-          cleanSCat === cleanSector ||
-          cleanSCat.startsWith(cleanSector + '/') ||
-          sSector === sectorCat ||
-          cleanSSector === cleanSector;
-        const tBelongs =
-          tCat === sectorCat ||
-          tCat.startsWith(sectorCat + '/') ||
-          cleanTCat === cleanSector ||
-          cleanTCat.startsWith(cleanSector + '/') ||
-          tSector === sectorCat ||
-          cleanTSector === cleanSector;
-        if (!sBelongs || !tBelongs) {
-          return { hidden: true, color: 'rgba(0,0,0,0)', size: 0.1, zIndex: 0 };
-        }
-      }
-
-      const ctx = {
-        cameraRatio: sigmaContext.sigma?.getCamera()?.ratio ?? 1.0,
-        mode: sigmaContext.edgeMode || 'auto',
-        hoveredNodeId: sigmaContext.hoveredNodeId,
-        selectedNodeId: sigmaContext.selectedNodeId,
-        focusedCategory: sigmaContext.focusedSector,
-      };
-      const result = computeEdgeDisplay(dataAttrs as unknown as EdgeData, dataAttrs.source as string, dataAttrs.target as string, ctx);
-      return { ...dataAttrs, ...result };
-    },
+    ...createGalaxyReducers(() => sigmaContext),
   }), []);
 
   return (
-    <div data-hud-root style={{ '--hud-content-top': '128px' } as React.CSSProperties} className="w-screen h-screen bg-void flex relative text-white font-sans overflow-hidden dark select-none">
+    <div data-hud-root style={HUD_ROOT_STYLE} className="w-screen h-screen bg-void flex relative text-white font-sans overflow-hidden dark select-none">
 
       <CosmicNotificationToast
         notification={toastNotification}
@@ -884,6 +731,7 @@ export default function App() {
       {/* Unified Command Bridge */}
       <TopCosmicBar
         stats={stats}
+        visibleStarsCount={lodTelemetry?.visibleStars}
         onResetCamera={handleResetCamera}
         onOpenSearch={() => { setHeaderDisclosure(null); setIsSearchOpen(true); }}
         onToggleControls={() => setHeaderDisclosure(current => current === 'view' ? null : 'view')}
@@ -979,6 +827,7 @@ export default function App() {
         onChange={handleViewChange}
         maxNebulas={maxNebulas}
         onUpdateMaxNebulas={updateMaxNebulas}
+        lodTelemetry={lodTelemetry}
       />
 
       {/* Floating Command Search Dialog */}
@@ -1003,6 +852,11 @@ export default function App() {
       <SectorResetIndicator
         focusedSector={focusedSector || focusedCluster}
         onReset={handleResetCamera}
+        isConstellationActive={Boolean(constellation)}
+        onResetConstellation={handleResetConstellation}
+        hasActiveDrawer={Boolean(activeNote)}
+        drawerWidth={drawerWidth}
+        isObstructedBySidePanel={isExplorerOpen || isReviewOpen}
       />
 
       {/* Bottom Cybernetic HUD Hotbar */}
@@ -1096,6 +950,9 @@ export default function App() {
           showNebulaLabels={showNebulaLabels}
           drawerWidth={drawerWidth}
           reducedMotion={reducedMotion}
+          scopeMode={scopeMode}
+          onLodTelemetryChange={setLodTelemetry}
+          onAutoUnfocus={handleAutoUnfocus}
         />
       </SigmaContainer>
     </div>

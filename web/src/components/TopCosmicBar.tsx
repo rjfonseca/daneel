@@ -10,6 +10,7 @@ import type { NavigationToolbarProps } from './NavigationToolbar';
 
 export interface TopCosmicBarProps {
   stats?: GalaxyStats;
+  visibleStarsCount?: number;
   onResetCamera: () => void;
   onOpenSearch: () => void;
   onToggleControls?: () => void;
@@ -29,7 +30,7 @@ export interface TopCosmicBarProps {
 }
 
 export const TopCosmicBar: React.FC<TopCosmicBarProps> = ({
-  stats, onResetCamera, onOpenSearch, onToggleControls, isControlsOpen = false,
+  stats, visibleStarsCount, onResetCamera, onOpenSearch, onToggleControls, isControlsOpen = false,
   activeSectorName, activeClusterName, onSelectSector, onOpenShortcuts,
   isCloakOpen = false, onToggleCloak, isZenSky = false, onToggleCockpit, isCockpitOpen = false,
   navigation, disclosure, onDisclosureChange,
@@ -82,11 +83,19 @@ export const TopCosmicBar: React.FC<TopCosmicBarProps> = ({
       }
     };
     publishBoundary();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(publishBoundary);
-    observer.observe(header);
-    return () => observer.disconnect();
-  }, []);
+    window.addEventListener('resize', publishBoundary);
+    let cancelled = false;
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) publishBoundary();
+    });
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(publishBoundary) : null;
+    observer?.observe(header);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('resize', publishBoundary);
+      observer?.disconnect();
+    };
+  }, [layout]);
   useEffect(() => {
     if (!disclosure) return;
     const onPointer = (event: PointerEvent) => {
@@ -116,7 +125,7 @@ export const TopCosmicBar: React.FC<TopCosmicBarProps> = ({
     <HudCard variant="default" elevation="surface" className="pointer-events-none relative px-2 py-1.5 sm:px-3">
       <div className="flex min-h-10 items-center gap-2 border-b border-white/10 px-1 pb-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span role="img" aria-label="Prime Radiant"><Activity className="h-4 w-4 shrink-0 text-cyan-400 min-[768px]:hidden" aria-hidden="true" /></span>
+          <span role="img" aria-label="Prime Radiant" className="shrink-0 min-[768px]:hidden"><Activity className="h-4 w-4 text-cyan-400" aria-hidden="true" /></span>
           <div className="hidden min-w-0 min-[768px]:block">
             <div className="font-black text-xs tracking-wider text-indigo-200">PRIME RADIANT</div>
           </div>
@@ -129,6 +138,11 @@ export const TopCosmicBar: React.FC<TopCosmicBarProps> = ({
         </div>
         {layout === 'full' && <div className="flex shrink-0 items-center gap-3 text-[10px] font-mono text-slate-300" aria-label="Galaxy statistics">
           {labels.map((label, i) => <span key={label} title={`${label} in the local vault context`}>{label} <b className="text-white" data-testid={['cosmic-stat-notes','cosmic-stat-links','cosmic-stat-harvesters'][i]}>{statsValues[i]}</b></span>)}
+          {visibleStarsCount !== undefined && stats && visibleStarsCount < stats.totalNotes && (
+            <span data-testid="cosmic-stat-visible" title="Currently unfolded stars in view" className="rounded-full border border-cyan-400/35 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">
+              Visible <b className="text-white">{visibleStarsCount}</b>
+            </span>
+          )}
         </div>}
         {layout === 'condensed' && <span className="shrink-0 text-[10px] font-mono text-slate-300">Stars <b data-testid="cosmic-stat-notes">{statsValues[0]}</b></span>}
         <button type="button" onClick={onResetCamera} data-testid="reset-camera-btn" aria-label="Center galaxy panoramic overview" title="Center galaxy" className={`${button} ml-auto shrink-0 text-cyan-200`}><Compass className="h-4 w-4" aria-hidden="true" /><span className="hidden min-[768px]:inline">Center</span></button>

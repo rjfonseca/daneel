@@ -255,7 +255,7 @@ Performs ultra-fast local maintenance on the Vault (< 50ms):
 		}
 
 		fmt.Println("\n" + strings.Repeat("─", 80))
-		fmt.Printf("✨ Vault Hygiene Completed! Cached at `%s`.\n\n", pathStyle.Render(".agents/cache/dream_handoff.json"))
+		fmt.Printf("✨ Vault Hygiene Completed! Cached at `%s`.\n\n", pathStyle.Render(".daneel/cache/dream_handoff.json"))
 		fmt.Println(lore.FormatQuote(lore.GetRandomQuote()))
 		fmt.Println()
 

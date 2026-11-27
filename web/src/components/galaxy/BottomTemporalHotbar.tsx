@@ -327,12 +327,20 @@ export const BottomTemporalHotbar: React.FC<BottomTemporalHotbarProps> = ({
           })}
         </div>
 
-        <div className="max-w-40 border-l border-white/10 pl-3 text-[10px] text-slate-300" data-testid="temporal-selected-day-summary" aria-live="polite">
+        <div
+          className={cn(
+            "max-w-40 border-l border-white/10 pl-3 text-[10px] text-slate-300",
+            hasActiveDrawer && "hidden min-[1600px]:block"
+          )}
+          data-testid="temporal-selected-day-summary"
+          aria-live="polite"
+        >
           <span className="text-slate-500">{selectedDate}</span>
           <span className="block truncate" title={selectedDay.title || 'No daily note'}>{selectedDay.title || 'No daily note'}</span>
         </div>
 
         {/* Seldon Vault Anchors Section */}
+        {anchors.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 pl-3 border-l border-white/10 relative max-w-full" role="group" aria-label="Seldon Vault Anchors">
           {/* User / Config Pinned Anchors */}
           {visibleAnchors.map((anchor) => (
@@ -428,6 +436,7 @@ export const BottomTemporalHotbar: React.FC<BottomTemporalHotbarProps> = ({
             </div>
           )}
         </div>
+        )}
       </HudCard>
     </footer>
   );

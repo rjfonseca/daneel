@@ -264,8 +264,30 @@ Análise de acoplamento, contratos e protocolos compartilhados entre %s e %s.
 	return drafts, nil
 }
 
+func isNoOpEvolutionReport(report *FullDreamReport) bool {
+	if report == nil {
+		return true
+	}
+	if report.FixedLinksCount > 0 || report.BrokenLinksCount > 0 {
+		return false
+	}
+	if report.Metacognition != nil {
+		m := report.Metacognition
+		if len(m.Bottlenecks) > 0 || len(m.Syntheses) > 0 || len(m.Insights) > 0 {
+			return false
+		}
+		if m.InputTokens > 0 || m.CacheReadTokens > 0 || m.OutputTokens > 0 || m.EstimatedCostUSD > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // AppendEvolutionLog appends the dream cycle execution entry to meta/guias/agente-evolucao.md.
 func AppendEvolutionLog(vaultRoot string, date string, report *FullDreamReport) error {
+	if isNoOpEvolutionReport(report) {
+		return nil
+	}
 	metaDir := filepath.Join(vaultRoot, "meta", "guias")
 
 	logPath := filepath.Join(metaDir, "agente-evolucao.md")

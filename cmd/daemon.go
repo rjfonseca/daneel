@@ -70,6 +70,7 @@ var daemonRunCmd = &cobra.Command{
 				return fmt.Errorf("failed to initialize HTTP server: %w", err)
 			}
 			server.SetHTTPServer(httpServer)
+			server.SetHTTPAddr(fmt.Sprintf("http://%s", httpServer.Addr))
 		} else if cfg != nil {
 			if eng, err := search.Open(cfg.DBPath, cfg.VaultPath); err == nil {
 				searchEngine = eng

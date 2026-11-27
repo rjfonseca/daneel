@@ -30,10 +30,13 @@ mkdirSync(dailyDir);
 for (const date of ['2026-10-07', '2026-10-16']) {
   writeFileSync(path.join(dailyDir, `${date}.md`), `---\ntitle: Daily log for ${date}\n---\n# Daily log for ${date}\n\nA neutral daily reflection.\n`);
 }
-const binary = path.join(root, process.platform === 'win32' ? 'daneel.exe' : 'daneel');
+const prebuiltBinary = process.env.DANEEL_E2E_BINARY?.trim();
+const binary = prebuiltBinary || path.join(root, process.platform === 'win32' ? 'daneel.exe' : 'daneel');
 const env = { ...process.env, DANEEL_CONFIG: '', DANEEL_VAULT_PATH: '', CGO_ENABLED: '0' };
 for (const kind of ['CONFIG', 'CACHE', 'DATA', 'STATE']) env[`XDG_${kind}_HOME`] = path.join(root, kind.toLowerCase());
-execFileSync('go', ['build', '-o', binary, '..'], { env, stdio: 'inherit' });
+if (!prebuiltBinary) {
+  execFileSync('go', ['build', '-o', binary, '..'], { env, stdio: 'inherit' });
+}
 const child = spawn(binary, ['serve', '--port', '8088', '--vault-path', vault], { env, stdio: 'inherit' });
 let stopping = false;
 const stop = () => { stopping = true; child.kill(); };

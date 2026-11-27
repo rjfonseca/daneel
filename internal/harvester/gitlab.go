@@ -74,8 +74,9 @@ func (h *GitLabHarvester) HarvestUser(userName string, limit int) (*HarvestStats
 func (h *GitLabHarvester) harvestProjects(projects []glProject) (*HarvestStats, error) {
 	start := time.Now()
 	outputDir := filepath.Join(h.vaultRoot, "sources", "gitlab")
-	cacheFile := filepath.Join(h.vaultRoot, ".agents", "cache", "gitlab_harvest_cache.json")
-	cache := loadCache(cacheFile)
+	cacheFile := resolveHarvestCachePath(h.vaultRoot, "gitlab_harvest_cache.json")
+	legacyCacheFile := filepath.Join(h.vaultRoot, ".agents", "cache", "gitlab_harvest_cache.json")
+	cache := loadCacheWithFallback(cacheFile, legacyCacheFile)
 
 	stats := &HarvestStats{
 		Platform:      "GitLab",
