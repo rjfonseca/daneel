@@ -6,7 +6,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   retries: 0,
-  workers: 1,
+  workers: process.env.CI ? 2 : undefined,
   reporter: 'list',
   use: {
     baseURL: embedded ? 'http://localhost:8088' : 'http://localhost:5173',
@@ -18,6 +18,13 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /knowledge-capture\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'chromium-mutations',
+      testMatch: /knowledge-capture\.spec\.ts/,
+      dependencies: ['chromium'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],
