@@ -130,7 +130,7 @@ Location: [`web/src/lib/nodeStellarProgram.ts`](web/src/lib/nodeStellarProgram.t
 
 ## 6. ForceAtlas2 Stabilization & Lifecycle
 
-- ForceAtlas2 layout executes for ~8.5 seconds on initial galaxy load.
+- ForceAtlas2 stabilization scales adaptively with graph size via `computeLayoutSettlePlan` (`~1.8s` for small vaults `<= 250` nodes up to `~8.5s` for large vaults `>= 2000` nodes, and `~0.4s` when cached layout covers `>= 90%` of memory nodes).
 - **Premature Interaction Guard**: The UI displays an overlay (`data-testid="cosmic-loading-overlay"`) until layout completes (`isReady = true`).
 - **Preserve User Navigation**: When layout finishes, the `animatedReset` callback must **NOT** trigger if `selectedNodeId` or `focusedSector` is active, avoiding cancelling user-initiated focal animations.
 

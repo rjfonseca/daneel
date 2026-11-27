@@ -22,6 +22,7 @@ import { SmoothCameraController, MIN_CAMERA_RATIO, MAX_CAMERA_RATIO } from '../.
 import { evaluateFocusZoomExit } from '../../lib/galaxy/focusZoomExit';
 import { applySectorVisibilityFilter } from '../../lib/galaxy/sectorVisibility';
 import { HoverController } from '../../lib/galaxy/hoverController';
+import { computeLayoutSettlePlan } from '../../lib/galaxy/layoutTiming';
 import { OverlayCanvas } from './OverlayCanvas';
 import type { GalaxyControllerProps } from '../../types/galaxy';
 
@@ -1000,14 +1001,33 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
 
     loadGraph(graph);
     trafficSimulatorRef.current.init(graph, 10);
-    
+
+    let memoryNodeCount = 0;
+    let cachedMemoryCount = 0;
+    safeNodes.forEach((n) => {
+      if (!n.ring || n.ring === 'memory') {
+        memoryNodeCount += 1;
+        if (cachedLayout[n.id]) cachedMemoryCount += 1;
+      }
+    });
+    const cachedCoverageRatio = memoryNodeCount > 0 ? cachedMemoryCount / memoryNodeCount : 0;
+    const initialPlan = computeLayoutSettlePlan({
+      nodeCount: graph.order,
+      cachedCoverageRatio,
+      reducedMotion: motionReducedRef.current,
+      shouldAnimateReset: true,
+    });
+
     let stopped = false;
+    let disposed = false;
+    let postStopTimer: ReturnType<typeof setTimeout> | null = null;
+    let readyTimer: ReturnType<typeof setTimeout> | null = null;
     try { start(); } catch (_e) { /* noop if layout already running */ }
-    
-    const waitTime = Object.keys(cachedLayout).length > 0 ? 1500 : 8500;
-    
+
+    const waitTime = initialPlan.forceAtlasMs;
+
     const timer = setTimeout(() => {
-      if (stopped) return;
+      if (disposed || stopped) return;
       stopped = true;
       try { stop(); } catch (_e) { /* noop if layout already stopped */ }
       
@@ -1149,32 +1169,56 @@ export const GalaxyController: React.FC<GalaxyControllerProps> = ({
       // Node coordinates changed in place after ForceAtlas2. Reframe the current
       // selection against the settled layout rather than its initial position.
       setLayoutRevision(revision => revision + 1);
-      
-      setTimeout(() => {
-        if (!sigmaContext.selectedNodeId && !sigmaContext.focusedSector && !sigmaContext.focusedCluster && !userHasInteractedRef.current) {
+
+      const shouldAnimateReset =
+        !sigmaContext.selectedNodeId &&
+        !sigmaContext.focusedSector &&
+        !sigmaContext.focusedCluster &&
+        !userHasInteractedRef.current;
+      const settlePlan = computeLayoutSettlePlan({
+        nodeCount: graph.order,
+        cachedCoverageRatio,
+        reducedMotion: motionReducedRef.current,
+        shouldAnimateReset,
+      });
+
+      postStopTimer = setTimeout(() => {
+        if (disposed) return;
+        const runReset =
+          !sigmaContext.selectedNodeId &&
+          !sigmaContext.focusedSector &&
+          !sigmaContext.focusedCluster &&
+          !userHasInteractedRef.current;
+        if (runReset) {
           const animator = smoothCameraRef.current;
           if (animator) {
-            animator.animateTo({ x: 0.5, y: 0.5, ratio: 1, angle: 0 }, { duration: cameraDuration(1500), easing: 'cubicInOut' });
+            animator.animateTo(
+              { x: 0.5, y: 0.5, ratio: 1, angle: 0 },
+              { duration: settlePlan.resetDurationMs, easing: 'cubicInOut' }
+            );
           } else {
-            sigma.getCamera().animatedReset({ duration: cameraDuration(1500) });
+            sigma.getCamera().animatedReset({ duration: settlePlan.resetDurationMs });
           }
         }
-        
-        setTimeout(() => {
+
+        readyTimer = setTimeout(() => {
+          if (disposed) return;
           onReady();
           recomputeLod(true);
           sigma.refresh({ schedule: true });
-        }, 1500); 
-      }, 300);
-      
+        }, runReset ? settlePlan.readyDelayAfterResetMs : 50);
+      }, settlePlan.postStopDelayMs);
     }, waitTime);
 
     return () => {
+      disposed = true;
       stopped = true;
       clearTimeout(timer);
+      if (postStopTimer !== null) clearTimeout(postStopTimer);
+      if (readyTimer !== null) clearTimeout(readyTimer);
       try { stop(); } catch (_e) { /* noop on unmount */ }
     };
-  }, [safeNodes, safeLinks, catCounts, loadGraph, start, stop, sigma, onReady, maxNebulas, cameraDuration, recomputeLod]);
+  }, [safeNodes, safeLinks, catCounts, loadGraph, start, stop, sigma, onReady, maxNebulas, recomputeLod]);
 
   // Dynamically update category node attributes when maxNebulas changes
   useEffect(() => {
